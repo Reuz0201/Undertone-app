@@ -1,4 +1,6 @@
+using System.Collections.Generic;
 using System.ComponentModel;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using Undertone.Core;
 
@@ -25,6 +27,7 @@ namespace Undertone.UI
         public string? Cover => Track.CoverUrl(100);
         public bool Available => Track.Available;
         public string Duration => Format.Time(Track.Duration);
+        public IReadOnlyList<ArtistLink> ArtistLinks => ArtistLink.From(Track.ArtistRefs);
 
         public int Index
         {
@@ -47,6 +50,38 @@ namespace Undertone.UI
         public event PropertyChangedEventHandler? PropertyChanged;
         private void OnChanged([CallerMemberName] string? name = null) =>
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+    }
+
+    /// <summary>Имя артиста-ссылка + запятая после (кроме последнего).</summary>
+    public sealed record ArtistLink(string Id, string Name, string Separator)
+    {
+        public static IReadOnlyList<ArtistLink> From(IReadOnlyList<YaArtistRef> refs) =>
+            refs.Select((a, i) => new ArtistLink(a.Id, a.Name, i < refs.Count - 1 ? ", " : "")).ToList();
+    }
+
+    public sealed class PlaylistItem
+    {
+        public PlaylistItem(YaPlaylist playlist) => Playlist = playlist;
+        public YaPlaylist Playlist { get; }
+        public string Title => Playlist.Title;
+        public string Sub => $"{Playlist.TrackCount} {Format.Plural(Playlist.TrackCount, "трек", "трека", "треков")}";
+        public string? Cover => Playlist.CoverUrl(100);
+    }
+
+    public sealed class AlbumItem
+    {
+        public AlbumItem(YaAlbum album) => Album = album;
+        public YaAlbum Album { get; }
+        public string Title => Album.Title;
+        public string Sub
+        {
+            get
+            {
+                var kind = Album.Type switch { "single" => "Сингл", "compilation" => "Сборник", "podcast" => "Подкаст", _ => "Альбом" };
+                return Album.Year > 0 ? $"{Album.Year} · {kind}" : kind;
+            }
+        }
+        public string? Cover => Album.CoverUrl(300);
     }
 
     public static class Format

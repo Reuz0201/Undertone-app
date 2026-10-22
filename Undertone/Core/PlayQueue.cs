@@ -6,7 +6,7 @@ namespace Undertone.Core
 {
     public enum RepeatMode { Off, All, One }
 
-    public enum QueueSource { None, Wave, Liked, Search }
+    public enum QueueSource { None, Wave, Liked, Search, Collection }
 
     /// <summary>Очередь воспроизведения: shuffle, repeat, бесконечное дополнение для волны.</summary>
     public sealed class PlayQueue

@@ -10,6 +10,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Shell;
 using System.Windows.Threading;
+using Undertone.Audio;
 using Undertone.Core;
 using Undertone.UI;
 
@@ -18,7 +19,9 @@ namespace Undertone
     /// <summary>Воспроизведение, очередь, Моя волна, лайки.</summary>
     public partial class MainWindow
     {
-        private readonly MediaPlayer _player = new();
+        private readonly AudioEngine _player = new();
+        private string _queueLabel = "";
+        private string _waveKey = "";
         private readonly PlayQueue _queue = new();
         private readonly DispatcherTimer _progressTimer = new(DispatcherPriority.Render) { Interval = TimeSpan.FromMilliseconds(200) };
 
@@ -39,14 +42,28 @@ namespace Undertone
         {
             _player.MediaOpened += (_, _) =>
             {
-                var d = _player.NaturalDuration.HasTimeSpan
-                    ? _player.NaturalDuration.TimeSpan
-                    : _queue.Current?.Duration ?? TimeSpan.Zero;
+                var d = _player.NaturalDuration ?? _queue.Current?.Duration ?? TimeSpan.Zero;
                 ProgressSlider.Maximum = Math.Max(1, d.TotalSeconds);
                 DurText.Text = Format.Time(d);
             };
             _player.MediaEnded += async (_, _) => await NextAsync(auto: true);
-            _player.MediaFailed += async (_, e) => await OnPlaybackFailedAsync(e.ErrorException);
+            _player.MediaFailed += async (_, ex) => await OnPlaybackFailedAsync(ex);
+
+            // визуализаторы
+            foreach (var viz in new[] { BigViz, MiniViz })
+            {
+                viz.Engine = _player;
+                viz.IsActive = () => _isPlaying;
+                viz.Mode = (VisualizerMode)Math.Clamp(_settings.VisualizerMode, 0, 3);
+                viz.ModeCycled += (sender, _) =>
+                {
+                    var mode = ((Visualizer)sender!).Mode;
+                    BigViz.Mode = mode;
+                    MiniViz.Mode = mode;
+                    _settings.VisualizerMode = (int)mode;
+                    PersistSettings();
+                };
+            }
 
             _progressTimer.Tick += (_, _) => UpdateProgress();
 
@@ -60,11 +77,18 @@ namespace Undertone
 
         // ────────── запуск треков ──────────
 
-        private async Task PlayFromListAsync(IList<TrackItem> items, int index, QueueSource source)
+        private async Task PlayFromListAsync(IList<TrackItem> items, int index, QueueSource source, string? label = null)
         {
             if (index < 0 || items.Count == 0) return;
             ReportSkip();
             _waveSession = null;
+            _waveKey = "";
+            _queueLabel = label ?? source switch
+            {
+                QueueSource.Liked => "ИЗ «МНЕ НРАВИТСЯ»",
+                QueueSource.Search => "ИЗ ПОИСКА",
+                _ => "СЕЙЧАС ИГРАЕТ",
+            };
             _queue.Set(items.Select(i => i.Track), index, source, _settings.Shuffle);
             _queue.Repeat = _settings.Repeat;
             await PlayCurrentAsync();
@@ -101,7 +125,8 @@ namespace Undertone
                 if (gen != _playGen) return;
 
                 _currentFile = path;
-                _player.Open(new Uri(path));
+                _player.Open(path);
+                if (!_player.HasMedia) return; // MediaFailed уже обработан
                 _player.Play();
                 _hasMedia = true;
                 _isPlaying = true;
@@ -293,10 +318,14 @@ namespace Undertone
 
         // ────────── Моя волна ──────────
 
-        private async Task StartWaveAsync()
+        private Task StartWaveAsync() => StartWaveAsync(new[] { "user:onyourwave" }, "МОЯ ВОЛНА");
+
+        /// <param name="seeds">user:onyourwave — Моя волна; artist:123 — волна по артисту</param>
+        private async Task StartWaveAsync(string[] seeds, string label)
         {
             if (_api == null) return;
-            if (_queue.Source == QueueSource.Wave && _waveSession != null && _queue.Current != null)
+            var key = string.Join(",", seeds);
+            if (_queue.Source == QueueSource.Wave && _waveSession != null && _queue.Current != null && _waveKey == key)
             {
                 TogglePlay();
                 return;
@@ -305,11 +334,13 @@ namespace Undertone
             WaveCardSub.Text = "Настраиваю волну…";
             try
             {
-                var batch = await _api.StartWaveAsync(new[] { "user:onyourwave" });
+                var batch = await _api.StartWaveAsync(seeds);
                 if (batch.Tracks.Count == 0) throw new YaApiException("волна не вернула треков");
 
                 ReportSkip();
                 _waveSession = batch.SessionId;
+                _waveKey = key;
+                _queueLabel = label;
                 _waveBatch = batch.BatchId;
                 _queue.Set(batch.Tracks, 0, QueueSource.Wave);
                 _queue.Repeat = _settings.Repeat == RepeatMode.One ? RepeatMode.One : RepeatMode.Off;
@@ -443,17 +474,13 @@ namespace Undertone
             NowState.Visibility = Visibility.Visible;
 
             NowTitle.Text = track.FullTitle;
-            NowArtist.Text = track.ArtistsText;
+            NowArtists.ItemsSource = ArtistLink.From(track.ArtistRefs);
             NowAlbum.Text = track.Album;
-            NowSource.Text = _queue.Source switch
-            {
-                QueueSource.Wave => "МОЯ ВОЛНА",
-                QueueSource.Liked => "ИЗ «МНЕ НРАВИТСЯ»",
-                QueueSource.Search => "ИЗ ПОИСКА",
-                _ => "СЕЙЧАС ИГРАЕТ",
-            };
+            NowSource.Text = string.IsNullOrEmpty(_queueLabel) ? "СЕЙЧАС ИГРАЕТ" : _queueLabel;
             BarTitle.Text = track.FullTitle;
-            BarArtist.Text = track.ArtistsText;
+            BarArtists.ItemsSource = ArtistLink.From(track.ArtistRefs);
+            BarArtists.Visibility = Visibility.Visible;
+            BarArtist.Visibility = Visibility.Collapsed;
             BarLike.IsEnabled = true;
             Title = $"{track.ArtistsText} — {track.FullTitle}";
             Taskbar.Description = Title;
@@ -477,6 +504,8 @@ namespace Undertone
             NowState.Visibility = Visibility.Collapsed;
             BarTitle.Text = "Ничего не играет";
             BarArtist.Text = "Включите Мою волну";
+            BarArtist.Visibility = Visibility.Visible;
+            BarArtists.Visibility = Visibility.Collapsed;
             BarLike.IsEnabled = false;
             BarCoverBrush.ImageSource = null;
             BackdropImage.Source = null;
@@ -502,8 +531,8 @@ namespace Undertone
         {
             var glyph = _isPlaying ? "" : "";
             PlayBtn.Content = glyph;
-            WaveCardGlyph.Text = _queue.Source == QueueSource.Wave && _isPlaying ? "" : "";
-            WaveCardSub.Text = _queue.Source == QueueSource.Wave && _queue.Current != null
+            WaveCardGlyph.Text = _queue.Source == QueueSource.Wave && _waveKey == "user:onyourwave" && _isPlaying ? "" : "";
+            WaveCardSub.Text = _queue.Source == QueueSource.Wave && _queue.Current != null && _waveKey == "user:onyourwave"
                 ? (_isPlaying ? "Играет" : "На паузе")
                 : "Музыка под ваш вкус";
 

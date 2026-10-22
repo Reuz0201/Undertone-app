@@ -15,6 +15,7 @@ namespace Undertone.Core
         public double WindowHeight { get; set; }
         public bool WindowMaximized { get; set; }
         public bool TrayHintShown { get; set; }
+        public int VisualizerMode { get; set; }
 
         private static string FilePath => Path.Combine(EnvFile.DataDirectory, "settings.json");
 

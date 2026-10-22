@@ -14,6 +14,8 @@ using System.Xml.Linq;
 
 namespace Undertone.Core
 {
+    public sealed record YaArtistRef(string Id, string Name);
+
     public sealed class YaTrack
     {
         public string Id { get; init; } = "";
@@ -21,6 +23,7 @@ namespace Undertone.Core
         public string Title { get; init; } = "";
         public string Version { get; init; } = "";
         public string[] Artists { get; init; } = Array.Empty<string>();
+        public YaArtistRef[] ArtistRefs { get; init; } = Array.Empty<YaArtistRef>();
         public string Album { get; init; } = "";
         public long DurationMs { get; init; }
         public string? CoverUri { get; init; }
@@ -38,12 +41,58 @@ namespace Undertone.Core
         public override string ToString() => $"{ArtistsText} — {FullTitle}";
     }
 
+    public sealed class YaAlbum
+    {
+        public string Id { get; init; } = "";
+        public string Title { get; init; } = "";
+        public int Year { get; init; }
+        public string? CoverUri { get; init; }
+        public int TrackCount { get; init; }
+        public string Type { get; init; } = "";
+        public YaArtistRef[] Artists { get; init; } = Array.Empty<YaArtistRef>();
+        public string ArtistsText => string.Join(", ", Artists.Select(a => a.Name));
+        public string? CoverUrl(int size) =>
+            string.IsNullOrEmpty(CoverUri) ? null : "https://" + CoverUri.Replace("%%", $"{size}x{size}");
+    }
+
+    public sealed class YaArtist
+    {
+        public string Id { get; init; } = "";
+        public string Name { get; init; } = "";
+        public string? CoverUri { get; init; }
+        public string[] Genres { get; init; } = Array.Empty<string>();
+        public long LikesCount { get; init; }
+        public string? CoverUrl(int size) =>
+            string.IsNullOrEmpty(CoverUri) ? null : "https://" + CoverUri.Replace("%%", $"{size}x{size}");
+    }
+
+    public sealed class YaArtistPage
+    {
+        public YaArtist Artist { get; init; } = new();
+        public List<YaTrack> Tracks { get; init; } = new();
+        public List<YaAlbum> Albums { get; init; } = new();
+    }
+
+    public sealed class YaPlaylist
+    {
+        public string Kind { get; init; } = "";
+        public long OwnerUid { get; init; }
+        public string Title { get; init; } = "";
+        public int TrackCount { get; init; }
+        public int Revision { get; init; }
+        public string? CoverUri { get; init; }
+        public long DurationMs { get; init; }
+        public string? CoverUrl(int size) =>
+            string.IsNullOrEmpty(CoverUri) ? null : "https://" + CoverUri.Replace("%%", $"{size}x{size}");
+    }
+
     public sealed class YaAccount
     {
         public long Uid { get; init; }
         public string Login { get; init; } = "";
         public string DisplayName { get; init; } = "";
         public bool HasPlus { get; init; }
+        public string? AvatarUrl { get; set; }
     }
 
     public sealed class WaveBatch
@@ -294,6 +343,141 @@ namespace Undertone.Core
             return Convert.ToHexString(hash).ToLowerInvariant();
         }
 
+        // ────────── артисты, альбомы ──────────
+
+        public async Task<YaArtistPage> GetArtistAsync(string artistId, CancellationToken ct = default)
+        {
+            var brief = await GetAsync($"/artists/{artistId}/brief-info", ct);
+            var tracksResult = await GetAsync($"/artists/{artistId}/tracks?page=0&page-size=100", ct);
+
+            var page = new YaArtistPage
+            {
+                Artist = brief.TryGetProperty("artist", out var a) ? ParseArtist(a) : new YaArtist { Id = artistId },
+            };
+            if (tracksResult.TryGetProperty("tracks", out var tr) && tr.ValueKind == JsonValueKind.Array)
+                page.Tracks.AddRange(tr.EnumerateArray().Select(ParseTrack));
+            else if (brief.TryGetProperty("popularTracks", out var pop) && pop.ValueKind == JsonValueKind.Array)
+                page.Tracks.AddRange(pop.EnumerateArray().Select(ParseTrack));
+
+            if (brief.TryGetProperty("albums", out var albums) && albums.ValueKind == JsonValueKind.Array)
+                page.Albums.AddRange(albums.EnumerateArray().Select(ParseAlbum));
+            if (brief.TryGetProperty("alsoAlbums", out var also) && also.ValueKind == JsonValueKind.Array)
+                page.Albums.AddRange(also.EnumerateArray().Select(ParseAlbum).Where(x => page.Albums.All(y => y.Id != x.Id)));
+            return page;
+        }
+
+        public async Task<(YaAlbum Album, List<YaTrack> Tracks)> GetAlbumAsync(string albumId, CancellationToken ct = default)
+        {
+            var r = await GetAsync($"/albums/{albumId}/with-tracks", ct);
+            var tracks = new List<YaTrack>();
+            if (r.TryGetProperty("volumes", out var vols) && vols.ValueKind == JsonValueKind.Array)
+                foreach (var vol in vols.EnumerateArray())
+                    if (vol.ValueKind == JsonValueKind.Array)
+                        tracks.AddRange(vol.EnumerateArray().Select(ParseTrack));
+            return (ParseAlbum(r), tracks);
+        }
+
+        // ────────── плейлисты пользователя ──────────
+
+        public async Task<List<YaPlaylist>> GetPlaylistsAsync(CancellationToken ct = default)
+        {
+            var r = await GetAsync($"/users/{Uid}/playlists/list", ct);
+            return r.ValueKind == JsonValueKind.Array ? r.EnumerateArray().Select(ParsePlaylist).ToList() : new();
+        }
+
+        public async Task<(YaPlaylist Playlist, List<YaTrack> Tracks)> GetPlaylistAsync(string kind, CancellationToken ct = default)
+        {
+            var r = await GetAsync($"/users/{Uid}/playlists/{kind}", ct);
+            var playlist = ParsePlaylist(r);
+            var tracks = new List<YaTrack>();
+            var missing = new List<string>();
+            if (r.TryGetProperty("tracks", out var arr) && arr.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var item in arr.EnumerateArray())
+                {
+                    if (item.TryGetProperty("track", out var t) && t.ValueKind == JsonValueKind.Object)
+                        tracks.Add(ParseTrack(t));
+                    else
+                    {
+                        var id = Str(item, "id");
+                        var album = Str(item, "albumId");
+                        if (id.Length > 0) missing.Add(album.Length > 0 ? $"{id}:{album}" : id);
+                    }
+                }
+            }
+            // некоторые ответы содержат только id — догружаем треки
+            if (missing.Count > 0 && tracks.Count == 0)
+                tracks = await GetTracksAsync(missing, ct);
+            return (playlist, tracks);
+        }
+
+        public async Task<YaPlaylist> CreatePlaylistAsync(string title, CancellationToken ct = default) =>
+            ParsePlaylist(await PostFormAsync($"/users/{Uid}/playlists/create", new Dictionary<string, string>
+            {
+                ["title"] = title,
+                ["visibility"] = "private",
+            }, ct));
+
+        public async Task<YaPlaylist> RenamePlaylistAsync(string kind, string title, CancellationToken ct = default) =>
+            ParsePlaylist(await PostFormAsync($"/users/{Uid}/playlists/{kind}/name",
+                new Dictionary<string, string> { ["value"] = title }, ct));
+
+        public Task DeletePlaylistAsync(string kind, CancellationToken ct = default) =>
+            PostFormAsync($"/users/{Uid}/playlists/{kind}/delete", new Dictionary<string, string>(), ct);
+
+        /// <summary>Добавляет трек в начало плейлиста. Возвращает плейлист с новой ревизией.</summary>
+        public Task<YaPlaylist> AddToPlaylistAsync(YaPlaylist playlist, YaTrack track, CancellationToken ct = default) =>
+            ChangePlaylistAsync(playlist, new object[]
+            {
+                new Dictionary<string, object>
+                {
+                    ["op"] = "insert",
+                    ["at"] = 0,
+                    ["tracks"] = new[] { new Dictionary<string, string> { ["id"] = track.Id, ["albumId"] = track.AlbumId } },
+                },
+            }, ct);
+
+        /// <summary>Удаляет трек по позиции в плейлисте.</summary>
+        public Task<YaPlaylist> RemoveFromPlaylistAsync(YaPlaylist playlist, int index, CancellationToken ct = default) =>
+            ChangePlaylistAsync(playlist, new object[]
+            {
+                new Dictionary<string, object> { ["op"] = "delete", ["from"] = index, ["to"] = index + 1 },
+            }, ct);
+
+        private async Task<YaPlaylist> ChangePlaylistAsync(YaPlaylist playlist, object[] diff, CancellationToken ct)
+        {
+            var r = await PostFormAsync($"/users/{Uid}/playlists/{playlist.Kind}/change", new Dictionary<string, string>
+            {
+                ["kind"] = playlist.Kind,
+                ["revision"] = playlist.Revision.ToString(CultureInfo.InvariantCulture),
+                ["diff"] = JsonSerializer.Serialize(diff),
+            }, ct);
+            return ParsePlaylist(r);
+        }
+
+        // ────────── аватар ──────────
+
+        /// <summary>Аватар из Яндекс ID. null — нет аватара или токен не даёт доступа.</summary>
+        public async Task<string?> GetAvatarUrlAsync(CancellationToken ct = default)
+        {
+            try
+            {
+                // без автообновления токена: 401 тут значит «нет прав на аватар», а не протухший токен
+                using var resp = await SendOnce(() =>
+                    new HttpRequestMessage(HttpMethod.Get, "https://login.yandex.ru/info?format=json"), _token, ct);
+                if (!resp.IsSuccessStatusCode) return null;
+                using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync(ct));
+                var r = doc.RootElement;
+                if (r.TryGetProperty("is_avatar_empty", out var empty) && empty.ValueKind == JsonValueKind.True) return null;
+                var id = Str(r, "default_avatar_id");
+                return id.Length == 0 ? null : $"https://avatars.yandex.net/get-yapic/{id}/islands-200";
+            }
+            catch (Exception ex) when (ex is HttpRequestException or JsonException or TaskCanceledException or YaApiException)
+            {
+                return null;
+            }
+        }
+
         // ────────── Моя волна (rotor) ──────────
 
         public async Task<WaveBatch> StartWaveAsync(IEnumerable<string> seeds, CancellationToken ct = default)
@@ -356,6 +540,68 @@ namespace Undertone.Core
 
         // ────────── парсинг ──────────
 
+        private static YaArtistRef[] ParseArtistRefs(JsonElement e)
+        {
+            if (!e.TryGetProperty("artists", out var arr) || arr.ValueKind != JsonValueKind.Array)
+                return Array.Empty<YaArtistRef>();
+            return arr.EnumerateArray()
+                .Select(a => new YaArtistRef(Str(a, "id"), Str(a, "name")))
+                .Where(a => a.Name.Length > 0)
+                .ToArray();
+        }
+
+        internal static YaArtist ParseArtist(JsonElement e)
+        {
+            string? cover = null;
+            if (e.TryGetProperty("cover", out var c) && c.ValueKind == JsonValueKind.Object)
+                cover = Str(c, "uri") is { Length: > 0 } u ? u : null;
+            cover ??= Str(e, "ogImage") is { Length: > 0 } og ? og : null;
+            string[] genres = e.TryGetProperty("genres", out var g) && g.ValueKind == JsonValueKind.Array
+                ? g.EnumerateArray().Where(x => x.ValueKind == JsonValueKind.String).Select(x => x.GetString()!).ToArray()
+                : Array.Empty<string>();
+            return new YaArtist
+            {
+                Id = Str(e, "id"),
+                Name = Str(e, "name"),
+                CoverUri = cover,
+                Genres = genres,
+                LikesCount = Int(e, "likesCount"),
+            };
+        }
+
+        internal static YaAlbum ParseAlbum(JsonElement e) => new()
+        {
+            Id = Str(e, "id"),
+            Title = Str(e, "title"),
+            Year = (int)Int(e, "year"),
+            CoverUri = Str(e, "coverUri") is { Length: > 0 } c ? c : (Str(e, "ogImage") is { Length: > 0 } og ? og : null),
+            TrackCount = (int)Int(e, "trackCount"),
+            Type = Str(e, "type"),
+            Artists = ParseArtistRefs(e),
+        };
+
+        internal static YaPlaylist ParsePlaylist(JsonElement e)
+        {
+            string? cover = null;
+            if (e.TryGetProperty("cover", out var c) && c.ValueKind == JsonValueKind.Object)
+            {
+                cover = Str(c, "uri") is { Length: > 0 } u ? u : null;
+                if (cover == null && c.TryGetProperty("itemsUri", out var items) && items.ValueKind == JsonValueKind.Array)
+                    cover = items.EnumerateArray().Select(i => i.GetString()).FirstOrDefault(i => !string.IsNullOrEmpty(i));
+            }
+            cover ??= Str(e, "ogImage") is { Length: > 0 } og ? og : null;
+            return new YaPlaylist
+            {
+                Kind = Str(e, "kind"),
+                OwnerUid = Int(e, "uid"),
+                Title = Str(e, "title"),
+                TrackCount = (int)Int(e, "trackCount"),
+                Revision = (int)Int(e, "revision"),
+                CoverUri = cover,
+                DurationMs = Int(e, "durationMs"),
+            };
+        }
+
         internal static YaTrack ParseTrack(JsonElement e)
         {
             string album = "", albumId = "";
@@ -372,9 +618,7 @@ namespace Undertone.Core
             }
             cover ??= Str(e, "ogImage") is { Length: > 0 } og ? og : null;
 
-            string[] artists = Array.Empty<string>();
-            if (e.TryGetProperty("artists", out var arr) && arr.ValueKind == JsonValueKind.Array)
-                artists = arr.EnumerateArray().Select(a => Str(a, "name")).Where(s => s.Length > 0).ToArray();
+            var refs = ParseArtistRefs(e);
 
             return new YaTrack
             {
@@ -382,7 +626,8 @@ namespace Undertone.Core
                 AlbumId = albumId,
                 Title = Str(e, "title"),
                 Version = Str(e, "version"),
-                Artists = artists,
+                Artists = refs.Select(r => r.Name).ToArray(),
+                ArtistRefs = refs,
                 Album = album,
                 DurationMs = Int(e, "durationMs"),
                 CoverUri = cover,

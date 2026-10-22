@@ -9,11 +9,18 @@
     <RootNamespace>Undertone</RootNamespace>
     <AssemblyName>Undertone</AssemblyName>
     <Product>Undertone</Product>
-    <Version>1.1.0</Version>
+    <Version>2.0.0</Version>
     <SatelliteResourceLanguages>ru</SatelliteResourceLanguages>
     <ApplicationIcon>Assets\undertone.ico</ApplicationIcon>
     <UseWindowsForms>true</UseWindowsForms>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!-- звук: декодирование (Media Foundation), вывод (WASAPI / WaveOut) — нужен для визуализации -->
+    <PackageReference Include="NAudio.Core" Version="2.2.1" />
+    <PackageReference Include="NAudio.Wasapi" Version="2.2.1" />
+    <PackageReference Include="NAudio.WinMM" Version="2.2.1" />
+  </ItemGroup>
 
   <ItemGroup>
     <Resource Include="Assets\undertone.ico" />

@@ -118,7 +118,16 @@ namespace Undertone
             if (!_account.HasPlus)
                 ShowToast("Без подписки Плюс Яндекс отдаёт только 30-секундные фрагменты треков", 5);
 
+            _ = LoadAvatarAsync();
+            _ = LoadPlaylistsAsync();
             await LoadLikedAsync();
+        }
+
+        private async Task LoadAvatarAsync()
+        {
+            if (_api == null) return;
+            var url = await _api.GetAvatarUrlAsync();
+            if (url != null) AvatarBrush.ImageSource = Covers.Load(url, 76);
         }
 
         private async void Retry_Click(object sender, RoutedEventArgs e)
@@ -150,6 +159,8 @@ namespace Undertone
             _likedIds.Clear();
             _likedItems.Clear();
             _searchItems.Clear();
+            _playlists.Clear();
+            AvatarBrush.ImageSource = null;
             ShowEmptyNowPlaying();
             AccountName.Text = "Не выполнен вход";
             AccountSub.Text = "";
@@ -165,6 +176,8 @@ namespace Undertone
             PageNow.Visibility = NavNow.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
             PageLiked.Visibility = NavLiked.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
             PageSearch.Visibility = NavSearch.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+            PageCollection.Visibility = Visibility.Collapsed;
+            ClearPlaylistSelection();
 
             if (NavSearch.IsChecked == true)
                 Dispatcher.InvokeAsync(() =>
@@ -279,8 +292,16 @@ namespace Undertone
         private void SearchBox_TextChanged(object sender, TextChangedEventArgs e)
         {
             if (!_ready) return;
+            SearchClear.Visibility = SearchBox.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
             _searchDebounce.Stop();
             if (SearchBox.Text.Trim().Length >= 2) _searchDebounce.Start();
+        }
+
+        private void SearchClear_Click(object sender, RoutedEventArgs e)
+        {
+            SearchBox.Clear();
+            _lastQuery = "";
+            SearchBox.Focus();
         }
 
         private async Task SearchAsync()
@@ -353,6 +374,8 @@ namespace Undertone
                 await PlayFromListAsync(_searchItems, _searchItems.IndexOf(item), QueueSource.Search);
             else if (list == UpNextList)
                 await JumpAheadAsync(_upNextItems.IndexOf(item) + 1);
+            else if (list == CollList)
+                await PlayFromListAsync(_collItems, _collItems.IndexOf(item), QueueSource.Collection, _collLabel);
         }
 
         private async void RowLike_Click(object sender, RoutedEventArgs e)
@@ -365,7 +388,7 @@ namespace Undertone
         private void RefreshLikeMarks()
         {
             var current = _queue.Current?.Id;
-            foreach (var list in new[] { _likedItems, _searchItems, _upNextItems })
+            foreach (var list in new[] { _likedItems, _searchItems, _upNextItems, _collItems })
                 foreach (var it in list)
                 {
                     it.IsLiked = _likedIds.Contains(it.Track.Id);
@@ -393,6 +416,21 @@ namespace Undertone
             }
 
             if (AuthOverlay.Visibility == Visibility.Visible) return;
+
+            if (DialogOverlay.Visibility == Visibility.Visible)
+            {
+                if (e.Key == Key.Escape) { e.Handled = true; CloseDialog(null); }
+                return;
+            }
+
+            // Backspace / Alt+← — назад со страницы артиста/альбома
+            if (PageCollection.Visibility == Visibility.Visible && Keyboard.FocusedElement is not TextBox &&
+                (e.Key == Key.Back || (mods == ModifierKeys.Alt && e.SystemKey == Key.Left)))
+            {
+                e.Handled = true;
+                await GoBackAsync();
+                return;
+            }
 
             if (mods == ModifierKeys.Control && e.Key == Key.F)
             {
