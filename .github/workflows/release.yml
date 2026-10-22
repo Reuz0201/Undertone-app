@@ -1,0 +1,52 @@
+# Сборка и публикация релиза по тегу вида v2.1.0
+# git tag v2.1.0 && git push origin v2.1.0
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write   # нужно, чтобы создать релиз и загрузить файлы
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Версия из тега
+        id: ver
+        shell: pwsh
+        run: |
+          $v = "$env:GITHUB_REF_NAME".TrimStart('v')
+          if ($v -notmatch '^\d+\.\d+\.\d+$') { throw "Тег должен быть вида v1.2.3, а не $env:GITHUB_REF_NAME" }
+          "version=$v" >> $env:GITHUB_OUTPUT
+
+      - name: Publish
+        shell: pwsh
+        run: >
+          dotnet publish Undertone/Undertone.csproj
+          -c Release -r win-x64 --self-contained false
+          -p:PublishSingleFile=true -p:DebugType=none
+          -p:Version=${{ steps.ver.outputs.version }}
+          -p:UpdateRepo=${{ github.repository }}
+          -o publish
+
+      - name: Архив и контрольная сумма
+        shell: pwsh
+        run: |
+          Compress-Archive -Path publish\* -DestinationPath Undertone-win-x64.zip
+          $hash = (Get-FileHash Undertone-win-x64.zip -Algorithm SHA256).Hash.ToLower()
+          "$hash  Undertone-win-x64.zip" | Set-Content -Encoding ascii Undertone-win-x64.zip.sha256
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            Undertone-win-x64.zip
+            Undertone-win-x64.zip.sha256
+          generate_release_notes: true

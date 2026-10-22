@@ -1,0 +1,17 @@
+# секреты — никогда не в git
+.env
+*.env
+!.env.example
+
+# окружения и сборка
+.venv/
+__pycache__/
+**/bin/
+**/obj/
+publish/
+.vs/
+*.user
+*.zip
+
+# старая папка проекта (до переименования в Undertone) — удали её, когда освободится obj
+/YaMusicPlayer/

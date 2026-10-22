@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <UseWPF>true</UseWPF>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>Undertone</RootNamespace>
+    <AssemblyName>Undertone</AssemblyName>
+    <Product>Undertone</Product>
+    <Version>1.0.0</Version>
+    <SatelliteResourceLanguages>ru</SatelliteResourceLanguages>
+  </PropertyGroup>
+
+  <!-- CI передаёт -p:UpdateRepo=owner/repo — откуда приложение будет брать обновления -->
+  <ItemGroup Condition="'$(UpdateRepo)' != ''">
+    <AssemblyMetadata Include="UpdateRepo" Value="$(UpdateRepo)" />
+  </ItemGroup>
+
+</Project>

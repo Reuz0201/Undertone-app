@@ -1,0 +1,573 @@
+<Window x:Class="Undertone.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="clr-namespace:Undertone.UI"
+        Title="Undertone" Width="1180" Height="760" MinWidth="940" MinHeight="620"
+        WindowStartupLocation="CenterScreen"
+        Background="{StaticResource BgBrush}" Foreground="{StaticResource TextBrush}"
+        FontFamily="Segoe UI Variable Text, Segoe UI" FontSize="14"
+        UseLayoutRounding="True" SnapsToDevicePixels="True"
+        TextOptions.TextFormattingMode="Ideal" TextOptions.TextRenderingMode="ClearType"
+        PreviewKeyDown="Window_PreviewKeyDown" Closing="Window_Closing" SourceInitialized="Window_SourceInitialized">
+
+    <Window.Resources>
+        <!-- Строка трека -->
+        <DataTemplate x:Key="TrackRowTemplate" DataType="{x:Type ui:TrackItem}">
+            <Grid x:Name="Root" Height="48">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="40"/>
+                    <ColumnDefinition Width="56"/>
+                    <ColumnDefinition Width="3*"/>
+                    <ColumnDefinition Width="2*"/>
+                    <ColumnDefinition Width="56"/>
+                    <ColumnDefinition Width="40"/>
+                </Grid.ColumnDefinitions>
+
+                <TextBlock x:Name="Num" Text="{Binding Index}" Foreground="{StaticResource TextFaintBrush}"
+                           FontSize="13" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                <TextBlock x:Name="PlayingGlyph" Text="&#xE995;" FontFamily="{StaticResource IconFont}" FontSize="14"
+                           Foreground="{StaticResource AccentBrush}" HorizontalAlignment="Center" VerticalAlignment="Center"
+                           Visibility="Collapsed"/>
+
+                <Grid Grid.Column="1" Width="44" Height="44" HorizontalAlignment="Left">
+                    <Border CornerRadius="8" Background="{StaticResource AccentGradient}">
+                        <TextBlock Text="&#xEC4F;" FontFamily="{StaticResource IconFont}" FontSize="16" Foreground="#99FFFFFF"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <Border CornerRadius="8">
+                        <Border.Background>
+                            <ImageBrush ImageSource="{Binding Cover, Converter={StaticResource CoverConverter}, ConverterParameter=88}"
+                                        Stretch="UniformToFill"/>
+                        </Border.Background>
+                    </Border>
+                </Grid>
+
+                <StackPanel Grid.Column="2" VerticalAlignment="Center" Margin="4,0,16,0">
+                    <TextBlock x:Name="TitleText" Text="{Binding Title}" FontWeight="SemiBold" FontSize="14"
+                               TextTrimming="CharacterEllipsis"/>
+                    <TextBlock Text="{Binding Artists}" Foreground="{StaticResource TextDimBrush}" FontSize="12.5"
+                               TextTrimming="CharacterEllipsis" Margin="0,2,0,0"/>
+                </StackPanel>
+
+                <TextBlock Grid.Column="3" Text="{Binding Album}" Foreground="{StaticResource TextDimBrush}" FontSize="13"
+                           VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Margin="0,0,16,0"/>
+
+                <TextBlock Grid.Column="4" Text="{Binding Duration}" Foreground="{StaticResource TextFaintBrush}" FontSize="13"
+                           VerticalAlignment="Center" HorizontalAlignment="Right" Margin="0,0,8,0"/>
+
+                <Button x:Name="Heart" Grid.Column="5" Click="RowLike_Click" Width="32" Height="32" FontSize="14"
+                        ToolTip="Мне нравится">
+                    <Button.Style>
+                        <Style TargetType="Button" BasedOn="{StaticResource IconButton}">
+                            <Setter Property="Opacity" Value="0"/>
+                            <Setter Property="Content" Value="&#xEB51;"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Value="True">
+                                    <Setter Property="Opacity" Value="1"/>
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding IsLiked}" Value="True">
+                                    <Setter Property="Opacity" Value="1"/>
+                                    <Setter Property="Content" Value="&#xEB52;"/>
+                                    <Setter Property="Foreground" Value="{StaticResource RedBrush}"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Button.Style>
+                </Button>
+            </Grid>
+            <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding IsPlaying}" Value="True">
+                    <Setter TargetName="Num" Property="Visibility" Value="Collapsed"/>
+                    <Setter TargetName="PlayingGlyph" Property="Visibility" Value="Visible"/>
+                    <Setter TargetName="TitleText" Property="Foreground" Value="{StaticResource AccentBrush}"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Available}" Value="False">
+                    <Setter TargetName="Root" Property="Opacity" Value="0.4"/>
+                </DataTrigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
+
+        <Style x:Key="TrackRow" TargetType="ListBoxItem" BasedOn="{StaticResource TrackRowContainer}">
+            <EventSetter Event="MouseLeftButtonUp" Handler="Row_MouseUp"/>
+        </Style>
+    </Window.Resources>
+
+    <Window.TaskbarItemInfo>
+        <TaskbarItemInfo x:Name="Taskbar">
+            <TaskbarItemInfo.ThumbButtonInfos>
+                <ThumbButtonInfo Description="Предыдущий" ImageSource="{StaticResource ThumbPrevImage}" Click="Thumb_Prev"/>
+                <ThumbButtonInfo Description="Играть" ImageSource="{StaticResource ThumbPlayImage}" Click="Thumb_Play"/>
+                <ThumbButtonInfo Description="Следующий" ImageSource="{StaticResource ThumbNextImage}" Click="Thumb_Next"/>
+            </TaskbarItemInfo.ThumbButtonInfos>
+        </TaskbarItemInfo>
+    </Window.TaskbarItemInfo>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <Grid Grid.Row="0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="248"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- ═══════════ Сайдбар ═══════════ -->
+            <Border Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource DividerBrush}" BorderThickness="0,0,1,0">
+                <DockPanel Margin="16,22,16,16" LastChildFill="True">
+
+                    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="6,0,0,26">
+                        <Grid Width="36" Height="36">
+                            <Ellipse Fill="{StaticResource WaveGradient}"/>
+                            <TextBlock Text="&#xEC4F;" FontFamily="{StaticResource IconFont}" FontSize="16" Foreground="White"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Grid>
+                        <StackPanel Margin="12,0,0,0" VerticalAlignment="Center">
+                            <TextBlock Text="Undertone" FontSize="19" FontWeight="Bold"/>
+                            <TextBlock x:Name="AppVersionText" Text="для Яндекс Музыки" FontSize="11.5" Foreground="{StaticResource TextFaintBrush}"/>
+                        </StackPanel>
+                    </StackPanel>
+
+                    <Button x:Name="WaveCard" DockPanel.Dock="Top" Style="{StaticResource WaveCardButton}"
+                            Click="Wave_Click" Margin="0,0,0,22" ToolTip="Моя волна (W)">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock Text="Моя волна" FontSize="17" FontWeight="Bold"/>
+                                <TextBlock x:Name="WaveCardSub" Text="Музыка под ваш вкус" FontSize="12" Opacity="0.8" Margin="0,2,0,0"/>
+                            </StackPanel>
+                            <Grid Grid.Column="1" Width="38" Height="38">
+                                <Ellipse Fill="#33FFFFFF"/>
+                                <TextBlock x:Name="WaveCardGlyph" Text="&#xE768;" FontFamily="{StaticResource IconFont}" FontSize="15"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Grid>
+                        </Grid>
+                    </Button>
+
+                    <StackPanel DockPanel.Dock="Top">
+                        <RadioButton x:Name="NavNow" Style="{StaticResource NavButton}" Tag="&#xE8D6;" Content="Сейчас играет"
+                                     IsChecked="True" Checked="Nav_Checked"/>
+                        <RadioButton x:Name="NavLiked" Style="{StaticResource NavButton}" Tag="&#xEB51;" Content="Мне нравится"
+                                     Checked="Nav_Checked"/>
+                        <RadioButton x:Name="NavSearch" Style="{StaticResource NavButton}" Tag="&#xE721;" Content="Поиск"
+                                     Checked="Nav_Checked"/>
+                    </StackPanel>
+
+                    <!-- аккаунт -->
+                    <Border DockPanel.Dock="Bottom" VerticalAlignment="Bottom" Background="{StaticResource CardBrush}"
+                            CornerRadius="12" Padding="10">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid Width="36" Height="36">
+                                <Ellipse Fill="{StaticResource AccentGradient}"/>
+                                <TextBlock x:Name="AvatarLetter" Text="?" FontWeight="Bold" FontSize="15" Foreground="White"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Grid>
+                            <StackPanel Grid.Column="1" Margin="10,0,4,0" VerticalAlignment="Center">
+                                <TextBlock x:Name="AccountName" Text="Подключение…" FontWeight="SemiBold" FontSize="13"
+                                           TextTrimming="CharacterEllipsis"/>
+                                <TextBlock x:Name="AccountSub" Text="" FontSize="11.5" Foreground="{StaticResource TextDimBrush}"
+                                           TextTrimming="CharacterEllipsis"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="2" Orientation="Horizontal">
+                                <Button x:Name="RetryBtn" Style="{StaticResource IconButton}" Content="&#xE72C;" Width="30" Height="30"
+                                        FontSize="13" ToolTip="Переподключиться" Click="Retry_Click" Visibility="Collapsed"/>
+                                <Button x:Name="LogoutBtn" Style="{StaticResource IconButton}" Content="&#xE7E8;" Width="30" Height="30"
+                                        FontSize="13" ToolTip="Выйти из аккаунта" Click="Logout_Click"/>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                    <!-- обновление -->
+                    <Border x:Name="UpdateBanner" DockPanel.Dock="Bottom" VerticalAlignment="Bottom" Margin="0,0,0,10"
+                            CornerRadius="12" Padding="12,10" Visibility="Collapsed"
+                            Background="#1A6EAAFF" BorderBrush="#556EAAFF" BorderThickness="1">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="&#xE896;" FontFamily="{StaticResource IconFont}" FontSize="16"
+                                       Foreground="{StaticResource AccentBrush}" VerticalAlignment="Top" Margin="0,2,10,0"/>
+                            <StackPanel Grid.Column="1">
+                                <TextBlock x:Name="UpdateTitle" Text="Доступно обновление" FontWeight="SemiBold" FontSize="13"/>
+                                <TextBlock x:Name="UpdateSub" Text="" FontSize="11.5" Foreground="{StaticResource TextDimBrush}"
+                                           TextWrapping="Wrap" Margin="0,2,0,8"/>
+                                <Button x:Name="UpdateBtn" Style="{StaticResource PillButton}" Content="Обновить"
+                                        Padding="14,6" FontSize="12.5" HorizontalAlignment="Left" Click="Update_Click"/>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                    <Border/>
+                </DockPanel>
+            </Border>
+
+            <!-- ═══════════ Контент ═══════════ -->
+            <Grid Grid.Column="1">
+
+                <!-- ── Сейчас играет ── -->
+                <Grid x:Name="PageNow">
+                    <Grid ClipToBounds="True" IsHitTestVisible="False">
+                        <Image x:Name="BackdropImage" Stretch="UniformToFill" Opacity="0.45" Margin="-120">
+                            <Image.Effect>
+                                <BlurEffect Radius="100" KernelType="Gaussian" RenderingBias="Performance"/>
+                            </Image.Effect>
+                        </Image>
+                        <Rectangle>
+                            <Rectangle.Fill>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                    <GradientStop Color="#550E1016" Offset="0"/>
+                                    <GradientStop Color="#E60E1016" Offset="0.75"/>
+                                    <GradientStop Color="#FF0E1016" Offset="1"/>
+                                </LinearGradientBrush>
+                            </Rectangle.Fill>
+                        </Rectangle>
+                    </Grid>
+
+                    <!-- пустое состояние: большая кнопка «Моя волна» -->
+                    <StackPanel x:Name="EmptyState" VerticalAlignment="Center" HorizontalAlignment="Center">
+                        <Grid Width="260" Height="260">
+                            <Grid.Triggers>
+                                <EventTrigger RoutedEvent="FrameworkElement.Loaded">
+                                    <BeginStoryboard>
+                                        <Storyboard RepeatBehavior="Forever">
+                                            <DoubleAnimation Storyboard.TargetName="Ring1" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)" From="0.45" To="1" Duration="0:0:3"/>
+                                            <DoubleAnimation Storyboard.TargetName="Ring1" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)" From="0.45" To="1" Duration="0:0:3"/>
+                                            <DoubleAnimation Storyboard.TargetName="Ring1" Storyboard.TargetProperty="Opacity" From="0.7" To="0" Duration="0:0:3"/>
+                                            <DoubleAnimation Storyboard.TargetName="Ring2" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)" From="0.45" To="1" Duration="0:0:3" BeginTime="0:0:1"/>
+                                            <DoubleAnimation Storyboard.TargetName="Ring2" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)" From="0.45" To="1" Duration="0:0:3" BeginTime="0:0:1"/>
+                                            <DoubleAnimation Storyboard.TargetName="Ring2" Storyboard.TargetProperty="Opacity" From="0.7" To="0" Duration="0:0:3" BeginTime="0:0:1"/>
+                                            <DoubleAnimation Storyboard.TargetName="Ring3" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)" From="0.45" To="1" Duration="0:0:3" BeginTime="0:0:2"/>
+                                            <DoubleAnimation Storyboard.TargetName="Ring3" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)" From="0.45" To="1" Duration="0:0:3" BeginTime="0:0:2"/>
+                                            <DoubleAnimation Storyboard.TargetName="Ring3" Storyboard.TargetProperty="Opacity" From="0.7" To="0" Duration="0:0:3" BeginTime="0:0:2"/>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </EventTrigger>
+                            </Grid.Triggers>
+                            <Ellipse x:Name="Ring1" Stroke="{StaticResource AccentBrush}" StrokeThickness="2" Opacity="0" RenderTransformOrigin="0.5,0.5">
+                                <Ellipse.RenderTransform><ScaleTransform/></Ellipse.RenderTransform>
+                            </Ellipse>
+                            <Ellipse x:Name="Ring2" Stroke="#9A7BF5" StrokeThickness="2" Opacity="0" RenderTransformOrigin="0.5,0.5">
+                                <Ellipse.RenderTransform><ScaleTransform/></Ellipse.RenderTransform>
+                            </Ellipse>
+                            <Ellipse x:Name="Ring3" Stroke="{StaticResource AccentBrush}" StrokeThickness="2" Opacity="0" RenderTransformOrigin="0.5,0.5">
+                                <Ellipse.RenderTransform><ScaleTransform/></Ellipse.RenderTransform>
+                            </Ellipse>
+                            <Ellipse Width="128" Height="128" Fill="{StaticResource WaveGradient}">
+                                <Ellipse.Effect>
+                                    <DropShadowEffect Color="#5B8EF0" BlurRadius="50" ShadowDepth="0" Opacity="0.6"/>
+                                </Ellipse.Effect>
+                            </Ellipse>
+                            <Button Style="{StaticResource PlayButton}" Width="128" Height="128" Background="Transparent"
+                                    Foreground="White" FontSize="40" Content="&#xE768;" Click="Wave_Click" ToolTip="Запустить Мою волну"/>
+                        </Grid>
+                        <TextBlock Text="Моя волна" FontSize="34" FontWeight="Bold" HorizontalAlignment="Center" Margin="0,8,0,0"/>
+                        <TextBlock Text="Бесконечный поток музыки, подобранный под ваш вкус" FontSize="15"
+                                   Foreground="{StaticResource TextDimBrush}" HorizontalAlignment="Center" Margin="0,8,0,0"/>
+                        <TextBlock Text="или выберите трек в «Мне нравится» и «Поиске»" FontSize="13"
+                                   Foreground="{StaticResource TextFaintBrush}" HorizontalAlignment="Center" Margin="0,6,0,0"/>
+                    </StackPanel>
+
+                    <!-- текущий трек -->
+                    <Grid x:Name="NowState" Visibility="Collapsed" Margin="48,44,40,20">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <Grid Width="300" Height="300" VerticalAlignment="Top">
+                            <Border CornerRadius="18" Background="{StaticResource AccentGradient}">
+                                <Border.Effect>
+                                    <DropShadowEffect BlurRadius="50" ShadowDepth="10" Opacity="0.55" Color="Black"/>
+                                </Border.Effect>
+                                <TextBlock Text="&#xEC4F;" FontFamily="{StaticResource IconFont}" FontSize="72" Foreground="#80FFFFFF"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                            <Border CornerRadius="18">
+                                <Border.Background>
+                                    <ImageBrush x:Name="BigCoverBrush" Stretch="UniformToFill"/>
+                                </Border.Background>
+                            </Border>
+                        </Grid>
+
+                        <DockPanel Grid.Column="1" Margin="40,0,0,0">
+                            <StackPanel DockPanel.Dock="Top">
+                                <TextBlock x:Name="NowSource" Text="СЕЙЧАС ИГРАЕТ" FontSize="12" FontWeight="SemiBold"
+                                           Foreground="{StaticResource AccentBrush}"/>
+                                <TextBlock x:Name="NowTitle" FontSize="36" FontWeight="Bold" TextWrapping="Wrap"
+                                           TextTrimming="CharacterEllipsis" MaxHeight="100" Margin="0,8,0,0"
+                                           FontFamily="Segoe UI Variable Display, Segoe UI"/>
+                                <TextBlock x:Name="NowArtist" FontSize="18" Foreground="{StaticResource TextDimBrush}"
+                                           TextTrimming="CharacterEllipsis" Margin="0,6,0,0"/>
+                                <TextBlock x:Name="NowAlbum" FontSize="13.5" Foreground="{StaticResource TextFaintBrush}"
+                                           TextTrimming="CharacterEllipsis" Margin="0,4,0,0"/>
+                                <StackPanel Orientation="Horizontal" Margin="0,20,0,0">
+                                    <Button x:Name="NowLike" Style="{StaticResource PillSecondary}" Click="Like_Click" Margin="0,0,10,0"
+                                            ToolTip="Мне нравится (L)">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock x:Name="NowLikeGlyph" Text="&#xEB51;" FontFamily="{StaticResource IconFont}"
+                                                       FontSize="14" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                            <TextBlock x:Name="NowLikeText" Text="Нравится" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </Button>
+                                    <Button x:Name="NowDislike" Style="{StaticResource PillSecondary}" Click="Dislike_Click"
+                                            ToolTip="Не рекомендовать и пропустить (D)">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="&#xE8E0;" FontFamily="{StaticResource IconFont}" FontSize="14"
+                                                       VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                            <TextBlock Text="Не нравится" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </Button>
+                                </StackPanel>
+                            </StackPanel>
+
+                            <TextBlock x:Name="UpNextHeader" DockPanel.Dock="Top" Text="Далее" FontSize="16" FontWeight="SemiBold"
+                                       Margin="8,28,0,8"/>
+                            <ListBox x:Name="UpNextList" Style="{StaticResource TrackList}"
+                                     ItemContainerStyle="{StaticResource TrackRow}" ItemTemplate="{StaticResource TrackRowTemplate}"
+                                     KeyDown="List_KeyDown"/>
+                        </DockPanel>
+                    </Grid>
+                </Grid>
+
+                <!-- ── Мне нравится ── -->
+                <DockPanel x:Name="PageLiked" Visibility="Collapsed" Margin="32,30,16,0">
+                    <Grid DockPanel.Dock="Top" Margin="0,0,16,22">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <Border Width="132" Height="132" CornerRadius="16" Background="{StaticResource LikedGradient}">
+                            <Border.Effect>
+                                <DropShadowEffect Color="#F0566A" BlurRadius="40" ShadowDepth="0" Opacity="0.35"/>
+                            </Border.Effect>
+                            <TextBlock Text="&#xEB52;" FontFamily="{StaticResource IconFont}" FontSize="52" Foreground="White"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <StackPanel Grid.Column="1" Margin="24,0,0,0" VerticalAlignment="Bottom">
+                            <TextBlock Text="ПЛЕЙЛИСТ" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource TextDimBrush}"/>
+                            <TextBlock Text="Мне нравится" FontSize="40" FontWeight="Bold" FontFamily="Segoe UI Variable Display, Segoe UI"/>
+                            <TextBlock x:Name="LikedCount" Text="" FontSize="13" Foreground="{StaticResource TextDimBrush}" Margin="0,2,0,12"/>
+                            <StackPanel Orientation="Horizontal">
+                                <Button Style="{StaticResource PillButton}" Click="LikedPlay_Click" Margin="0,0,10,0">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="&#xE768;" FontFamily="{StaticResource IconFont}" FontSize="13"
+                                                   VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                        <TextBlock Text="Слушать" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </Button>
+                                <Button Style="{StaticResource PillSecondary}" Click="LikedShuffle_Click">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="&#xE8B1;" FontFamily="{StaticResource IconFont}" FontSize="13"
+                                                   VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                        <TextBlock Text="Перемешать" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </Button>
+                            </StackPanel>
+                        </StackPanel>
+                        <TextBox x:Name="LikedFilter" Grid.Column="2" Width="240" VerticalAlignment="Bottom"
+                                 Style="{StaticResource SearchBox}" Height="38" FontSize="13" Tag="Найти в любимых"
+                                 TextChanged="LikedFilter_TextChanged"/>
+                    </Grid>
+                    <Grid>
+                        <ListBox x:Name="LikedList" Style="{StaticResource TrackList}"
+                                 ItemContainerStyle="{StaticResource TrackRow}" ItemTemplate="{StaticResource TrackRowTemplate}"
+                                 KeyDown="List_KeyDown"/>
+                        <StackPanel x:Name="LikedLoading" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Collapsed">
+                            <Control Style="{StaticResource Spinner}" HorizontalAlignment="Center"/>
+                            <TextBlock Text="Загружаю любимые треки…" Foreground="{StaticResource TextDimBrush}" Margin="0,12,0,0"/>
+                        </StackPanel>
+                        <TextBlock x:Name="LikedEmpty" Visibility="Collapsed" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                   Foreground="{StaticResource TextDimBrush}" TextAlignment="Center" TextWrapping="Wrap" MaxWidth="420"/>
+                    </Grid>
+                </DockPanel>
+
+                <!-- ── Поиск ── -->
+                <DockPanel x:Name="PageSearch" Visibility="Collapsed" Margin="32,30,16,0">
+                    <TextBox x:Name="SearchBox" DockPanel.Dock="Top" Style="{StaticResource SearchBox}" Height="50" FontSize="16"
+                             Tag="Трек, исполнитель, альбом…" Margin="0,0,16,22" MaxWidth="720" HorizontalAlignment="Stretch"
+                             KeyDown="SearchBox_KeyDown" TextChanged="SearchBox_TextChanged"/>
+                    <Grid>
+                        <ListBox x:Name="SearchList" Style="{StaticResource TrackList}"
+                                 ItemContainerStyle="{StaticResource TrackRow}" ItemTemplate="{StaticResource TrackRowTemplate}"
+                                 KeyDown="List_KeyDown"/>
+                        <StackPanel x:Name="SearchLoading" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Collapsed">
+                            <Control Style="{StaticResource Spinner}" HorizontalAlignment="Center"/>
+                        </StackPanel>
+                        <StackPanel x:Name="SearchEmpty" HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <TextBlock Text="&#xE721;" FontFamily="{StaticResource IconFont}" FontSize="48"
+                                       Foreground="{StaticResource TextFaintBrush}" HorizontalAlignment="Center"/>
+                            <TextBlock x:Name="SearchEmptyText" Text="Найдите что угодно в каталоге Яндекс Музыки"
+                                       Foreground="{StaticResource TextDimBrush}" FontSize="15" Margin="0,16,0,0"
+                                       HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" MaxWidth="420"/>
+                        </StackPanel>
+                    </Grid>
+                </DockPanel>
+            </Grid>
+        </Grid>
+
+        <!-- ═══════════ Плеер-бар ═══════════ -->
+        <Border Grid.Row="1" Height="94" Background="{StaticResource PanelBrush}"
+                BorderBrush="{StaticResource DividerBrush}" BorderThickness="0,1,0,0">
+            <Grid Margin="18,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="3*" MinWidth="240"/>
+                    <ColumnDefinition Width="4*" MinWidth="360"/>
+                    <ColumnDefinition Width="3*" MinWidth="200"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- трек -->
+                <Grid VerticalAlignment="Center">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <Grid Width="58" Height="58">
+                        <Border CornerRadius="9" Background="{StaticResource CardBrush}">
+                            <TextBlock Text="&#xEC4F;" FontFamily="{StaticResource IconFont}" FontSize="18"
+                                       Foreground="{StaticResource TextFaintBrush}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <Border CornerRadius="9">
+                            <Border.Background>
+                                <ImageBrush x:Name="BarCoverBrush" Stretch="UniformToFill"/>
+                            </Border.Background>
+                        </Border>
+                    </Grid>
+                    <StackPanel Grid.Column="1" Margin="12,0,6,0" VerticalAlignment="Center">
+                        <TextBlock x:Name="BarTitle" Text="Ничего не играет" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                        <TextBlock x:Name="BarArtist" Text="Включите Мою волну" FontSize="12.5" Foreground="{StaticResource TextDimBrush}"
+                                   TextTrimming="CharacterEllipsis" Margin="0,2,0,0"/>
+                    </StackPanel>
+                    <Button x:Name="BarLike" Grid.Column="2" Style="{StaticResource IconButton}" Content="&#xEB51;"
+                            Click="Like_Click" ToolTip="Мне нравится (L)" IsEnabled="False"/>
+                </Grid>
+
+                <!-- управление -->
+                <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="12,0">
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                        <Button x:Name="ShuffleBtn" Style="{StaticResource IconButton}" Content="&#xE8B1;" FontSize="15"
+                                Click="Shuffle_Click" ToolTip="Перемешать (S)" Margin="0,0,10,0"/>
+                        <Button Style="{StaticResource IconButton}" Content="&#xE892;" FontSize="16" Foreground="{StaticResource TextBrush}"
+                                Click="Prev_Click" ToolTip="Предыдущий (P)" Margin="0,0,10,0"/>
+                        <Button x:Name="PlayBtn" Style="{StaticResource PlayButton}" Content="&#xE768;"
+                                Click="Play_Click" ToolTip="Играть / пауза (Пробел)"/>
+                        <Button Style="{StaticResource IconButton}" Content="&#xE893;" FontSize="16" Foreground="{StaticResource TextBrush}"
+                                Click="Next_Click" ToolTip="Следующий (N)" Margin="10,0,0,0"/>
+                        <Button x:Name="RepeatBtn" Style="{StaticResource IconButton}" Content="&#xE8EE;" FontSize="15"
+                                Click="Repeat_Click" ToolTip="Повтор (R)" Margin="10,0,0,0"/>
+                    </StackPanel>
+                    <Grid Margin="0,6,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="44"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="44"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock x:Name="PosText" Text="0:00" FontSize="11.5" Foreground="{StaticResource TextDimBrush}"
+                                   HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <Slider x:Name="ProgressSlider" Grid.Column="1" Style="{StaticResource ThinSlider}"
+                                Minimum="0" Maximum="1" Value="0" ValueChanged="Progress_ValueChanged"/>
+                        <TextBlock x:Name="DurText" Grid.Column="2" Text="0:00" FontSize="11.5" Foreground="{StaticResource TextDimBrush}"
+                                   VerticalAlignment="Center" Margin="8,0,0,0"/>
+                    </Grid>
+                </StackPanel>
+
+                <!-- громкость -->
+                <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                    <Button x:Name="MuteBtn" Style="{StaticResource IconButton}" Content="&#xE995;" FontSize="15"
+                            Click="Mute_Click" ToolTip="Без звука (M)"/>
+                    <Slider x:Name="VolumeSlider" Width="120" Style="{StaticResource ThinSlider}" VerticalAlignment="Center"
+                            Minimum="0" Maximum="1" Value="0.7" Margin="4,0,0,0" ValueChanged="Volume_ValueChanged"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- ═══════════ Тост ═══════════ -->
+        <Border x:Name="Toast" Grid.Row="0" VerticalAlignment="Bottom" HorizontalAlignment="Center" Margin="248,0,0,22"
+                Background="#F2232838" BorderBrush="#33FFFFFF" BorderThickness="1" CornerRadius="100" Padding="20,11"
+                Opacity="0" IsHitTestVisible="False">
+            <Border.Effect>
+                <DropShadowEffect BlurRadius="24" ShadowDepth="4" Opacity="0.5" Color="Black"/>
+            </Border.Effect>
+            <TextBlock x:Name="ToastText" FontSize="13.5" TextWrapping="Wrap" MaxWidth="560" TextAlignment="Center"/>
+        </Border>
+
+        <!-- ═══════════ Вход ═══════════ -->
+        <Grid x:Name="AuthOverlay" Grid.RowSpan="2" Visibility="Collapsed">
+            <Grid.Background>
+                <RadialGradientBrush Center="0.5,0.3" GradientOrigin="0.5,0.3" RadiusX="0.9" RadiusY="0.9">
+                    <GradientStop Color="#1C2A4A" Offset="0"/>
+                    <GradientStop Color="#0E1016" Offset="1"/>
+                </RadialGradientBrush>
+            </Grid.Background>
+            <Border Width="480" Background="{StaticResource CardBrush}" CornerRadius="22" Padding="38,34"
+                    HorizontalAlignment="Center" VerticalAlignment="Center" BorderBrush="{StaticResource DividerBrush}" BorderThickness="1">
+                <Border.Effect>
+                    <DropShadowEffect BlurRadius="60" ShadowDepth="0" Opacity="0.6" Color="Black"/>
+                </Border.Effect>
+                <StackPanel>
+                    <Grid Width="56" Height="56" HorizontalAlignment="Left">
+                        <Ellipse Fill="{StaticResource WaveGradient}"/>
+                        <TextBlock Text="&#xEC4F;" FontFamily="{StaticResource IconFont}" FontSize="24" Foreground="White"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Grid>
+                    <TextBlock Text="Вход в Яндекс Музыку" FontSize="26" FontWeight="Bold" Margin="0,20,0,0"/>
+                    <TextBlock x:Name="AuthHint" Text="Откройте страницу на любом устройстве и введите код:"
+                               Foreground="{StaticResource TextDimBrush}" TextWrapping="Wrap" Margin="0,8,0,0"/>
+
+                    <Border Background="{StaticResource BgBrush}" CornerRadius="14" Padding="16,18" Margin="0,18,0,0">
+                        <TextBlock x:Name="AuthCode" Text="· · · · · ·" FontFamily="Cascadia Mono, Consolas"
+                                   FontSize="40" FontWeight="Bold" HorizontalAlignment="Center" Foreground="{StaticResource AccentBrush}"/>
+                    </Border>
+
+                    <StackPanel Orientation="Horizontal" Margin="0,18,0,0">
+                        <Button x:Name="AuthOpen" Style="{StaticResource PillButton}" Click="AuthOpen_Click" Margin="0,0,10,0">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#xE8A7;" FontFamily="{StaticResource IconFont}" FontSize="13"
+                                           VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                <TextBlock x:Name="AuthOpenText" Text="Открыть ya.ru/device" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+                        <Button Style="{StaticResource PillSecondary}" Click="AuthCopy_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#xE8C8;" FontFamily="{StaticResource IconFont}" FontSize="13"
+                                           VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                <TextBlock Text="Скопировать код" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+
+                    <StackPanel Orientation="Horizontal" Margin="0,18,0,0">
+                        <Control Style="{StaticResource Spinner}" Width="16" Height="16"/>
+                        <TextBlock x:Name="AuthStatus" Text="Получаю код…" Foreground="{StaticResource TextDimBrush}"
+                                   VerticalAlignment="Center" Margin="10,0,0,0" TextWrapping="Wrap" MaxWidth="360"/>
+                    </StackPanel>
+
+                    <Rectangle Height="1" Fill="{StaticResource DividerBrush}" Margin="0,24,0,16"/>
+
+                    <TextBlock Text="Уже есть access_token? Вставьте его:" FontSize="12.5" Foreground="{StaticResource TextDimBrush}"/>
+                    <Grid Margin="0,8,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBox x:Name="AuthManual" Style="{StaticResource PlainBox}" Tag="y0_…" KeyDown="AuthManual_KeyDown"/>
+                        <Button Grid.Column="1" Style="{StaticResource PillSecondary}" Content="Сохранить" Padding="16,8"
+                                Margin="8,0,0,0" Click="AuthManual_Click"/>
+                    </Grid>
+                    <TextBlock x:Name="AuthEnvPath" FontSize="11.5" Foreground="{StaticResource TextFaintBrush}"
+                               TextWrapping="Wrap" Margin="0,14,0,0"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Grid>
+</Window>
