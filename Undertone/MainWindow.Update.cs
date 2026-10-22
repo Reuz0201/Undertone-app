@@ -50,6 +50,9 @@ namespace Undertone
                 UpdateBtn.IsEnabled = true;
                 UpdateBtn.Content = "Обновить";
                 UpdateBanner.Visibility = Visibility.Visible;
+                if (!IsVisible)
+                    _tray?.ShowHint("Доступно обновление Undertone",
+                        $"Версия {update.Version.Major}.{update.Version.Minor}.{update.Version.Build} — откройте приложение и нажмите «Обновить».");
             }
             catch (Exception)
             {
@@ -80,7 +83,7 @@ namespace Undertone
                     WorkingDirectory = AppContext.BaseDirectory,
                     ArgumentList = { "--updated", Environment.ProcessId.ToString() },
                 });
-                Application.Current.Shutdown();
+                ExitApp();
             }
             catch (Exception ex)
             {

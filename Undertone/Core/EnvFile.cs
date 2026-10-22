@@ -27,26 +27,53 @@ namespace Undertone.Core
             Reload();
         }
 
+        /// <summary>Папка данных приложения: %LOCALAPPDATA%\Undertone (.env, settings.json).</summary>
+        public static string DataDirectory => Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Undertone");
+
         /// <summary>
-        /// Из исходников: корень = папка, где лежит папка проекта Undertone (там же start.bat, main.py).
-        /// Релизная сборка: .env рядом с Undertone.exe. Переопределение — переменная YAMUSIC_ENV.
+        /// .env живёт в %LOCALAPPDATA%\Undertone — подальше от папки с программой.
+        /// Старый .env (рядом с exe или в корне исходников) при первом запуске переносится туда.
+        /// Переопределение — переменная окружения UNDERTONE_ENV.
         /// </summary>
         public static EnvFile Locate()
         {
-            var overridePath = Environment.GetEnvironmentVariable("YAMUSIC_ENV");
+            var overridePath = Environment.GetEnvironmentVariable("UNDERTONE_ENV");
             if (!string.IsNullOrWhiteSpace(overridePath))
                 return new EnvFile(Path.GetFullPath(overridePath));
 
-            var baseDir = AppContext.BaseDirectory;
+            var path = Path.Combine(DataDirectory, FileName);
+            MigrateLegacy(path);
+            return new EnvFile(path);
+        }
 
-            // запуск из исходников (start.bat → bin\Release\...) — .env в корне проекта
-            var root = FindProjectRoot(baseDir);
-            if (root != null)
-                return new EnvFile(Path.Combine(root, FileName));
+        /// <summary>Переносит токены из старого расположения, если в AppData их ещё нет.</summary>
+        internal static void MigrateLegacy(string target, string? baseDir = null)
+        {
+            try
+            {
+                if (File.Exists(target) && new EnvFile(target).Get("access_token") != null) return;
 
-            // релизная сборка — .env строго рядом с exe (не ищем по родительским папкам,
-            // чтобы не подхватить чужой .env)
-            return new EnvFile(Path.Combine(baseDir, FileName));
+                baseDir ??= AppContext.BaseDirectory;
+                var exeEnv = Path.Combine(baseDir, FileName);
+                var root = FindProjectRoot(baseDir);
+                var rootEnv = root != null ? Path.Combine(root, FileName) : null;
+
+                foreach (var candidate in new[] { exeEnv, rootEnv })
+                {
+                    if (candidate == null || !File.Exists(candidate)) continue;
+                    if (new EnvFile(candidate).Get("access_token") == null) continue;
+
+                    Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+                    File.Copy(candidate, target, overwrite: true);
+                    // .env рядом с exe убираем — токены теперь только в AppData.
+                    // Корень исходников не трогаем: он в .gitignore и может нужен Python-скриптам.
+                    if (candidate == exeEnv && root == null) File.Delete(candidate);
+                    return;
+                }
+            }
+            catch (IOException) { }
+            catch (UnauthorizedAccessException) { }
         }
 
         /// <summary>true, если exe лежит внутри папки с исходниками (собран через start.bat).</summary>

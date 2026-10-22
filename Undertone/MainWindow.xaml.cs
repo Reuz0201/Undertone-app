@@ -61,6 +61,7 @@ namespace Undertone
             _toastTimer.Tick += (_, _) => HideToast();
 
             InitPlayer();
+            InitTray();
             RestoreSettings();
             _ready = true;
 
@@ -257,6 +258,7 @@ namespace Undertone
             if (shuffle != _settings.Shuffle)
             {
                 _settings.Shuffle = shuffle;
+                PersistSettings();
                 UpdateModeButtons();
             }
             var start = shuffle ? new Random().Next(_likedItems.Count) : 0;
@@ -484,6 +486,14 @@ namespace Undertone
 
         private void Window_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
         {
+            // крестик — в трей; настоящий выход только через меню трея / обновление / выход из Windows
+            if (!_exiting)
+            {
+                e.Cancel = true;
+                HideToTray();
+                return;
+            }
+
             ReportWaveStop();
             _settings.Volume = VolumeSlider.Value;
             _settings.Muted = _player.IsMuted;
@@ -498,6 +508,8 @@ namespace Undertone
             _updateTimer.Stop();
             _player.Close();
             _api?.Dispose();
+            _tray?.Dispose();
+            _tray = null;
         }
 
         // ────────── тост ──────────

@@ -257,6 +257,7 @@ namespace Undertone
             }
             _settings.Shuffle = !_settings.Shuffle;
             _queue.SetShuffle(_settings.Shuffle);
+            PersistSettings();
             UpdateModeButtons();
             UpdateUpNext();
             _ = PrefetchNextAsync();
@@ -272,6 +273,7 @@ namespace Undertone
                 _ => RepeatMode.Off,
             };
             _queue.Repeat = _settings.Repeat;
+            PersistSettings();
             UpdateModeButtons();
             UpdateUpNext();
             ShowToast(_settings.Repeat switch
@@ -286,6 +288,7 @@ namespace Undertone
         {
             _player.IsMuted = !_player.IsMuted;
             UpdateVolumeGlyph();
+            PersistSettings();
         }
 
         // ────────── Моя волна ──────────
@@ -514,6 +517,7 @@ namespace Undertone
             if (_isPlaying) _progressTimer.Start();
             else _progressTimer.Stop();
             RefreshLikeMarks();
+            UpdateTray();
         }
 
         private void SetLoading(bool loading)
@@ -536,6 +540,26 @@ namespace Undertone
             _updatingProgress = true;
             ProgressSlider.Value = Math.Min(seconds, ProgressSlider.Maximum);
             _updatingProgress = false;
+        }
+
+        private DispatcherTimer? _saveTimer;
+
+        /// <summary>Сохраняет громкость/режимы сразу (с задержкой 0.5 с, чтобы не писать файл на каждый пиксель слайдера).</summary>
+        private void PersistSettings()
+        {
+            _settings.Volume = VolumeSlider.Value;
+            _settings.Muted = _player.IsMuted;
+            if (_saveTimer == null)
+            {
+                _saveTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
+                _saveTimer.Tick += (_, _) =>
+                {
+                    _saveTimer.Stop();
+                    _settings.Save();
+                };
+            }
+            _saveTimer.Stop();
+            _saveTimer.Start();
         }
 
         private void UpdateModeButtons()
@@ -576,8 +600,8 @@ namespace Undertone
             if (!_ready) return;
             _player.Volume = e.NewValue;
             if (_player.IsMuted && e.NewValue > 0) _player.IsMuted = false;
-            _settings.Volume = e.NewValue;
             UpdateVolumeGlyph();
+            PersistSettings();
         }
 
         private void Progress_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)

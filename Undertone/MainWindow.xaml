@@ -2,7 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:ui="clr-namespace:Undertone.UI"
-        Title="Undertone" Width="1180" Height="760" MinWidth="940" MinHeight="620"
+        Title="Undertone" Icon="/Assets/undertone.ico" Width="1180" Height="760" MinWidth="940" MinHeight="620"
         WindowStartupLocation="CenterScreen"
         Background="{StaticResource BgBrush}" Foreground="{StaticResource TextBrush}"
         FontFamily="Segoe UI Variable Text, Segoe UI" FontSize="14"
@@ -119,11 +119,8 @@
                 <DockPanel Margin="16,22,16,16" LastChildFill="True">
 
                     <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="6,0,0,26">
-                        <Grid Width="36" Height="36">
-                            <Ellipse Fill="{StaticResource WaveGradient}"/>
-                            <TextBlock Text="&#xEC4F;" FontFamily="{StaticResource IconFont}" FontSize="16" Foreground="White"
-                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Grid>
+                        <Image Source="/Assets/logo-mark.png" Width="42" Height="36" Stretch="Uniform"
+                               RenderOptions.BitmapScalingMode="HighQuality" VerticalAlignment="Center"/>
                         <StackPanel Margin="12,0,0,0" VerticalAlignment="Center">
                             <TextBlock Text="Undertone" FontSize="19" FontWeight="Bold"/>
                             <TextBlock x:Name="AppVersionText" Text="для Яндекс Музыки" FontSize="11.5" Foreground="{StaticResource TextFaintBrush}"/>
@@ -515,11 +512,8 @@
                     <DropShadowEffect BlurRadius="60" ShadowDepth="0" Opacity="0.6" Color="Black"/>
                 </Border.Effect>
                 <StackPanel>
-                    <Grid Width="56" Height="56" HorizontalAlignment="Left">
-                        <Ellipse Fill="{StaticResource WaveGradient}"/>
-                        <TextBlock Text="&#xEC4F;" FontFamily="{StaticResource IconFont}" FontSize="24" Foreground="White"
-                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                    </Grid>
+                    <Image Source="/Assets/logo-mark.png" Height="58" HorizontalAlignment="Left" Stretch="Uniform"
+                           RenderOptions.BitmapScalingMode="HighQuality"/>
                     <TextBlock Text="Вход в Яндекс Музыку" FontSize="26" FontWeight="Bold" Margin="0,20,0,0"/>
                     <TextBlock x:Name="AuthHint" Text="Откройте страницу на любом устройстве и введите код:"
                                Foreground="{StaticResource TextDimBrush}" TextWrapping="Wrap" Margin="0,8,0,0"/>

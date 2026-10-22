@@ -14,9 +14,9 @@ namespace Undertone.Core
         public double WindowWidth { get; set; }
         public double WindowHeight { get; set; }
         public bool WindowMaximized { get; set; }
+        public bool TrayHintShown { get; set; }
 
-        private static string FilePath => Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Undertone", "settings.json");
+        private static string FilePath => Path.Combine(EnvFile.DataDirectory, "settings.json");
 
         public static AppSettings Load()
         {
