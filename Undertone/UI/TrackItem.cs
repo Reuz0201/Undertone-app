@@ -84,6 +84,58 @@ namespace Undertone.UI
         public string? Cover => Album.CoverUrl(300);
     }
 
+    public enum SearchCardKind { Artist, Album, Playlist }
+
+    /// <summary>Карточка в результатах поиска: артист, альбом или плейлист.</summary>
+    public sealed class SearchCard
+    {
+        public SearchCardKind Kind { get; init; }
+        public string Id { get; init; } = "";
+        public long OwnerUid { get; init; }
+        public string Title { get; init; } = "";
+        public string Sub { get; init; } = "";
+        public string? Cover { get; init; }
+        public bool IsRound => Kind == SearchCardKind.Artist;
+        public string Glyph => Kind switch
+        {
+            SearchCardKind.Artist => "",
+            SearchCardKind.Album => "",
+            _ => "",
+        };
+
+        public static SearchCard From(YaArtist a) => new()
+        {
+            Kind = SearchCardKind.Artist,
+            Id = a.Id,
+            Title = a.Name,
+            Sub = a.Genres.Length > 0 ? string.Join(", ", a.Genres.Take(2)) : "Артист",
+            Cover = a.CoverUrl(300),
+        };
+
+        public static SearchCard From(YaAlbum a) => new()
+        {
+            Kind = SearchCardKind.Album,
+            Id = a.Id,
+            Title = a.Title,
+            Sub = string.Join(" · ", new[] { a.ArtistsText, a.Year > 0 ? a.Year.ToString() : "" }.Where(x => x.Length > 0)),
+            Cover = a.CoverUrl(300),
+        };
+
+        public static SearchCard From(YaPlaylist p) => new()
+        {
+            Kind = SearchCardKind.Playlist,
+            Id = p.Kind,
+            OwnerUid = p.OwnerUid,
+            Title = p.Title,
+            Sub = string.Join(" · ", new[]
+            {
+                p.OwnerName,
+                p.TrackCount > 0 ? $"{p.TrackCount} {Format.Plural(p.TrackCount, "трек", "трека", "треков")}" : "",
+            }.Where(x => x.Length > 0)),
+            Cover = p.CoverUrl(300),
+        };
+    }
+
     public static class Format
     {
         public static string Time(System.TimeSpan t) =>

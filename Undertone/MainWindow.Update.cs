@@ -54,9 +54,10 @@ namespace Undertone
                     _tray?.ShowHint("Доступно обновление Undertone",
                         $"Версия {update.Version.Major}.{update.Version.Minor}.{update.Version.Build} — откройте приложение и нажмите «Обновить».");
             }
-            catch (Exception)
+            catch (Exception ex)
             {
                 // нет сети / лимит GitHub — молча попробуем позже
+                Log.Warn("Проверка обновлений не удалась", ex);
             }
         }
 
@@ -87,6 +88,7 @@ namespace Undertone
             }
             catch (Exception ex)
             {
+                Log.Error("Обновление не установилось", ex);
                 _updating = false;
                 UpdateTitle.Text = "Не удалось обновить";
                 UpdateSub.Text = Short(ex.Message);

@@ -17,6 +17,7 @@ namespace Undertone
             _tray.PlayPauseRequested += TogglePlay;
             _tray.NextRequested += () => _ = NextAsync(auto: false);
             _tray.PrevRequested += () => _ = PrevAsync();
+            _tray.MiniRequested += ToggleMiniPlayer;
             _tray.ExitRequested += ExitApp;
 
             // выход из Windows / перезагрузка — закрываемся по-настоящему

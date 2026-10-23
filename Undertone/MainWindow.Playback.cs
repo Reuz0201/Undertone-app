@@ -32,7 +32,15 @@ namespace Undertone
         private int _playGen;
         private CancellationTokenSource? _playCts;
         private string? _currentFile;
+        private CacheDownload? _currentDownload;
         private int _failStreak;
+        private bool _shownBuffering;
+
+        /// <summary>Сколько байт ждём перед стартом потокового воспроизведения (~5 с при 320 кбит/с).</summary>
+        private const int StreamStartBytes = 192 * 1024;
+
+        /// <summary>С какого места включить трек: продолжение после перезапуска или после отключения наушников.</summary>
+        private (string TrackId, TimeSpan Position)? _resumeAt;
 
         private string? _waveSession;
         private string? _waveBatch;
@@ -48,6 +56,11 @@ namespace Undertone
             };
             _player.MediaEnded += async (_, _) => await NextAsync(auto: true);
             _player.MediaFailed += async (_, ex) => await OnPlaybackFailedAsync(ex);
+            _player.AdvancedToNext += (_, path) => OnAdvancedToNext(path);
+            _player.Equalizer.SetGains(_settings.EqGains);
+            _player.Equalizer.Enabled = _settings.EqEnabled;
+            _player.OutputRecovered += (_, name) => ShowToast($"Звук переключён: {name}");
+            _player.DeviceId = _settings.OutputDeviceId;
 
             // визуализаторы
             foreach (var viz in new[] { BigViz, MiniViz })
@@ -111,9 +124,14 @@ namespace Undertone
             var cts = _playCts = new CancellationTokenSource();
             var gen = ++_playGen;
 
+            FlushPlayReport();
             _player.Stop();
             _hasMedia = false;
             _isPlaying = false;
+            // файл прошлого трека больше не наш: если загрузка этого упадёт, удалять нечего
+            _currentFile = null;
+            _currentDownload = null;
+            _preparedNextId = null;
             ShowTrack(track);
             SetLoading(true);
 
@@ -121,24 +139,73 @@ namespace Undertone
             {
                 if (!track.Available) throw new YaApiException("трек недоступен в вашем регионе");
 
-                var path = await _cache.GetAsync(track.Id, () => api.GetDirectUrlAsync(track.Id), cts.Token);
+                // 1) уже в кэше (в нужном качестве)
+                var path = FindCachedFile(track);
+                StreamingMp3Reader? stream = null;
+                CacheDownload? download = null;
+
+                // 2) «без потерь» — качаем целиком (FLAC потоком не играем); не вышло — переходим на MP3
+                if (path == null && EffectiveQuality == AudioQuality.Lossless && !_noLossless.Contains(track.Id))
+                    path = await DownloadLosslessAsync(api, track, cts.Token);
                 if (gen != _playGen) return;
 
-                _currentFile = path;
-                _player.Open(path);
+                // 3) MP3 — потоком, пока докачивается
+                if (path == null)
+                {
+                    var entry = _cache.Open(track.Id, Mp3Resolver(api, track), Mp3Ext);
+                    path = entry.CompletedPath;
+                    download = entry.Download;
+                    if (path == null && download != null)
+                    {
+                        // ждём только начало файла — дальше играем, пока он докачивается
+                        await download.WaitForAsync(StreamStartBytes, cts.Token);
+                        if (gen != _playGen) return;
+
+                        if (!download.IsCompleted && _settings.StreamPlayback)
+                        {
+                            try
+                            {
+                                var d = download;
+                                stream = await Task.Run(() => new StreamingMp3Reader(d, track.Duration), cts.Token);
+                            }
+                            catch (Exception ex) when (ex is not OperationCanceledException)
+                            {
+                                Log.Warn($"Потоковое воспроизведение {track.Id} не завелось, жду полную загрузку", ex);
+                            }
+                        }
+                        if (stream == null) path = await download.Completion.WaitAsync(cts.Token);
+                    }
+                }
+                if (gen != _playGen)
+                {
+                    stream?.Dispose();
+                    return;
+                }
+
+                if (stream != null)
+                {
+                    _currentDownload = download;
+                    _player.Open(stream);
+                }
+                else
+                {
+                    _currentFile = path;
+                    _player.Open(path!);
+                }
                 if (!_player.HasMedia) return; // MediaFailed уже обработан
+                _player.TrackGain = GainFor(track);
+                if (_resumeAt is { } resume && resume.TrackId == track.Id)
+                {
+                    _player.Position = resume.Position;
+                    _resumeAt = null;
+                }
                 _player.Play();
                 _hasMedia = true;
                 _isPlaying = true;
                 _failStreak = 0;
                 _progressTimer.Start();
                 UpdatePlayState();
-
-                if (_queue.Source == QueueSource.Wave && _waveSession != null)
-                    _ = api.WaveFeedbackAsync(_waveSession, _waveBatch, "trackStarted", track.Id);
-
-                _ = PrefetchNextAsync();
-                _ = EnsureWaveBufferAsync(force: false);
+                OnTrackStarted(track, api);
             }
             catch (OperationCanceledException) when (cts.IsCancellationRequested || gen != _playGen)
             {
@@ -154,6 +221,92 @@ namespace Undertone
             }
         }
 
+        /// <summary>Трек зазвучал — обычным запуском или бесшовным переходом.</summary>
+        private void OnTrackStarted(YaTrack track, YaApi api)
+        {
+            if (_queue.Source == QueueSource.Wave && _waveSession != null)
+                _ = api.WaveFeedbackAsync(_waveSession, _waveBatch, "trackStarted", track.Id);
+            BeginPlayReport(track);
+            _ = PrefetchNextAsync();
+            _ = EnsureWaveBufferAsync(force: false);
+            SaveSession();
+        }
+
+        // ────────── переход без паузы / кроссфейд ──────────
+
+        private string? _preparedNextId;
+        private string? _prepareFailedId;
+
+        /// <summary>У конца трека готовит следующий в движке, если он уже скачан.</summary>
+        private void MaybePrepareNext()
+        {
+            if (_settings.CrossfadeSeconds < 0 || !_hasMedia || !_isPlaying) return;
+            if (_player.HasPreparedNext) return;
+            _preparedNextId = null;
+
+            var duration = _player.NaturalDuration ?? TimeSpan.Zero;
+            if (duration <= TimeSpan.FromSeconds(5)) return;
+            var lead = TimeSpan.FromSeconds(Math.Max(0, _settings.CrossfadeSeconds) + 4);
+            if (duration - _player.Position > lead) return;
+            // текущий ещё качается — его настоящий конец неизвестен; волна без запаса — ждём подгрузки
+            if (_player.BufferedFraction < 1) return;
+            if (_queue.Source == QueueSource.Wave && _queue.Remaining == 0) return;
+
+            var next = _queue.Repeat == RepeatMode.One ? _queue.Current : _queue.PeekNext();
+            if (next == null || !next.Available || next.Id == _prepareFailedId) return;
+            var path = FindCachedFile(next);
+            if (path == null)
+            {
+                _ = PrefetchNextAsync();
+                return;
+            }
+            if (_player.PrepareNext(path, Math.Max(0, _settings.CrossfadeSeconds), GainFor(next)))
+                _preparedNextId = next.Id;
+            else
+                _prepareFailedId = next.Id; // этот трек переходом не играем — включится обычным способом
+        }
+
+        /// <summary>Порядок очереди поменялся — подготовленный переход больше не верен.</summary>
+        private void InvalidatePreparedNext()
+        {
+            _preparedNextId = null;
+            _player.CancelNext();
+        }
+
+        private void OnAdvancedToNext(string path)
+        {
+            var expected = _preparedNextId;
+            _preparedNextId = null;
+            var api = _api;
+
+            FlushPlayReport(atEnd: true);
+            ReportFinished();
+            var moved = _queue.MoveNext(auto: true);
+            if (moved == null)
+            {
+                StopPlayback();
+                return;
+            }
+            if (moved.Id != expected || api == null)
+            {
+                // очередь успели поменять — включаем то, что в ней действительно следующее
+                _ = PlayCurrentAsync();
+                return;
+            }
+
+            // всё, что могло качаться для прошлого трека, больше не нужно
+            _playCts?.Cancel();
+            _playGen++;
+            _currentFile = path;
+            _currentDownload = null;
+            _failStreak = 0;
+            _hasMedia = true;
+            _isPlaying = true;
+            ShowTrack(moved);
+            UpdatePlayState();
+            OnTrackStarted(moved, api);
+        }
+
         private async Task OnPlaybackFailedAsync(Exception? ex)
         {
             var track = _queue.Current;
@@ -162,15 +315,39 @@ namespace Undertone
             _isPlaying = false;
             UpdatePlayState();
 
-            // битый файл в кэше — удаляем, чтобы в следующий раз скачать заново
-            if (_currentFile != null && ex is not YaApiException)
+            // нет устройства вывода (отключили наушники и т.п.) — файл в порядке, трек не пропускаем:
+            // ждём, пока пользователь подключит звук и нажмёт ▶ (TogglePlay включит этот же трек заново)
+            if (ex is AudioOutputException)
             {
+                if (track != null && _player.HasMedia) _resumeAt = (track.Id, _player.Position);
+                _player.Close();
+                _progressTimer.Stop();
+                ShowToast("Нет устройства вывода звука. Подключите наушники или колонки и нажмите ▶", 4);
+                return;
+            }
+
+            // битый файл в кэше — удаляем только его и только при ошибке декодирования,
+            // чтобы в следующий раз скачать заново. Сетевые ошибки файл не трогают.
+            if (ex is AudioDecodeException && _currentFile != null)
+            {
+                var wasLossless = IsLosslessFile(_currentFile);
                 _player.Close();
                 try { File.Delete(_currentFile); } catch (IOException) { } catch (UnauthorizedAccessException) { }
                 _currentFile = null;
+
+                // Windows не смогла раскодировать FLAC/MP4 — этот же трек сразу в MP3, без пропуска
+                if (wasLossless && track != null)
+                {
+                    Log.Warn($"Lossless-файл {track.Id} не воспроизводится, переключаюсь на MP3", ex);
+                    _noLossless.Add(track.Id);
+                    MarkLosslessFailed();
+                    if (gen == _playGen) await PlayCurrentAsync();
+                    return;
+                }
             }
 
             _failStreak++;
+            Log.Error($"Не удалось воспроизвести {track?.Id} «{track}»", ex);
             ShowToast($"Не получилось включить «{track?.Title}»: {Short(ex?.Message ?? "ошибка воспроизведения")}", 3.5);
 
             if (_failStreak >= 4)
@@ -183,13 +360,28 @@ namespace Undertone
             if (gen == _playGen) await NextAsync(auto: false, report: false);
         }
 
+        private int _prefetchGen;
+
+        /// <summary>Качает заранее следующие треки (сколько — на странице настроек), по одному, чтобы не делить канал.</summary>
         private async Task PrefetchNextAsync()
         {
-            var next = _queue.PeekNext();
             var api = _api;
-            if (next == null || api == null || !next.Available || _cache.Has(next.Id)) return;
-            try { await _cache.GetAsync(next.Id, () => api.GetDirectUrlAsync(next.Id)); }
-            catch (Exception) { /* догрузим при переключении */ }
+            var count = Math.Clamp(_settings.PrefetchCount, 0, 3);
+            if (api == null || count == 0) return;
+            var gen = ++_prefetchGen;
+            foreach (var next in _queue.PeekAhead(count))
+            {
+                if (gen != _prefetchGen) return; // очередь сменилась — старый список уже не нужен
+                if (!next.Available || FindCachedFile(next) != null) continue;
+                try
+                {
+                    if (EffectiveQuality == AudioQuality.Lossless && !_noLossless.Contains(next.Id) &&
+                        await DownloadLosslessAsync(api, next, CancellationToken.None) != null)
+                        continue;
+                    await _cache.GetAsync(next.Id, Mp3Resolver(api, next), CancellationToken.None, Mp3Ext);
+                }
+                catch (Exception) { return; /* догрузим при переключении; ошибка уже в журнале */ }
+            }
         }
 
         // ────────── управление ──────────
@@ -206,6 +398,7 @@ namespace Undertone
             else _player.Play();
             _isPlaying = !_isPlaying;
             UpdatePlayState();
+            if (!_isPlaying) SaveSession();
         }
 
         private async Task NextAsync(bool auto, bool report = true)
@@ -252,17 +445,27 @@ namespace Undertone
             var max = TimeSpan.FromSeconds(ProgressSlider.Maximum);
             _player.Position = target < TimeSpan.Zero ? TimeSpan.Zero : target > max ? max : target;
             UpdateProgress();
+            PublishNowPlaying(force: true);
         }
 
         private void CommitSeek()
         {
             if (_seeking && _hasMedia)
+            {
                 _player.Position = TimeSpan.FromSeconds(ProgressSlider.Value);
+                PublishNowPlaying(force: true);
+            }
+            else if (_seeking && _resumeAt is { } r)
+            {
+                // трек ещё не загружен (продолжение сессии) — запомним, откуда начать
+                _resumeAt = (r.TrackId, TimeSpan.FromSeconds(ProgressSlider.Value));
+            }
             _seeking = false;
         }
 
         private void StopPlayback()
         {
+            FlushPlayReport();
             _playCts?.Cancel();
             _playGen++;
             _player.Stop();
@@ -282,6 +485,7 @@ namespace Undertone
             }
             _settings.Shuffle = !_settings.Shuffle;
             _queue.SetShuffle(_settings.Shuffle);
+            InvalidatePreparedNext();
             PersistSettings();
             UpdateModeButtons();
             UpdateUpNext();
@@ -298,6 +502,7 @@ namespace Undertone
                 _ => RepeatMode.Off,
             };
             _queue.Repeat = _settings.Repeat;
+            InvalidatePreparedNext();
             PersistSettings();
             UpdateModeButtons();
             UpdateUpNext();
@@ -318,7 +523,21 @@ namespace Undertone
 
         // ────────── Моя волна ──────────
 
-        private Task StartWaveAsync() => StartWaveAsync(new[] { "user:onyourwave" }, "МОЯ ВОЛНА");
+        private Task StartWaveAsync() => StartWaveAsync(MyWaveSeeds(), "МОЯ ВОЛНА");
+
+        private const string MyWaveSeed = "user:onyourwave";
+
+        private bool IsMyWave => _waveKey.StartsWith(MyWaveSeed, StringComparison.Ordinal);
+
+        /// <summary>Моя волна + настройки со страницы «Настройки» (характер, настроение, язык) — как доп. seeds.</summary>
+        private string[] MyWaveSeeds()
+        {
+            var seeds = new List<string> { MyWaveSeed };
+            if (_settings.WaveDiversity.Length > 0) seeds.Add("settingDiversity:" + _settings.WaveDiversity);
+            if (_settings.WaveMood.Length > 0) seeds.Add("settingMoodEnergy:" + _settings.WaveMood);
+            if (_settings.WaveLanguage.Length > 0) seeds.Add("settingLanguage:" + _settings.WaveLanguage);
+            return seeds.ToArray();
+        }
 
         /// <param name="seeds">user:onyourwave — Моя волна; artist:123 — волна по артисту</param>
         private async Task StartWaveAsync(string[] seeds, string label)
@@ -351,6 +570,7 @@ namespace Undertone
             }
             catch (Exception ex)
             {
+                Log.Error("Моя волна не запустилась", ex);
                 ShowToast("Не удалось запустить Мою волну: " + Short(ex.Message), 4);
             }
             finally
@@ -405,9 +625,12 @@ namespace Undertone
 
         // ────────── лайки ──────────
 
+        /// <summary>Треки, лайк которых сейчас отправляется: повторный клик до ответа сервера игнорируем.</summary>
+        private readonly HashSet<string> _likePending = new();
+
         private async Task ToggleLikeAsync(YaTrack track)
         {
-            if (_api == null) return;
+            if (_api == null || !_likePending.Add(track.Id)) return;
             var like = !_likedIds.Contains(track.Id);
             ApplyLike(track, like);
             try
@@ -417,8 +640,13 @@ namespace Undertone
             }
             catch (Exception ex)
             {
+                Log.Warn($"Лайк {track.Id} не сохранился", ex);
                 ApplyLike(track, !like);
                 ShowToast("Не получилось: " + Short(ex.Message));
+            }
+            finally
+            {
+                _likePending.Remove(track.Id);
             }
         }
 
@@ -429,8 +657,7 @@ namespace Undertone
                 if (_likedIds.Add(track.Id))
                 {
                     _likedTracks.Insert(0, track);
-                    if (Matches(track, LikedFilter.Text.Trim()))
-                        _likedItems.Insert(0, new TrackItem(track, 1) { IsLiked = true });
+                    _likedItems.Insert(0, new TrackItem(track, 1) { IsLiked = true });
                 }
             }
             else
@@ -442,10 +669,10 @@ namespace Undertone
             }
             for (int i = 0; i < _likedItems.Count; i++) _likedItems[i].Index = i + 1;
             UpdateLikedHeader();
-            LikedEmpty.Visibility = _likedItems.Count == 0 && LikedLoading.Visibility != Visibility.Visible
-                ? Visibility.Visible : Visibility.Collapsed;
-            if (_likedItems.Count == 0) LikedEmpty.Text = "Здесь будут треки, которые вам понравились.\nНажмите ♥ у любого трека.";
+            UpdateLikedEmpty();
             RefreshLikeMarks();
+            ScheduleLibrarySave();
+            PublishNowPlaying();
         }
 
         private async Task DislikeCurrentAsync()
@@ -496,6 +723,8 @@ namespace Undertone
 
             UpdateUpNext();
             RefreshLikeMarks();
+            PublishNowPlaying();
+            OnLyricsTrackChanged();
         }
 
         private void ShowEmptyNowPlaying()
@@ -513,6 +742,8 @@ namespace Undertone
             _upNextItems.Clear();
             PosText.Text = DurText.Text = "0:00";
             SetProgressValue(0);
+            BufferBar.Width = 0;
+            PublishNowPlaying();
         }
 
         private void UpdateUpNext()
@@ -531,8 +762,8 @@ namespace Undertone
         {
             var glyph = _isPlaying ? "" : "";
             PlayBtn.Content = glyph;
-            WaveCardGlyph.Text = _queue.Source == QueueSource.Wave && _waveKey == "user:onyourwave" && _isPlaying ? "" : "";
-            WaveCardSub.Text = _queue.Source == QueueSource.Wave && _queue.Current != null && _waveKey == "user:onyourwave"
+            WaveCardGlyph.Text = _queue.Source == QueueSource.Wave && IsMyWave && _isPlaying ? "" : "";
+            WaveCardSub.Text = _queue.Source == QueueSource.Wave && _queue.Current != null && IsMyWave
                 ? (_isPlaying ? "Играет" : "На паузе")
                 : "Музыка под ваш вкус";
 
@@ -546,7 +777,7 @@ namespace Undertone
             if (_isPlaying) _progressTimer.Start();
             else _progressTimer.Stop();
             RefreshLikeMarks();
-            UpdateTray();
+            PublishNowPlaying();
         }
 
         private void SetLoading(bool loading)
@@ -558,10 +789,88 @@ namespace Undertone
 
         private void UpdateProgress()
         {
-            if (!_hasMedia || _seeking) return;
+            if (!_hasMedia) return;
+            UpdateBufferBar();
+            MaybePrepareNext();
+            UpdateLyricsPosition();
+            var buffering = _player.IsBuffering;
+            if (buffering != _shownBuffering)
+            {
+                _shownBuffering = buffering;
+                SetLoading(buffering);
+            }
+            if (_seeking) return;
             var pos = _player.Position;
             SetProgressValue(pos.TotalSeconds);
             PosText.Text = Format.Time(pos);
+            PublishNowPlaying(positionOnly: true);
+        }
+
+        /// <summary>Светлая полоса под ползунком — сколько трека уже скачано.</summary>
+        private void UpdateBufferBar()
+        {
+            var fraction = _hasMedia ? _player.BufferedFraction : 0;
+            BufferBar.Width = Math.Max(0, (ProgressSlider.ActualWidth - 4) * fraction);
+        }
+
+        // ────────── сессия: продолжить после перезапуска ──────────
+
+        private void SaveSession()
+        {
+            if (!_settings.ResumeSession || _account == null) return;
+            var (tracks, index) = _queue.Snapshot(before: 30, after: 200);
+            if (index < 0) return;
+            SessionStore.Save(new PlaybackSession
+            {
+                Uid = _account.Uid,
+                Tracks = tracks,
+                Index = index,
+                PositionSeconds = _hasMedia ? _player.Position.TotalSeconds : _resumeAt?.Position.TotalSeconds ?? 0,
+                // волну продолжаем как обычный список: сессия волны на сервере к тому времени истечёт
+                Source = _queue.Source == QueueSource.Wave ? QueueSource.Collection : _queue.Source,
+                Label = _queueLabel,
+            });
+        }
+
+        /// <summary>Показывает трек, на котором остановились, на паузе — ▶ продолжит с того же места.</summary>
+        private void RestoreSession()
+        {
+            if (!_settings.ResumeSession || _account == null || _queue.Current != null) return;
+            var s = SessionStore.Load(_account.Uid);
+            if (s == null) return;
+
+            _waveSession = null;
+            _waveKey = "";
+            _queueLabel = s.Label;
+            _queue.Set(s.Tracks, s.Index, s.Source, shuffle: false);
+            _queue.Repeat = _settings.Repeat;
+            if (_settings.Shuffle) _queue.SetShuffle(true);
+            var track = _queue.Current;
+            if (track == null) return;
+
+            var pos = TimeSpan.FromSeconds(Math.Max(0, s.PositionSeconds));
+            // почти доиграли — начнём трек сначала
+            if (track.Duration > TimeSpan.Zero && pos > track.Duration - TimeSpan.FromSeconds(10)) pos = TimeSpan.Zero;
+            _resumeAt = (track.Id, pos);
+            ShowTrack(track);
+            SetProgressValue(pos.TotalSeconds);
+            PosText.Text = Format.Time(pos);
+            UpdatePlayState();
+            _ = PrefetchCurrentAsync(track);
+        }
+
+        /// <summary>Заранее качает трек, на котором остановились, чтобы ▶ сработал мгновенно.</summary>
+        private async Task PrefetchCurrentAsync(YaTrack track)
+        {
+            var api = _api;
+            if (api == null || !track.Available || FindCachedFile(track) != null) return;
+            try
+            {
+                if (EffectiveQuality == AudioQuality.Lossless && await DownloadLosslessAsync(api, track, CancellationToken.None) != null)
+                    return;
+                await _cache.GetAsync(track.Id, Mp3Resolver(api, track), CancellationToken.None, Mp3Ext);
+            }
+            catch (Exception) { /* скачаем при нажатии ▶ */ }
         }
 
         private void SetProgressValue(double seconds)

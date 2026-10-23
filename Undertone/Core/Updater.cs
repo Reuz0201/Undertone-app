@@ -14,7 +14,8 @@ using System.Threading.Tasks;
 namespace Undertone.Core
 {
     public sealed record UpdateInfo(
-        Version Version, string Tag, string ZipUrl, string? Sha256Url, string Notes, string PageUrl, long Size);
+        Version Version, string Tag, string ZipUrl, string? Sha256Url, string Notes, string PageUrl, long Size,
+        string? SignatureUrl = null);
 
     public sealed class UpdateException : Exception
     {
@@ -23,8 +24,12 @@ namespace Undertone.Core
 
     /// <summary>
     /// Автообновление из GitHub Releases.
-    /// Релиз содержит Undertone-win-x64.zip (+ .sha256). Файлы приложения подменяются через
+    /// Релиз содержит Undertone-win-x64.zip (+ .sha256, + .sig). Файлы приложения подменяются через
     /// переименование: запущенный exe нельзя перезаписать, но можно переименовать в *.old.
+    ///
+    /// SHA-256 защищает только от битого файла. От подмены защищает подпись .sig (ECDSA P-256):
+    /// приватный ключ лежит в секретах GitHub, публичный вшивается в exe при сборке.
+    /// Если в сборке есть публичный ключ, неподписанное или чужое обновление не установится.
     /// </summary>
     public sealed class Updater
     {
@@ -68,16 +73,20 @@ namespace Undertone.Core
         }
 
         /// <summary>owner/repo, который CI вшивает в сборку (AssemblyMetadata "UpdateRepo").</summary>
-        public static string? EmbeddedRepo
+        public static string? EmbeddedRepo => Metadata("UpdateRepo");
+
+        /// <summary>Публичный ключ подписи обновлений (base64 SubjectPublicKeyInfo), вшитый CI. null — подпись не проверяется.</summary>
+        public static string? EmbeddedPublicKey => Metadata("UpdatePublicKey");
+
+        private static string? Metadata(string key)
         {
-            get
-            {
-                var asm = Assembly.GetEntryAssembly() ?? typeof(Updater).Assembly;
-                var value = asm.GetCustomAttributes<AssemblyMetadataAttribute>()
-                    .FirstOrDefault(a => a.Key == "UpdateRepo")?.Value;
-                return string.IsNullOrWhiteSpace(value) ? null : value;
-            }
+            var asm = Assembly.GetEntryAssembly() ?? typeof(Updater).Assembly;
+            var value = asm.GetCustomAttributes<AssemblyMetadataAttribute>().FirstOrDefault(a => a.Key == key)?.Value;
+            return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
         }
+
+        /// <summary>Публичный ключ для проверки. Для тестов можно подменить.</summary>
+        internal string? PublicKey { get; init; } = EmbeddedPublicKey;
 
         // ────────── проверка ──────────
 
@@ -112,7 +121,7 @@ namespace Undertone.Core
             var tag = r.TryGetProperty("tag_name", out var t) ? t.GetString() ?? "" : "";
             if (!TryParseVersion(tag, out var version)) return null;
 
-            string? zip = null, sha = null;
+            string? zip = null, sha = null, sig = null;
             long size = 0;
             if (r.TryGetProperty("assets", out var assets) && assets.ValueKind == JsonValueKind.Array)
             {
@@ -130,13 +139,17 @@ namespace Undertone.Core
                     {
                         sha = url;
                     }
+                    else if (name.Equals(AssetName + ".sig", StringComparison.OrdinalIgnoreCase))
+                    {
+                        sig = url;
+                    }
                 }
             }
             if (zip == null) return null;
 
             var notes = r.TryGetProperty("body", out var b) ? b.GetString() ?? "" : "";
             var page = r.TryGetProperty("html_url", out var h) ? h.GetString() ?? "" : "";
-            return new UpdateInfo(version, tag, zip, sha, notes.Trim(), page, size);
+            return new UpdateInfo(version, tag, zip, sha, notes.Trim(), page, size, sig);
         }
 
         internal static bool TryParseVersion(string text, out Version version)
@@ -192,6 +205,15 @@ namespace Undertone.Core
                         throw new UpdateException("Контрольная сумма не совпала — файл повреждён или подменён");
                 }
 
+                if (PublicKey != null)
+                {
+                    if (update.SignatureUrl == null)
+                        throw new UpdateException("Обновление не подписано — установка отменена");
+                    var signature = await Http.GetStringAsync(update.SignatureUrl, ct);
+                    if (!VerifySignature(zipPath, signature, PublicKey))
+                        throw new UpdateException("Подпись обновления не совпала — файл подменён, установка отменена");
+                }
+
                 var staging = Path.Combine(work, "files");
                 ZipFile.ExtractToDirectory(zipPath, staging);
                 var exe = Directory.GetFiles(staging, "Undertone.exe", SearchOption.AllDirectories).FirstOrDefault();
@@ -202,6 +224,29 @@ namespace Undertone.Core
             catch (Exception ex) when (ex is HttpRequestException or IOException or InvalidDataException)
             {
                 throw new UpdateException("Не удалось скачать обновление: " + ex.Message, ex);
+            }
+            finally
+            {
+                // архив больше не нужен (распакованное лежит в files); при ошибке — убираем всё
+                try { File.Delete(zipPath); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+            }
+        }
+
+        /// <summary>Проверка подписи ECDSA P-256 / SHA-256 (формат IEEE P1363, base64).</summary>
+        internal static bool VerifySignature(string filePath, string signatureBase64, string publicKeyBase64)
+        {
+            try
+            {
+                using var ecdsa = ECDsa.Create();
+                ecdsa.ImportSubjectPublicKeyInfo(Convert.FromBase64String(publicKeyBase64.Trim()), out _);
+                var signature = Convert.FromBase64String(signatureBase64.Trim());
+                using var fs = File.OpenRead(filePath);
+                return ecdsa.VerifyData(fs, signature, HashAlgorithmName.SHA256);
+            }
+            catch (Exception ex) when (ex is FormatException or CryptographicException)
+            {
+                Log.Warn("Подпись обновления не читается", ex);
+                return false;
             }
         }
 

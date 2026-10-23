@@ -8,7 +8,7 @@ namespace Undertone.Core
 {
     /// <summary>
     /// Чтение и запись .env в корне проекта.
-    /// Понимает оба формата: <c>key: value</c> (как пишет main.py) и <c>key=value</c>.
+    /// Понимает оба формата: <c>key: value</c> и <c>key=value</c>.
     /// При записи сохраняет комментарии, порядок строк и разделитель каждой строки.
     /// </summary>
     public sealed class EnvFile
@@ -67,7 +67,7 @@ namespace Undertone.Core
                     Directory.CreateDirectory(Path.GetDirectoryName(target)!);
                     File.Copy(candidate, target, overwrite: true);
                     // .env рядом с exe убираем — токены теперь только в AppData.
-                    // Корень исходников не трогаем: он в .gitignore и может нужен Python-скриптам.
+                    // Корень исходников не трогаем: это рабочая копия разработчика (start.bat), и .env там в .gitignore.
                     if (candidate == exeEnv && root == null) File.Delete(candidate);
                     return;
                 }
@@ -154,7 +154,7 @@ namespace Undertone.Core
             int colon = s.IndexOf(':');
             int idx;
             char sep;
-            // как в Python-версии: '=' если до него нет ':'
+            // разделитель — '=', если до него нет ':' (иначе ':')
             if (eq >= 0 && (colon < 0 || eq < colon)) { idx = eq; sep = '='; }
             else if (colon >= 0) { idx = colon; sep = ':'; }
             else return null;

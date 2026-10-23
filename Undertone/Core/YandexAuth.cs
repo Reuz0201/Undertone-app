@@ -19,11 +19,11 @@ namespace Undertone.Core
     }
 
     /// <summary>
-    /// OAuth Яндекса: вход по коду (device flow, как client.device_auth в main.py) и обновление токена.
+    /// OAuth Яндекса: вход по коду (device flow) и обновление токена.
     /// </summary>
     public static class YandexAuth
     {
-        // client_id/secret официального Android-клиента — те же, что использует yandex-music (Python)
+        // client_id/secret официального Android-клиента — те же, что у публичной библиотеки yandex-music
         private const string ClientId = "23cabbbdc6cd418abb4b39c32c41195d";
         private const string ClientSecret = "53bc75238f0c4d08a118e51fe9203300";
         private const string OAuthBase = "https://oauth.yandex.ru";
@@ -124,30 +124,74 @@ namespace Undertone.Core
         }
     }
 
-    /// <summary>Токены из .env + сохранение обновлённых обратно в .env.</summary>
+    /// <summary>
+    /// Токены из .env + сохранение обновлённых обратно в .env.
+    /// В файле они зашифрованы DPAPI (<see cref="SecretProtector"/>); старые открытые значения
+    /// шифруются при первом запуске новой версии.
+    /// </summary>
     public sealed class TokenStore
     {
         private readonly EnvFile _env;
         private readonly SemaphoreSlim _refreshLock = new(1, 1);
 
-        public TokenStore(EnvFile env) => _env = env;
+        public TokenStore(EnvFile env)
+        {
+            _env = env;
+            MigrateToEncrypted();
+        }
 
         public string EnvPath => _env.FilePath;
 
-        /// <summary>TOKEN из переменной окружения имеет приоритет (как в Python-версии).</summary>
+        /// <summary>TOKEN из переменной окружения имеет приоритет (удобно для отладки).</summary>
         public string? AccessToken =>
-            Environment.GetEnvironmentVariable("TOKEN")?.Trim() is { Length: > 0 } t ? t : _env.Get("access_token");
+            Environment.GetEnvironmentVariable("TOKEN")?.Trim() is { Length: > 0 } t ? t : Read("access_token");
 
-        public string? RefreshToken => _env.Get("refresh_token");
+        public string? RefreshToken => Read("refresh_token");
+
+        private string? Read(string key) =>
+            SecretProtector.Unprotect(_env.Get(key)) is { Length: > 0 } v ? v : null;
 
         public void Save(OAuthToken token)
         {
+            // null — сервер не прислал новый refresh_token, оставляем старый; "" — явно стереть (ручной вход)
+            var refresh = token.RefreshToken ?? RefreshToken ?? "";
             _env.Set(new Dictionary<string, string?>
             {
-                ["access_token"] = token.AccessToken,
-                ["refresh_token"] = token.RefreshToken ?? RefreshToken ?? "",
+                ["access_token"] = SecretProtector.Protect(token.AccessToken),
+                ["refresh_token"] = SecretProtector.Protect(refresh),
                 ["expires_in"] = token.ExpiresIn?.ToString() ?? "",
             });
+        }
+
+        /// <summary>Стирает токены (выход из аккаунта).</summary>
+        public void Clear() =>
+            _env.Set(new Dictionary<string, string?>
+            {
+                ["access_token"] = "",
+                ["refresh_token"] = "",
+                ["expires_in"] = "",
+            });
+
+        private void MigrateToEncrypted()
+        {
+            try
+            {
+                var access = _env.Get("access_token");
+                var refresh = _env.Get("refresh_token");
+                var plainAccess = access != null && !SecretProtector.IsProtected(access);
+                var plainRefresh = refresh != null && !SecretProtector.IsProtected(refresh);
+                if (!plainAccess && !plainRefresh) return;
+
+                var values = new Dictionary<string, string?>();
+                if (plainAccess) values["access_token"] = SecretProtector.Protect(access!);
+                if (plainRefresh) values["refresh_token"] = SecretProtector.Protect(refresh!);
+                _env.Set(values);
+                Log.Info("Токены в .env зашифрованы (DPAPI)");
+            }
+            catch (Exception ex)
+            {
+                Log.Warn("Не удалось зашифровать токены", ex);
+            }
         }
 
         /// <summary>Обновляет access_token по refresh_token. null — обновить нельзя.</summary>

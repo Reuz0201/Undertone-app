@@ -8,7 +8,7 @@ using Undertone.Core;
 
 namespace Undertone
 {
-    /// <summary>Вход: код на ya.ru/device (как main.py) или ручная вставка токена. Результат пишется в .env.</summary>
+    /// <summary>Вход: код на ya.ru/device или ручная вставка токена. Токены пишутся в .env в зашифрованном виде.</summary>
     public partial class MainWindow
     {
         private CancellationTokenSource? _authCts;
@@ -18,7 +18,7 @@ namespace Undertone
         {
             AuthOverlay.Visibility = Visibility.Visible;
             AuthHint.Text = reason ?? "Откройте страницу на любом устройстве и введите код:";
-            AuthEnvPath.Text = $"Токены сохранятся в {_env.FilePath}";
+            AuthEnvPath.Text = $"Токены сохранятся в зашифрованном виде в {_env.FilePath}";
             AuthManual.Text = "";
             _ = RunDeviceFlowAsync();
         }

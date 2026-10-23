@@ -112,6 +112,11 @@ if (Get-Command dotnet -ErrorAction SilentlyContinue) {
     & dotnet build $csproj -c Release --nologo -v quiet "-p:Version=$Version"
     if ($LASTEXITCODE -ne 0) { Fail 'Сборка упала — смотри ошибки выше. Ничего не опубликовано.' }
     Ok 'Собирается'
+    if (Test-Path 'Undertone.Tests\Undertone.Tests.csproj') {
+        & dotnet test 'Undertone.Tests\Undertone.Tests.csproj' -c Release --nologo -v quiet
+        if ($LASTEXITCODE -ne 0) { Fail 'Тесты не прошли — смотри ошибки выше. Ничего не опубликовано.' }
+        Ok 'Тесты прошли'
+    }
 } else {
     Warn 'dotnet не найден — пропускаю, проверит GitHub Actions.'
 }

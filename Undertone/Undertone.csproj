@@ -2,14 +2,16 @@
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net8.0-windows</TargetFramework>
+    <!-- windows10.0.19041 — нужен для SMTC (оверлей Windows, кнопки наушников, экран блокировки) -->
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <SupportedOSPlatformVersion>10.0.17763.0</SupportedOSPlatformVersion>
     <Nullable>enable</Nullable>
     <UseWPF>true</UseWPF>
     <LangVersion>latest</LangVersion>
     <RootNamespace>Undertone</RootNamespace>
     <AssemblyName>Undertone</AssemblyName>
     <Product>Undertone</Product>
-    <Version>2.0.0</Version>
+    <Version>3.0.0</Version>
     <SatelliteResourceLanguages>ru</SatelliteResourceLanguages>
     <ApplicationIcon>Assets\undertone.ico</ApplicationIcon>
     <UseWindowsForms>true</UseWindowsForms>
@@ -30,6 +32,16 @@
   <!-- CI передаёт -p:UpdateRepo=owner/repo — откуда приложение будет брать обновления -->
   <ItemGroup Condition="'$(UpdateRepo)' != ''">
     <AssemblyMetadata Include="UpdateRepo" Value="$(UpdateRepo)" />
+  </ItemGroup>
+
+  <!-- и -p:UpdatePublicKey=<base64> — публичный ключ подписи обновлений (см. RELEASING.md) -->
+  <ItemGroup Condition="'$(UpdatePublicKey)' != ''">
+    <AssemblyMetadata Include="UpdatePublicKey" Value="$(UpdatePublicKey)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- тесты видят internal-методы (разбор ответов API, очередь, обновлятор) -->
+    <InternalsVisibleTo Include="Undertone.Tests" />
   </ItemGroup>
 
 </Project>
