@@ -159,7 +159,7 @@ namespace Undertone.Core
             var cut = s.IndexOfAny(new[] { '-', '+', ' ' });
             if (cut >= 0) s = s.Substring(0, cut);
             if (Version.TryParse(s, out var v)) { version = Normalize(v); return true; }
-            if (int.TryParse(s, out var major)) { version = new Version(major, 0, 0); return true; }
+            if (int.TryParse(s, out var major) && major >= 0) { version = Normalize(new Version(major, 0, 0)); return true; }
             version = new Version(0, 0, 0);
             return false;
         }
