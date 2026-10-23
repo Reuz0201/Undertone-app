@@ -202,7 +202,8 @@ namespace Undertone
             var item = _collPlaylist;
             try
             {
-                var updated = await WithFreshRevisionAsync(item, pl => api.RemoveFromPlaylistAsync(pl, index));
+                // удаляем по id трека: позиция сверяется с плейлистом на сервере, а не берётся из списка на экране
+                var updated = await api.RemoveTrackFromPlaylistAsync(item.Playlist.Kind, row.Track.Id, index);
                 var fresh = ReplacePlaylist(item, updated);
                 _collItems.Remove(row);
                 for (int i = 0; i < _collItems.Count; i++) _collItems[i].Index = i + 1;

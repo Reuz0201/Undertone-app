@@ -37,7 +37,17 @@ namespace Undertone
         {
             var menu = new ContextMenu();
 
-            menu.Items.Add(Item("Играть следующим", "", () => PlayNext(track)));
+            if (row != null && list == UpNextList)
+            {
+                menu.Items.Add(Item("Сыграть следующим", "", () => MoveToNext(row)));
+                menu.Items.Add(Item("Убрать из очереди", "\uE711", () => RemoveFromQueue(row)));
+                menu.Items.Add(new Separator());
+            }
+            else
+            {
+                menu.Items.Add(Item("Играть следующим", "", () => PlayNext(track)));
+                menu.Items.Add(Item("Добавить в конец очереди", "\uE710", () => AddToQueueEnd(track)));
+            }
 
             var add = Item("Добавить в плейлист", "");
             add.Items.Add(Item("Новый плейлист…", "", () => _ = CreatePlaylistAsync(track)));
@@ -118,6 +128,7 @@ namespace Undertone
                 return;
             }
             _queue.InsertNext(track);
+            InvalidatePreparedNext();
             UpdateUpNext();
             _ = PrefetchNextAsync();
             ShowToast($"«{track.FullTitle}» сыграет следующим");

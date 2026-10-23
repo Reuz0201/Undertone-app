@@ -1,12 +1,17 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace Undertone.Core
 {
-    /// <summary>Настройки интерфейса (громкость, shuffle, repeat) — %LOCALAPPDATA%\Undertone\settings.json.</summary>
+    public enum AudioQuality { Economy, High, Lossless }
+
+    /// <summary>Настройки приложения — %LOCALAPPDATA%\Undertone\settings.json.</summary>
     public sealed class AppSettings
     {
+        // ── интерфейс и плеер ──
         public double Volume { get; set; } = 0.7;
         public bool Muted { get; set; }
         public bool Shuffle { get; set; }
@@ -17,6 +22,56 @@ namespace Undertone.Core
         public bool TrayHintShown { get; set; }
         public int VisualizerMode { get; set; }
 
+        // ── страница «Настройки» ──
+        /// <summary>Лимит кэша аудио в мегабайтах.</summary>
+        public int CacheLimitMb { get; set; } = 2048;
+        /// <summary>true — крестик сворачивает в трей, false — закрывает приложение.</summary>
+        public bool CloseToTray { get; set; } = true;
+        /// <summary>Сколько следующих треков качать заранее.</summary>
+        public int PrefetchCount { get; set; } = 2;
+        /// <summary>Начинать играть, не дожидаясь полной загрузки трека.</summary>
+        public bool StreamPlayback { get; set; } = true;
+        /// <summary>После перезапуска предлагать продолжить с того же трека и места.</summary>
+        public bool ResumeSession { get; set; } = true;
+        /// <summary>id устройства вывода; null — системное по умолчанию.</summary>
+        public string? OutputDeviceId { get; set; }
+        public AudioQuality Quality { get; set; } = AudioQuality.High;
+        /// <summary>Переход между треками: -1 — обычный (с паузой), 0 — без паузы, N — кроссфейд N секунд.</summary>
+        public int CrossfadeSeconds { get; set; } = -1;
+        /// <summary>Выравнивать громкость треков (если Яндекс сообщает громкость трека).</summary>
+        public bool Normalize { get; set; } = true;
+
+        // ── эквалайзер ──
+        public bool EqEnabled { get; set; }
+        public float[] EqGains { get; set; } = new float[10];
+
+        // ── Моя волна ──
+        /// <summary>"" — любое; favorite / discover / popular.</summary>
+        public string WaveDiversity { get; set; } = "";
+        /// <summary>"" — любое; active / fun / calm / sad.</summary>
+        public string WaveMood { get; set; } = "";
+        /// <summary>"" — любой; russian / not-russian / without-words.</summary>
+        public string WaveLanguage { get; set; } = "";
+
+        // ── интеграции ──
+        /// <summary>Отправлять прослушивания в Яндекс (рекомендации и история учитывают Undertone).</summary>
+        public bool ReportPlays { get; set; } = true;
+        public bool GlobalHotkeys { get; set; } = true;
+        /// <summary>Действие → сочетание, например "Like" → "Ctrl+Alt+L".</summary>
+        public Dictionary<string, string> Hotkeys { get; set; } = new();
+        public bool DiscordEnabled { get; set; }
+        /// <summary>Application ID из Discord Developer Portal.</summary>
+        public string DiscordAppId { get; set; } = "";
+
+        // ── мини-плеер ──
+        public double? MiniLeft { get; set; }
+        public double? MiniTop { get; set; }
+
+        public const int MinCacheMb = 256;
+
+        [JsonIgnore]
+        public long CacheLimitBytes =>Math.Max(MinCacheMb, CacheLimitMb) * 1024L * 1024L;
+
         private static string FilePath => Path.Combine(EnvFile.DataDirectory, "settings.json");
 
         public static AppSettings Load()
@@ -26,7 +81,10 @@ namespace Undertone.Core
                 if (File.Exists(FilePath))
                     return JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(FilePath)) ?? new AppSettings();
             }
-            catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException) { }
+            catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException)
+            {
+                Log.Warn("settings.json не прочитан, беру настройки по умолчанию", ex);
+            }
             return new AppSettings();
         }
 
@@ -35,9 +93,14 @@ namespace Undertone.Core
             try
             {
                 Directory.CreateDirectory(Path.GetDirectoryName(FilePath)!);
-                File.WriteAllText(FilePath, JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true }));
+                var tmp = FilePath + ".tmp";
+                File.WriteAllText(tmp, JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true }));
+                File.Move(tmp, FilePath, overwrite: true);
             }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                Log.Warn("settings.json не сохранён", ex);
+            }
         }
     }
 }

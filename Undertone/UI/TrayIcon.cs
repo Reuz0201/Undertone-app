@@ -16,6 +16,7 @@ namespace Undertone.UI
         public event Action? PlayPauseRequested;
         public event Action? NextRequested;
         public event Action? PrevRequested;
+        public event Action? MiniRequested;
         public event Action? ExitRequested;
 
         public TrayIcon()
@@ -44,6 +45,7 @@ namespace Undertone.UI
                 Item("Предыдущий", () => PrevRequested?.Invoke()),
                 new WinForms.ToolStripSeparator(),
                 open,
+                Item("Мини-плеер", () => MiniRequested?.Invoke()),
                 Item("Выход", () => ExitRequested?.Invoke()),
             });
 

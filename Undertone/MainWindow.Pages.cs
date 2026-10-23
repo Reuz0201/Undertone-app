@@ -14,7 +14,8 @@ namespace Undertone
     /// <summary>Страницы артиста, альбома и плейлиста (одна общая разметка) + переходы «Назад».</summary>
     public partial class MainWindow
     {
-        private enum CollectionKind { None, Artist, Album, Playlist }
+        /// <summary>Playlist — свой (можно править), PublicPlaylist — чужой (из поиска).</summary>
+        private enum CollectionKind { None, Artist, Album, Playlist, PublicPlaylist }
 
         private ObservableCollection<TrackItem> _collItems = new();
         private CollectionKind _collKind;
@@ -47,6 +48,8 @@ namespace Undertone
                 _collReturnTo = NavNow.IsChecked == true ? NavNow
                     : NavLiked.IsChecked == true ? NavLiked
                     : NavSearch.IsChecked == true ? NavSearch
+                    : NavHistory.IsChecked == true ? NavHistory
+                    : NavSettings.IsChecked == true ? NavSettings
                     : null;
             }
 
@@ -58,9 +61,9 @@ namespace Undertone
 
         private void ShowCollectionPage()
         {
-            PageNow.Visibility = PageLiked.Visibility = PageSearch.Visibility = Visibility.Collapsed;
+            PageNow.Visibility = PageLiked.Visibility = PageSearch.Visibility = PageSettings.Visibility = PageHistory.Visibility = Visibility.Collapsed;
             PageCollection.Visibility = Visibility.Visible;
-            NavNow.IsChecked = NavLiked.IsChecked = NavSearch.IsChecked = false;
+            NavNow.IsChecked = NavLiked.IsChecked = NavSearch.IsChecked = NavSettings.IsChecked = NavHistory.IsChecked = false;
             CollBack.Visibility = _collHistory.Count > 0 || _collReturnTo != null ? Visibility.Visible : Visibility.Collapsed;
         }
 
@@ -221,6 +224,44 @@ namespace Undertone
                 if (playlist.CoverUrl(400) is { } cover) CollCoverBrush.ImageSource = Covers.Load(cover, 320);
                 _collLabel = $"ПЛЕЙЛИСТ · {playlist.Title.ToUpperInvariant()}";
                 FillTracks(tracks, "Плейлист пуст.\nДобавляйте треки правым кликом → «Добавить в плейлист».");
+            }
+            catch (Exception ex)
+            {
+                if (gen == _collGen) CollFailed(ex);
+            }
+        }
+
+        /// <summary>Плейлист из поиска. Свой открываем обычной страницей — с переименованием и удалением треков.</summary>
+        private Task OpenPublicPlaylistAsync(YaPlaylist playlist)
+        {
+            if (_account != null && playlist.OwnerUid == _account.Uid && FindPlaylist(playlist.Kind) is { } mine)
+                return OpenCollectionAsync(() => LoadPlaylistViewAsync(mine));
+            return OpenCollectionAsync(() => LoadPublicPlaylistViewAsync(playlist));
+        }
+
+        private async Task LoadPublicPlaylistViewAsync(YaPlaylist source)
+        {
+            if (_api == null) return;
+            var gen = ++_collGen;
+            ResetCollection(CollectionKind.PublicPlaylist, "ПЛЕЙЛИСТ", source.Title, round: false);
+            CollCoverBrush.ImageSource = Covers.Load(source.CoverUrl(400), 320);
+            try
+            {
+                var (playlist, tracks) = await _api.GetPlaylistAsync(source.OwnerUid, source.Kind);
+                if (gen != _collGen) return;
+
+                var title = playlist.Title.Length > 0 ? playlist.Title : source.Title;
+                var owner = playlist.OwnerName.Length > 0 ? playlist.OwnerName : source.OwnerName;
+                CollTitle.Text = title;
+                var total = TimeSpan.FromMilliseconds(tracks.Sum(t => t.DurationMs));
+                var sub = new List<string>();
+                if (owner.Length > 0) sub.Add(owner);
+                sub.Add($"{tracks.Count} {Format.Plural(tracks.Count, "трек", "трека", "треков")}");
+                if (total > TimeSpan.Zero) sub.Add(Format.Total(total));
+                CollSub.Text = string.Join(" · ", sub);
+                if (playlist.CoverUrl(400) is { } cover) CollCoverBrush.ImageSource = Covers.Load(cover, 320);
+                _collLabel = $"ПЛЕЙЛИСТ · {title.ToUpperInvariant()}";
+                FillTracks(tracks, "Плейлист пуст");
             }
             catch (Exception ex)
             {

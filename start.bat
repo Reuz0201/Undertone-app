@@ -13,7 +13,7 @@ REM ============================================================
 
 set "PROJECT_DIR=Undertone"
 set "CSPROJ=%PROJECT_DIR%\Undertone.csproj"
-set "OUT_EXE=%PROJECT_DIR%\bin\Release\net8.0-windows\Undertone.exe"
+set "OUT_EXE=%PROJECT_DIR%\bin\Release\net10.0-windows10.0.19041.0\Undertone.exe"
 
 cls
 echo.
@@ -33,7 +33,7 @@ where dotnet >nul 2>nul
 if errorlevel 1 (
     echo   [!] .NET SDK не найден в PATH.
     echo.
-    echo   Установи .NET 8 SDK с https://dotnet.microsoft.com/download
+    echo   Установи .NET 10 SDK с https://dotnet.microsoft.com/download
     echo   После установки перезапусти этот файл.
     echo.
     pause
@@ -88,7 +88,7 @@ echo   [OK] Сборка успешна
 REM ── 5. Запуск ───────────────────────────────────────────────
 if not exist "%OUT_EXE%" (
     echo   [!] Не найден %OUT_EXE% после сборки.
-    echo       Проверь TargetFramework в .csproj (ожидается net8.0-windows).
+    echo       Проверь TargetFramework в .csproj (ожидается net10.0-windows10.0.19041.0).
     pause
     exit /b 1
 )

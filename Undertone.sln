@@ -1,0 +1,28 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Undertone", "Undertone\Undertone.csproj", "{1371434A-8535-4C30-BE18-E2993C985142}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Undertone.Tests", "Undertone.Tests\Undertone.Tests.csproj", "{922DF341-6C32-432C-95BF-5D749F03CF9B}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{1371434A-8535-4C30-BE18-E2993C985142}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1371434A-8535-4C30-BE18-E2993C985142}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1371434A-8535-4C30-BE18-E2993C985142}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1371434A-8535-4C30-BE18-E2993C985142}.Release|Any CPU.Build.0 = Release|Any CPU
+		{922DF341-6C32-432C-95BF-5D749F03CF9B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{922DF341-6C32-432C-95BF-5D749F03CF9B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{922DF341-6C32-432C-95BF-5D749F03CF9B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{922DF341-6C32-432C-95BF-5D749F03CF9B}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal

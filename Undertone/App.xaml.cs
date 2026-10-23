@@ -19,14 +19,27 @@ namespace Undertone
         /// <summary>PID старой версии, если нас запустил обновлятор (аргумент --updated &lt;pid&gt;).</summary>
         public static int? UpdatedFrom { get; private set; }
 
+        /// <summary>Запуск из автозагрузки (--tray): окно не показываем, сразу в трей.</summary>
+        public static bool StartInTray { get; private set; }
+
         protected override void OnStartup(StartupEventArgs e)
         {
             DispatcherUnhandledException += OnDispatcherUnhandledException;
-            TaskScheduler.UnobservedTaskException += (_, args) => args.SetObserved();
+            TaskScheduler.UnobservedTaskException += (_, args) =>
+            {
+                Log.Warn("Необработанная ошибка в фоновой задаче", args.Exception);
+                args.SetObserved();
+            };
+            AppDomain.CurrentDomain.UnhandledException += (_, args) =>
+                Log.Error("Фатальная ошибка", args.ExceptionObject as Exception);
 
-            for (int i = 0; i < e.Args.Length - 1; i++)
-                if (e.Args[i] == "--updated" && int.TryParse(e.Args[i + 1], out var pid))
+            for (int i = 0; i < e.Args.Length; i++)
+            {
+                if (e.Args[i] == "--updated" && i + 1 < e.Args.Length && int.TryParse(e.Args[i + 1], out var pid))
                     UpdatedFrom = pid;
+                if (e.Args[i] == Autostart.TrayArg)
+                    StartInTray = true;
+            }
 
             if (UpdatedFrom is { } oldPid)
             {
@@ -57,7 +70,8 @@ namespace Undertone
 
             var window = new MainWindow();
             MainWindow = window;
-            window.Show();
+            if (StartInTray) window.StartHidden();
+            else window.Show();
 
             _showEvent = new EventWaitHandle(false, EventResetMode.AutoReset, ShowEventName);
             var listener = new Thread(() =>
@@ -78,7 +92,9 @@ namespace Undertone
 
         private static void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
         {
-            MessageBox.Show(e.Exception.Message, "Undertone — ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
+            Log.Error("Необработанная ошибка в интерфейсе", e.Exception);
+            MessageBox.Show(e.Exception.Message + "\n\nПодробности — в журнале: Настройки → Открыть папку логов.",
+                "Undertone — ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
             e.Handled = true;
         }
     }

@@ -172,6 +172,10 @@
                                      Checked="Nav_Checked"/>
                         <RadioButton x:Name="NavSearch" Style="{StaticResource NavButton}" Tag="&#xE721;" Content="Поиск"
                                      Checked="Nav_Checked"/>
+                        <RadioButton x:Name="NavHistory" Style="{StaticResource NavButton}" Tag="&#xE81C;" Content="История"
+                                     Checked="Nav_Checked"/>
+                        <RadioButton x:Name="NavSettings" Style="{StaticResource NavButton}" Tag="&#xE713;" Content="Настройки"
+                                     Checked="Nav_Checked"/>
                     </StackPanel>
 
                     <!-- заголовок «Плейлисты» -->
@@ -398,16 +402,92 @@
                                             <TextBlock Text="Не нравится" VerticalAlignment="Center"/>
                                         </StackPanel>
                                     </Button>
+                                    <Button x:Name="NowLyricsBtn" Style="{StaticResource PillSecondary}" Click="NowLyrics_Click"
+                                            Margin="0,0,10,0" ToolTip="Текст песни (T)">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock x:Name="NowLyricsGlyph" Text="&#xE8D2;" FontFamily="{StaticResource IconFont}"
+                                                       FontSize="14" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                            <TextBlock x:Name="NowLyricsText" Text="Текст" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </Button>
                                     <Button x:Name="NowMore" Style="{StaticResource CircleGhost}" Width="42" Height="42"
                                             Content="&#xE712;" ToolTip="Ещё: в плейлист, к артисту, к альбому" Click="NowMore_Click"/>
                                 </StackPanel>
                             </StackPanel>
 
-                            <TextBlock x:Name="UpNextHeader" DockPanel.Dock="Top" Text="Далее" FontSize="16" FontWeight="SemiBold"
-                                       Margin="8,24,0,8"/>
-                            <ListBox x:Name="UpNextList" Style="{StaticResource TrackList}"
-                                     ItemContainerStyle="{StaticResource TrackRow}" ItemTemplate="{StaticResource TrackRowTemplate}"
-                                     KeyDown="List_KeyDown"/>
+                            <Grid>
+                                <!-- очередь «Далее»: перетаскивание меняет порядок, правый клик — убрать -->
+                                <DockPanel x:Name="UpNextPanel">
+                                    <Grid DockPanel.Dock="Top" Margin="8,24,8,8">
+                                        <TextBlock x:Name="UpNextHeader" Text="Далее" FontSize="16" FontWeight="SemiBold"
+                                                   VerticalAlignment="Center"/>
+                                        <Button x:Name="UpNextClear" Style="{StaticResource PillSecondary}" Content="Очистить"
+                                                Padding="12,5" FontSize="12" HorizontalAlignment="Right"
+                                                ToolTip="Убрать из очереди всё, что после текущего трека" Click="UpNextClear_Click"/>
+                                    </Grid>
+                                    <ListBox x:Name="UpNextList" Style="{StaticResource TrackList}" AllowDrop="True"
+                                             ItemContainerStyle="{StaticResource TrackRow}" ItemTemplate="{StaticResource TrackRowTemplate}"
+                                             KeyDown="List_KeyDown"
+                                             PreviewMouseLeftButtonDown="UpNext_PreviewMouseDown" PreviewMouseMove="UpNext_PreviewMouseMove"
+                                             DragOver="UpNext_DragOver" Drop="UpNext_Drop"/>
+                                </DockPanel>
+
+                                <!-- текст песни -->
+                                <Grid x:Name="LyricsPanel" Visibility="Collapsed" Margin="0,22,0,0">
+                                    <ListBox x:Name="LyricsList" Style="{StaticResource TrackList}"
+                                             ScrollViewer.CanContentScroll="False">
+                                        <ListBox.ItemContainerStyle>
+                                            <Style TargetType="ListBoxItem">
+                                                <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+                                                <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                                                <EventSetter Event="MouseLeftButtonUp" Handler="LyricLine_Click"/>
+                                                <Setter Property="Template">
+                                                    <Setter.Value>
+                                                        <ControlTemplate TargetType="ListBoxItem">
+                                                            <Border x:Name="Bd" Background="Transparent" CornerRadius="10" Padding="10,7">
+                                                                <ContentPresenter/>
+                                                            </Border>
+                                                            <ControlTemplate.Triggers>
+                                                                <Trigger Property="IsMouseOver" Value="True">
+                                                                    <Setter TargetName="Bd" Property="Background" Value="#0DFFFFFF"/>
+                                                                </Trigger>
+                                                            </ControlTemplate.Triggers>
+                                                        </ControlTemplate>
+                                                    </Setter.Value>
+                                                </Setter>
+                                            </Style>
+                                        </ListBox.ItemContainerStyle>
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate DataType="{x:Type ui:LyricLine}">
+                                                <TextBlock x:Name="Line" Text="{Binding Text}" FontSize="22" FontWeight="SemiBold"
+                                                           TextWrapping="Wrap" Foreground="#5A5F73"
+                                                           FontFamily="Segoe UI Variable Display, Segoe UI"/>
+                                                <DataTemplate.Triggers>
+                                                    <DataTrigger Binding="{Binding IsPast}" Value="True">
+                                                        <Setter TargetName="Line" Property="Foreground" Value="#8C91A5"/>
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding IsActive}" Value="True">
+                                                        <Setter TargetName="Line" Property="Foreground" Value="White"/>
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding IsPlain}" Value="True">
+                                                        <Setter TargetName="Line" Property="Foreground" Value="#C8CCD8"/>
+                                                        <Setter TargetName="Line" Property="FontSize" Value="17"/>
+                                                        <Setter TargetName="Line" Property="FontWeight" Value="Normal"/>
+                                                    </DataTrigger>
+                                                </DataTemplate.Triggers>
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
+                                    </ListBox>
+                                    <StackPanel x:Name="LyricsStatus" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                        <Control x:Name="LyricsSpinner" Style="{StaticResource Spinner}" HorizontalAlignment="Center"/>
+                                        <TextBlock x:Name="LyricsStatusText" Text="Загружаю текст…" Foreground="{StaticResource TextDimBrush}"
+                                                   TextAlignment="Center" TextWrapping="Wrap" MaxWidth="360" Margin="0,12,0,0"/>
+                                    </StackPanel>
+                                    <TextBlock x:Name="LyricsCredits" VerticalAlignment="Bottom" HorizontalAlignment="Left"
+                                               FontSize="11" Foreground="{StaticResource TextFaintBrush}" Margin="10,0,0,0"
+                                               TextTrimming="CharacterEllipsis"/>
+                                </Grid>
+                            </Grid>
                         </DockPanel>
 
                         <!-- большой визуализатор -->
@@ -467,10 +547,93 @@
                                 FontSize="11" HorizontalAlignment="Right" Margin="0,0,10,0" Visibility="Collapsed"
                                 ToolTip="Очистить" Click="SearchClear_Click"/>
                     </Grid>
+                    <!-- лучший результат -->
+                    <Border x:Name="SearchBest" DockPanel.Dock="Top" Visibility="Collapsed" Margin="0,0,16,16" MaxWidth="760"
+                            HorizontalAlignment="Left" Background="{StaticResource CardBrush}" CornerRadius="14" Padding="14"
+                            Cursor="Hand" MouseLeftButtonUp="SearchBest_Click">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid Width="72" Height="72">
+                                <Border x:Name="SearchBestCoverBack" CornerRadius="10" Background="{StaticResource HoverBrush}"/>
+                                <Border x:Name="SearchBestCover" CornerRadius="10">
+                                    <Border.Background>
+                                        <ImageBrush x:Name="SearchBestCoverBrush" Stretch="UniformToFill"/>
+                                    </Border.Background>
+                                </Border>
+                            </Grid>
+                            <StackPanel Grid.Column="1" Margin="16,0,8,0" VerticalAlignment="Center">
+                                <TextBlock x:Name="SearchBestKind" FontSize="11.5" FontWeight="SemiBold" Foreground="{StaticResource TextDimBrush}"/>
+                                <TextBlock x:Name="SearchBestTitle" FontSize="20" FontWeight="Bold" TextTrimming="CharacterEllipsis" Margin="0,2,0,0"/>
+                                <TextBlock x:Name="SearchBestSub" FontSize="13" Foreground="{StaticResource TextDimBrush}"
+                                           TextTrimming="CharacterEllipsis" Margin="0,2,0,0"/>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <!-- что показывать -->
+                    <WrapPanel x:Name="SearchTabs" DockPanel.Dock="Top" Visibility="Collapsed" Margin="0,0,16,8">
+                        <RadioButton x:Name="SearchTabTracks" Style="{StaticResource ChoicePill}" GroupName="SearchTab" Content="Треки"
+                                     IsChecked="True" Checked="SearchTab_Checked"/>
+                        <RadioButton x:Name="SearchTabArtists" Style="{StaticResource ChoicePill}" GroupName="SearchTab" Content="Артисты"
+                                     Checked="SearchTab_Checked"/>
+                        <RadioButton x:Name="SearchTabAlbums" Style="{StaticResource ChoicePill}" GroupName="SearchTab" Content="Альбомы"
+                                     Checked="SearchTab_Checked"/>
+                        <RadioButton x:Name="SearchTabPlaylists" Style="{StaticResource ChoicePill}" GroupName="SearchTab" Content="Плейлисты"
+                                     Checked="SearchTab_Checked"/>
+                    </WrapPanel>
+
                     <Grid>
                         <ListBox x:Name="SearchList" Style="{StaticResource TrackList}"
                                  ItemContainerStyle="{StaticResource TrackRow}" ItemTemplate="{StaticResource TrackRowTemplate}"
-                                 KeyDown="List_KeyDown"/>
+                                 KeyDown="List_KeyDown" ScrollViewer.ScrollChanged="SearchList_ScrollChanged"/>
+
+                        <!-- артисты / альбомы / плейлисты — карточками -->
+                        <ScrollViewer x:Name="SearchCardsScroll" Visibility="Collapsed" VerticalScrollBarVisibility="Auto"
+                                      HorizontalScrollBarVisibility="Disabled" Focusable="False">
+                            <ItemsControl x:Name="SearchCards" Margin="0,4,0,20">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel/>
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type ui:SearchCard}">
+                                        <Border Width="150" Margin="0,0,18,20" Background="Transparent" Cursor="Hand"
+                                                MouseLeftButtonUp="SearchCard_Click" ToolTip="{Binding Title}">
+                                            <StackPanel>
+                                                <Grid Width="150" Height="150">
+                                                    <Border x:Name="Back" CornerRadius="12" Background="{StaticResource CardBrush}">
+                                                        <TextBlock Text="{Binding Glyph}" FontFamily="{StaticResource IconFont}" FontSize="40"
+                                                                   Foreground="#40FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                    </Border>
+                                                    <Border x:Name="Img" CornerRadius="12">
+                                                        <Border.Background>
+                                                            <ImageBrush ImageSource="{Binding Cover, Converter={StaticResource CoverConverter}, ConverterParameter=300}"
+                                                                        Stretch="UniformToFill"/>
+                                                        </Border.Background>
+                                                    </Border>
+                                                </Grid>
+                                                <TextBlock x:Name="CardTitle" Text="{Binding Title}" FontSize="13.5" FontWeight="SemiBold"
+                                                           Margin="0,10,0,0" TextTrimming="CharacterEllipsis"/>
+                                                <TextBlock Text="{Binding Sub}" FontSize="12" Foreground="{StaticResource TextDimBrush}"
+                                                           TextTrimming="CharacterEllipsis"/>
+                                            </StackPanel>
+                                        </Border>
+                                        <DataTemplate.Triggers>
+                                            <DataTrigger Binding="{Binding IsRound}" Value="True">
+                                                <Setter TargetName="Back" Property="CornerRadius" Value="75"/>
+                                                <Setter TargetName="Img" Property="CornerRadius" Value="75"/>
+                                                <Setter TargetName="CardTitle" Property="HorizontalAlignment" Value="Center"/>
+                                            </DataTrigger>
+                                        </DataTemplate.Triggers>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+
                         <StackPanel x:Name="SearchLoading" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Collapsed">
                             <Control Style="{StaticResource Spinner}" HorizontalAlignment="Center"/>
                         </StackPanel>
@@ -580,6 +743,330 @@
                                    Foreground="{StaticResource TextDimBrush}" TextAlignment="Center" TextWrapping="Wrap" MaxWidth="420"/>
                     </Grid>
                 </DockPanel>
+
+                <!-- ── История ── -->
+                <DockPanel x:Name="PageHistory" Visibility="Collapsed" Margin="32,30,16,0">
+                    <Grid DockPanel.Dock="Top" Margin="0,0,16,22">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Border Width="150" Height="150" CornerRadius="18" Background="{StaticResource WaveGradient}">
+                            <TextBlock Text="&#xE81C;" FontFamily="{StaticResource IconFont}" FontSize="58" Foreground="White"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <StackPanel Grid.Column="1" Margin="26,0,0,0" VerticalAlignment="Bottom">
+                            <TextBlock Text="НА ЭТОМ КОМПЬЮТЕРЕ" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource TextDimBrush}"/>
+                            <TextBlock Text="История" FontSize="42" FontWeight="Bold" FontFamily="Segoe UI Variable Display, Segoe UI"/>
+                            <TextBlock x:Name="HistorySub" Text="" FontSize="13" Foreground="{StaticResource TextDimBrush}" Margin="0,2,0,14"/>
+                            <StackPanel Orientation="Horizontal">
+                                <Button x:Name="HistoryPlay" Style="{StaticResource CirclePlay}" Content="&#xE768;" Click="HistoryPlay_Click"
+                                        ToolTip="Слушать заново" Margin="0,0,14,0"/>
+                                <Button x:Name="HistoryClear" Style="{StaticResource PillSecondary}" Content="Очистить историю"
+                                        VerticalAlignment="Center" Click="HistoryClear_Click"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Grid>
+                    <Grid>
+                        <ListBox x:Name="HistoryList" Style="{StaticResource TrackList}"
+                                 ItemContainerStyle="{StaticResource TrackRow}" ItemTemplate="{StaticResource TrackRowTemplate}"
+                                 KeyDown="List_KeyDown"/>
+                        <TextBlock x:Name="HistoryEmpty" Text="Здесь появятся треки, которые вы слушали в Undertone."
+                                   HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{StaticResource TextDimBrush}"
+                                   TextAlignment="Center" TextWrapping="Wrap" MaxWidth="420"/>
+                    </Grid>
+                </DockPanel>
+
+                <!-- ── Настройки ── -->
+                <ScrollViewer x:Name="PageSettings" Visibility="Collapsed" VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled" Focusable="False">
+                    <StackPanel x:Name="SettingsRoot" Margin="32,30,32,30" MaxWidth="760" HorizontalAlignment="Left">
+                        <TextBlock Text="Настройки" FontSize="42" FontWeight="Bold" FontFamily="Segoe UI Variable Display, Segoe UI"
+                                   Margin="0,0,0,18"/>
+
+                        <!-- кэш -->
+                        <TextBlock Text="КЭШ МУЗЫКИ" Style="{StaticResource SettingsHeader}"/>
+                        <Border Style="{StaticResource SettingsCard}">
+                            <StackPanel>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel>
+                                        <TextBlock x:Name="CacheUsageText" Text="Считаю…" FontSize="15" FontWeight="SemiBold"/>
+                                        <TextBlock Style="{StaticResource SettingsHint}"
+                                                   Text="Прослушанные треки хранятся на диске и повторно не скачиваются. Когда кэш заполнится, удаляются те, что играли давно всего."/>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Top" Margin="16,0,0,0">
+                                        <Button x:Name="CacheClearBtn" Style="{StaticResource PillSecondary}" Padding="16,8" FontSize="13"
+                                                Margin="0,0,8,0" Click="CacheClear_Click">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="&#xE74D;" FontFamily="{StaticResource IconFont}" FontSize="13"
+                                                           VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                                <TextBlock Text="Очистить кэш" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </Button>
+                                        <Button Style="{StaticResource PillSecondary}" Padding="12,8" FontSize="13"
+                                                ToolTip="Открыть папку кэша" Click="CacheOpen_Click">
+                                            <TextBlock Text="&#xE838;" FontFamily="{StaticResource IconFont}" FontSize="13"/>
+                                        </Button>
+                                    </StackPanel>
+                                </Grid>
+
+                                <!-- полоса заполненности -->
+                                <Grid x:Name="CacheBar" Height="6" Margin="0,16,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition x:Name="CacheBarUsed" Width="0*"/>
+                                        <ColumnDefinition x:Name="CacheBarFree" Width="1*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Border Grid.ColumnSpan="2" CornerRadius="3" Background="#18FFFFFF"/>
+                                    <Border CornerRadius="3" Background="{StaticResource AccentGradient}"/>
+                                </Grid>
+
+                                <TextBlock Text="Максимальный размер" FontSize="13" Foreground="{StaticResource TextDimBrush}"
+                                           Margin="0,18,0,8"/>
+                                <WrapPanel x:Name="CacheLimitPanel">
+                                    <RadioButton Style="{StaticResource ChoicePill}" GroupName="CacheLimit" Content="512 МБ" Tag="512" Checked="CacheLimit_Checked"/>
+                                    <RadioButton Style="{StaticResource ChoicePill}" GroupName="CacheLimit" Content="1 ГБ" Tag="1024" Checked="CacheLimit_Checked"/>
+                                    <RadioButton Style="{StaticResource ChoicePill}" GroupName="CacheLimit" Content="2 ГБ" Tag="2048" Checked="CacheLimit_Checked"/>
+                                    <RadioButton Style="{StaticResource ChoicePill}" GroupName="CacheLimit" Content="5 ГБ" Tag="5120" Checked="CacheLimit_Checked"/>
+                                    <RadioButton Style="{StaticResource ChoicePill}" GroupName="CacheLimit" Content="10 ГБ" Tag="10240" Checked="CacheLimit_Checked"/>
+                                    <RadioButton Style="{StaticResource ChoicePill}" GroupName="CacheLimit" Content="20 ГБ" Tag="20480" Checked="CacheLimit_Checked"/>
+                                </WrapPanel>
+
+                                <TextBlock Text="Заранее скачивать следующие треки" FontSize="13" Foreground="{StaticResource TextDimBrush}"
+                                           Margin="0,10,0,8"/>
+                                <WrapPanel x:Name="PrefetchPanel">
+                                    <RadioButton Style="{StaticResource ChoicePill}" GroupName="Prefetch" Content="Не качать" Tag="0" Checked="Prefetch_Checked"/>
+                                    <RadioButton Style="{StaticResource ChoicePill}" GroupName="Prefetch" Content="1 трек" Tag="1" Checked="Prefetch_Checked"/>
+                                    <RadioButton Style="{StaticResource ChoicePill}" GroupName="Prefetch" Content="2 трека" Tag="2" Checked="Prefetch_Checked"/>
+                                    <RadioButton Style="{StaticResource ChoicePill}" GroupName="Prefetch" Content="3 трека" Tag="3" Checked="Prefetch_Checked"/>
+                                </WrapPanel>
+
+                                <TextBlock x:Name="CachePathText" FontSize="11.5" Foreground="{StaticResource TextFaintBrush}"
+                                           TextWrapping="Wrap" Margin="0,6,0,0"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- воспроизведение -->
+                        <TextBlock Text="ВОСПРОИЗВЕДЕНИЕ" Style="{StaticResource SettingsHeader}"/>
+                        <Border Style="{StaticResource SettingsCard}">
+                            <StackPanel x:Name="PlaybackSettings">
+                                <TextBlock Text="Качество звука"/>
+                                <TextBlock x:Name="QualityHint" Style="{StaticResource SettingsHint}"
+                                           Text="«Без потерь» — FLAC для подписчиков Плюса; трек скачивается целиком перед стартом."/>
+                                <WrapPanel x:Name="QualityPanel" Margin="0,10,0,0">
+                                    <RadioButton Style="{StaticResource ChoicePill}" GroupName="Quality" Content="Экономия" Tag="0" Checked="Quality_Checked"
+                                                 ToolTip="Самый низкий битрейт MP3 — для медленного или мобильного интернета"/>
+                                    <RadioButton Style="{StaticResource ChoicePill}" GroupName="Quality" Content="Высокое" Tag="1" Checked="Quality_Checked"
+                                                 ToolTip="MP3 до 320 кбит/с"/>
+                                    <RadioButton Style="{StaticResource ChoicePill}" GroupName="Quality" Content="Без потерь" Tag="2" Checked="Quality_Checked"
+                                                 ToolTip="FLAC (нужен Яндекс Плюс)"/>
+                                </WrapPanel>
+
+                                <Rectangle Height="1" Fill="{StaticResource DividerBrush}" Margin="0,8,0,16"/>
+                                <TextBlock Text="Устройство вывода"/>
+                                <TextBlock Style="{StaticResource SettingsHint}"
+                                           Text="«Как в системе» — звук переходит на новое устройство сам, когда вы подключаете наушники."/>
+                                <WrapPanel x:Name="OutputDevicePanel" Margin="0,10,0,0"/>
+
+                                <Rectangle Height="1" Fill="{StaticResource DividerBrush}" Margin="0,8,0,16"/>
+                                <CheckBox x:Name="StreamToggle" Style="{StaticResource ToggleSwitch}"
+                                          Checked="StreamToggle_Changed" Unchecked="StreamToggle_Changed">
+                                    <StackPanel>
+                                        <TextBlock Text="Играть сразу, не дожидаясь загрузки"/>
+                                        <TextBlock Style="{StaticResource SettingsHint}"
+                                                   Text="Трек начинает звучать через пару секунд после клика и докачивается во время игры."/>
+                                    </StackPanel>
+                                </CheckBox>
+                                <Rectangle Height="1" Fill="{StaticResource DividerBrush}" Margin="0,16"/>
+                                <CheckBox x:Name="ResumeToggle" Style="{StaticResource ToggleSwitch}"
+                                          Checked="ResumeToggle_Changed" Unchecked="ResumeToggle_Changed">
+                                    <StackPanel>
+                                        <TextBlock Text="Продолжать с того же места"/>
+                                        <TextBlock Style="{StaticResource SettingsHint}"
+                                                   Text="После перезапуска Undertone покажет трек, на котором вы остановились, и очередь."/>
+                                    </StackPanel>
+                                </CheckBox>
+
+                                <Rectangle Height="1" Fill="{StaticResource DividerBrush}" Margin="0,16"/>
+                                <TextBlock Text="Переход между треками"/>
+                                <TextBlock Style="{StaticResource SettingsHint}"
+                                           Text="«Без паузы» — следующий трек начинается в ту же секунду. Кроссфейд — плавно наплывает на конец текущего. Работает, когда следующий трек уже скачан."/>
+                                <WrapPanel x:Name="CrossfadePanel" Margin="0,10,0,0">
+                                    <RadioButton Style="{StaticResource ChoicePill}" GroupName="Crossfade" Content="Обычный" Tag="-1" Checked="Crossfade_Checked"/>
+                                    <RadioButton Style="{StaticResource ChoicePill}" GroupName="Crossfade" Content="Без паузы" Tag="0" Checked="Crossfade_Checked"/>
+                                    <RadioButton Style="{StaticResource ChoicePill}" GroupName="Crossfade" Content="Кроссфейд 3 с" Tag="3" Checked="Crossfade_Checked"/>
+                                    <RadioButton Style="{StaticResource ChoicePill}" GroupName="Crossfade" Content="6 с" Tag="6" Checked="Crossfade_Checked"/>
+                                    <RadioButton Style="{StaticResource ChoicePill}" GroupName="Crossfade" Content="10 с" Tag="10" Checked="Crossfade_Checked"/>
+                                </WrapPanel>
+
+                                <Rectangle Height="1" Fill="{StaticResource DividerBrush}" Margin="0,8,0,16"/>
+                                <CheckBox x:Name="NormalizeToggle" Style="{StaticResource ToggleSwitch}"
+                                          Checked="Normalize_Changed" Unchecked="Normalize_Changed">
+                                    <StackPanel>
+                                        <TextBlock Text="Выравнивать громкость"/>
+                                        <TextBlock Style="{StaticResource SettingsHint}"
+                                                   Text="Тихие и громкие треки звучат одинаково. Работает для треков, громкость которых сообщает Яндекс (обычно в качестве «без потерь»)."/>
+                                    </StackPanel>
+                                </CheckBox>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- эквалайзер -->
+                        <TextBlock Text="ЭКВАЛАЙЗЕР" Style="{StaticResource SettingsHeader}"/>
+                        <Border Style="{StaticResource SettingsCard}">
+                            <StackPanel>
+                                <CheckBox x:Name="EqToggle" Style="{StaticResource ToggleSwitch}" Checked="Eq_Changed" Unchecked="Eq_Changed">
+                                    <StackPanel>
+                                        <TextBlock Text="Включить эквалайзер"/>
+                                        <TextBlock Style="{StaticResource SettingsHint}" Text="10 полос от 31 Гц до 16 кГц, ±12 дБ. Двойной клик по ползунку — 0 дБ."/>
+                                    </StackPanel>
+                                </CheckBox>
+                                <WrapPanel x:Name="EqPresets" Margin="0,14,0,4"/>
+                                <ItemsControl x:Name="EqBands" Margin="0,6,0,0" HorizontalAlignment="Left">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <StackPanel Orientation="Horizontal"/>
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                </ItemsControl>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- моя волна -->
+                        <TextBlock Text="МОЯ ВОЛНА" Style="{StaticResource SettingsHeader}"/>
+                        <Border Style="{StaticResource SettingsCard}">
+                            <StackPanel>
+                                <TextBlock Style="{StaticResource SettingsHint}" Margin="0,0,0,12"
+                                           Text="Как в приложении Яндекс Музыки: что подмешивать в Мою волну. Применится при следующем запуске волны."/>
+                                <TextBlock Text="По характеру" FontSize="13" Foreground="{StaticResource TextDimBrush}" Margin="0,0,0,8"/>
+                                <WrapPanel x:Name="WaveDiversityPanel">
+                                    <RadioButton Style="{StaticResource ChoicePill}" GroupName="WaveDiversity" Content="Любое" Tag="" Checked="WaveSetting_Checked"/>
+                                    <RadioButton Style="{StaticResource ChoicePill}" GroupName="WaveDiversity" Content="Любимое" Tag="favorite" Checked="WaveSetting_Checked"/>
+                                    <RadioButton Style="{StaticResource ChoicePill}" GroupName="WaveDiversity" Content="Незнакомое" Tag="discover" Checked="WaveSetting_Checked"/>
+                                    <RadioButton Style="{StaticResource ChoicePill}" GroupName="WaveDiversity" Content="Популярное" Tag="popular" Checked="WaveSetting_Checked"/>
+                                </WrapPanel>
+                                <TextBlock Text="Под настроение" FontSize="13" Foreground="{StaticResource TextDimBrush}" Margin="0,8,0,8"/>
+                                <WrapPanel x:Name="WaveMoodPanel">
+                                    <RadioButton Style="{StaticResource ChoicePill}" GroupName="WaveMood" Content="Любое" Tag="" Checked="WaveSetting_Checked"/>
+                                    <RadioButton Style="{StaticResource ChoicePill}" GroupName="WaveMood" Content="Бодрое" Tag="active" Checked="WaveSetting_Checked"/>
+                                    <RadioButton Style="{StaticResource ChoicePill}" GroupName="WaveMood" Content="Весёлое" Tag="fun" Checked="WaveSetting_Checked"/>
+                                    <RadioButton Style="{StaticResource ChoicePill}" GroupName="WaveMood" Content="Спокойное" Tag="calm" Checked="WaveSetting_Checked"/>
+                                    <RadioButton Style="{StaticResource ChoicePill}" GroupName="WaveMood" Content="Грустное" Tag="sad" Checked="WaveSetting_Checked"/>
+                                </WrapPanel>
+                                <TextBlock Text="По языку" FontSize="13" Foreground="{StaticResource TextDimBrush}" Margin="0,8,0,8"/>
+                                <WrapPanel x:Name="WaveLanguagePanel">
+                                    <RadioButton Style="{StaticResource ChoicePill}" GroupName="WaveLanguage" Content="Любой" Tag="" Checked="WaveSetting_Checked"/>
+                                    <RadioButton Style="{StaticResource ChoicePill}" GroupName="WaveLanguage" Content="Русский" Tag="russian" Checked="WaveSetting_Checked"/>
+                                    <RadioButton Style="{StaticResource ChoicePill}" GroupName="WaveLanguage" Content="Иностранный" Tag="not-russian" Checked="WaveSetting_Checked"/>
+                                    <RadioButton Style="{StaticResource ChoicePill}" GroupName="WaveLanguage" Content="Без слов" Tag="without-words" Checked="WaveSetting_Checked"/>
+                                </WrapPanel>
+                                <Button x:Name="WaveRestartBtn" Style="{StaticResource PillSecondary}" Content="Перезапустить волну с новыми настройками"
+                                        HorizontalAlignment="Left" Padding="16,8" FontSize="13" Margin="0,8,0,0" Click="WaveRestart_Click"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- приложение -->
+                        <TextBlock Text="ПРИЛОЖЕНИЕ" Style="{StaticResource SettingsHeader}"/>
+                        <Border Style="{StaticResource SettingsCard}">
+                            <StackPanel>
+                                <CheckBox x:Name="CloseToTrayToggle" Style="{StaticResource ToggleSwitch}"
+                                          Checked="CloseToTray_Changed" Unchecked="CloseToTray_Changed">
+                                    <StackPanel>
+                                        <TextBlock Text="Крестик сворачивает в трей"/>
+                                        <TextBlock Style="{StaticResource SettingsHint}"
+                                                   Text="Музыка продолжит играть. Если выключить, крестик закроет Undertone совсем."/>
+                                    </StackPanel>
+                                </CheckBox>
+                                <Rectangle Height="1" Fill="{StaticResource DividerBrush}" Margin="0,16"/>
+                                <CheckBox x:Name="AutostartToggle" Style="{StaticResource ToggleSwitch}"
+                                          Checked="Autostart_Changed" Unchecked="Autostart_Changed">
+                                    <StackPanel>
+                                        <TextBlock Text="Запускать вместе с Windows"/>
+                                        <TextBlock x:Name="AutostartHint" Style="{StaticResource SettingsHint}"
+                                                   Text="Undertone тихо стартует в трее и ждёт, когда вы включите музыку."/>
+                                    </StackPanel>
+                                </CheckBox>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- интеграции -->
+                        <TextBlock Text="ИНТЕГРАЦИИ" Style="{StaticResource SettingsHeader}"/>
+                        <Border Style="{StaticResource SettingsCard}">
+                            <StackPanel>
+                                <CheckBox x:Name="ReportPlaysToggle" Style="{StaticResource ToggleSwitch}"
+                                          Checked="ReportPlays_Changed" Unchecked="ReportPlays_Changed">
+                                    <StackPanel>
+                                        <TextBlock Text="Отправлять прослушивания в Яндекс"/>
+                                        <TextBlock Style="{StaticResource SettingsHint}"
+                                                   Text="Рекомендации и «Моя волна» будут учитывать музыку, которую вы слушаете в Undertone."/>
+                                    </StackPanel>
+                                </CheckBox>
+
+                                <Rectangle Height="1" Fill="{StaticResource DividerBrush}" Margin="0,16"/>
+                                <CheckBox x:Name="HotkeysToggle" Style="{StaticResource ToggleSwitch}"
+                                          Checked="Hotkeys_Changed" Unchecked="Hotkeys_Changed">
+                                    <StackPanel>
+                                        <TextBlock Text="Глобальные сочетания клавиш"/>
+                                        <TextBlock Style="{StaticResource SettingsHint}"
+                                                   Text="Работают, даже когда Undertone свёрнут. Нажмите на сочетание, чтобы поменять: Esc — отмена, Backspace — отключить."/>
+                                    </StackPanel>
+                                </CheckBox>
+                                <StackPanel x:Name="HotkeyRows" Margin="0,10,0,0"/>
+
+                                <Rectangle Height="1" Fill="{StaticResource DividerBrush}" Margin="0,16"/>
+                                <CheckBox x:Name="DiscordToggle" Style="{StaticResource ToggleSwitch}"
+                                          Checked="Discord_Changed" Unchecked="Discord_Changed">
+                                    <StackPanel>
+                                        <TextBlock Text="Статус в Discord"/>
+                                        <TextBlock Style="{StaticResource SettingsHint}"
+                                                   Text="«Слушает …» в профиле. Нужен Application ID: создайте приложение «Undertone» на discord.com/developers/applications и вставьте его ID ниже."/>
+                                    </StackPanel>
+                                </CheckBox>
+                                <TextBox x:Name="DiscordAppIdBox" Style="{StaticResource PlainBox}" Tag="Application ID, например 1234567890123456789"
+                                         Margin="0,10,0,0" MaxWidth="420" HorizontalAlignment="Left" Width="420"
+                                         LostFocus="DiscordAppId_LostFocus" KeyDown="DiscordAppId_KeyDown"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- диагностика -->
+                        <TextBlock Text="ДИАГНОСТИКА" Style="{StaticResource SettingsHeader}"/>
+                        <Border Style="{StaticResource SettingsCard}">
+                            <StackPanel>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel>
+                                        <TextBlock Text="Журнал ошибок"/>
+                                        <TextBlock Style="{StaticResource SettingsHint}"
+                                                   Text="Если что-то сломалось, приложите файл за нужный день, когда пишете о проблеме. Токенов в журнале нет."/>
+                                    </StackPanel>
+                                    <Button Grid.Column="1" Style="{StaticResource PillSecondary}" Content="Открыть папку логов"
+                                            Padding="16,8" FontSize="13" VerticalAlignment="Center" Margin="16,0,0,0" Click="LogsOpen_Click"/>
+                                </Grid>
+                                <Rectangle Height="1" Fill="{StaticResource DividerBrush}" Margin="0,16"/>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel>
+                                        <TextBlock Text="Папка данных"/>
+                                        <TextBlock x:Name="DataPathText" Style="{StaticResource SettingsHint}"/>
+                                    </StackPanel>
+                                    <Button Grid.Column="1" Style="{StaticResource PillSecondary}" Content="Открыть"
+                                            Padding="16,8" FontSize="13" VerticalAlignment="Center" Margin="16,0,0,0" Click="DataOpen_Click"/>
+                                </Grid>
+                                <TextBlock x:Name="SettingsVersionText" FontSize="11.5" Foreground="{StaticResource TextFaintBrush}"
+                                           Margin="0,16,0,0"/>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
             </Grid>
         </Grid>
 
@@ -645,8 +1132,13 @@
                         </Grid.ColumnDefinitions>
                         <TextBlock x:Name="PosText" Text="0:00" FontSize="11.5" Foreground="{StaticResource TextDimBrush}"
                                    HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                        <Slider x:Name="ProgressSlider" Grid.Column="1" Style="{StaticResource ThinSlider}"
-                                Minimum="0" Maximum="1" Value="0" ValueChanged="Progress_ValueChanged"/>
+                        <Grid Grid.Column="1">
+                            <!-- сколько трека уже скачано (потоковое воспроизведение) -->
+                            <Border x:Name="BufferBar" Height="4" CornerRadius="2" Background="#2EFFFFFF" Width="0"
+                                    HorizontalAlignment="Left" VerticalAlignment="Center" Margin="2,0,0,0" IsHitTestVisible="False"/>
+                            <Slider x:Name="ProgressSlider" Style="{StaticResource ThinSlider}"
+                                    Minimum="0" Maximum="1" Value="0" ValueChanged="Progress_ValueChanged"/>
+                        </Grid>
                         <TextBlock x:Name="DurText" Grid.Column="2" Text="0:00" FontSize="11.5" Foreground="{StaticResource TextDimBrush}"
                                    VerticalAlignment="Center" Margin="8,0,0,0"/>
                     </Grid>
@@ -654,7 +1146,9 @@
 
                 <!-- мини-визуализатор + громкость -->
                 <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
-                    <ui:Visualizer x:Name="MiniViz" Width="112" Height="30" BarCount="20" Margin="0,0,16,0" VerticalAlignment="Center"/>
+                    <ui:Visualizer x:Name="MiniViz" Width="112" Height="30" BarCount="20" Margin="0,0,10,0" VerticalAlignment="Center"/>
+                    <Button Style="{StaticResource IconButton}" Content="&#xE8A7;" FontSize="14" Click="MiniPlayer_Click"
+                            ToolTip="Мини-плеер поверх всех окон" Margin="0,0,4,0"/>
                     <Button x:Name="MuteBtn" Style="{StaticResource IconButton}" Content="&#xE995;" FontSize="15"
                             Click="Mute_Click" ToolTip="Без звука (M)"/>
                     <Slider x:Name="VolumeSlider" Width="110" Style="{StaticResource ThinSlider}" VerticalAlignment="Center"

@@ -1,0 +1,76 @@
+<Window x:Class="Undertone.MiniPlayer"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Undertone — мини-плеер" Width="400" Height="112"
+        WindowStyle="None" ResizeMode="NoResize" AllowsTransparency="True" Background="Transparent"
+        Topmost="True" ShowInTaskbar="False" ShowActivated="True"
+        FontFamily="Segoe UI Variable Text, Segoe UI" FontSize="13" Foreground="{StaticResource TextBrush}"
+        UseLayoutRounding="True" SnapsToDevicePixels="True"
+        MouseLeftButtonDown="Root_MouseLeftButtonDown" LocationChanged="Window_LocationChanged">
+    <Border Margin="10" Background="#F2181B24" CornerRadius="16" BorderBrush="#33FFFFFF" BorderThickness="1">
+        <Border.Effect>
+            <DropShadowEffect BlurRadius="20" ShadowDepth="2" Opacity="0.55" Color="Black"/>
+        </Border.Effect>
+        <Grid Margin="10,10,8,10">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <Grid Width="70" Height="70" Cursor="Hand" MouseLeftButtonUp="Cover_Click" ToolTip="Открыть Undertone">
+                <Border CornerRadius="10" Background="{StaticResource HoverBrush}">
+                    <TextBlock Text="&#xEC4F;" FontFamily="{StaticResource IconFont}" FontSize="22" Foreground="#40FFFFFF"
+                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                </Border>
+                <Border CornerRadius="10">
+                    <Border.Background>
+                        <ImageBrush x:Name="CoverBrush" Stretch="UniformToFill"/>
+                    </Border.Background>
+                </Border>
+            </Grid>
+
+            <Grid Grid.Column="1" Margin="12,0,6,0" VerticalAlignment="Center">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+                <TextBlock x:Name="TitleText" Text="Ничего не играет" FontWeight="SemiBold" FontSize="14" TextTrimming="CharacterEllipsis"/>
+                <TextBlock x:Name="ArtistText" Grid.Row="1" Text="" FontSize="12" Foreground="{StaticResource TextDimBrush}"
+                           TextTrimming="CharacterEllipsis" Margin="0,2,0,0"/>
+                <Grid Grid.Row="2" Height="3" Margin="0,10,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition x:Name="ProgressDone" Width="0*"/>
+                        <ColumnDefinition x:Name="ProgressLeft" Width="1*"/>
+                    </Grid.ColumnDefinitions>
+                    <Border Grid.ColumnSpan="2" CornerRadius="2" Background="#22FFFFFF"/>
+                    <Border CornerRadius="2" Background="{StaticResource AccentBrush}"/>
+                </Grid>
+            </Grid>
+
+            <Grid Grid.Column="2" VerticalAlignment="Center">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,-6,0,0">
+                    <Button Style="{StaticResource IconButton}" Content="&#xE740;" Width="26" Height="26" FontSize="11"
+                            ToolTip="Открыть Undertone" Click="Expand_Click"/>
+                    <Button Style="{StaticResource IconButton}" Content="&#xE711;" Width="26" Height="26" FontSize="11"
+                            ToolTip="Закрыть мини-плеер" Click="Close_Click"/>
+                </StackPanel>
+                <StackPanel Grid.Row="1" Orientation="Horizontal">
+                    <Button x:Name="LikeBtn" Style="{StaticResource IconButton}" Content="&#xEB51;" Width="32" Height="32" FontSize="14"
+                            ToolTip="Мне нравится" Click="Like_Click"/>
+                    <Button Style="{StaticResource IconButton}" Content="&#xE892;" Width="32" Height="32" FontSize="14"
+                            Foreground="{StaticResource TextBrush}" ToolTip="Предыдущий" Click="Prev_Click"/>
+                    <Button x:Name="PlayBtn" Style="{StaticResource PlayButton}" Content="&#xE768;" Width="38" Height="38" FontSize="14"
+                            ToolTip="Играть / пауза" Click="Play_Click" Margin="2,0"/>
+                    <Button Style="{StaticResource IconButton}" Content="&#xE893;" Width="32" Height="32" FontSize="14"
+                            Foreground="{StaticResource TextBrush}" ToolTip="Следующий" Click="Next_Click"/>
+                </StackPanel>
+            </Grid>
+        </Grid>
+    </Border>
+</Window>
