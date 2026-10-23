@@ -3,9 +3,7 @@
 *.env
 !.env.example
 
-# окружения и сборка
-.venv/
-__pycache__/
+# сборка
 **/bin/
 **/obj/
 publish/
@@ -13,5 +11,9 @@ publish/
 *.user
 *.zip
 
-# старая папка проекта (до переименования в Undertone) — удали её, когда освободится obj
-/YaMusicPlayer/
+# установщик и заметки, которые собирает CI
+Undertone-Setup-*.exe
+release-notes.md
+
+# ключ подписи обновлений — только в секретах GitHub
+tools/signing-key.private.pem

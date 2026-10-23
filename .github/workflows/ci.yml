@@ -1,0 +1,29 @@
+# Сборка и тесты на каждый push и pull request — ошибка всплывёт сразу, а не во время релиза
+name: CI
+
+on:
+  push:
+    branches: ['**']
+    tags-ignore: ['v*']
+  pull_request:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Сборка
+        run: dotnet build Undertone/Undertone.csproj -c Release --nologo
+
+      - name: Тесты
+        run: dotnet test Undertone.Tests/Undertone.Tests.csproj -c Release --nologo --logger "console;verbosity=normal"
+
+      # пока не обязательная: показывает nullable-предупреждения, но не роняет сборку
+      - name: Проверка nullable (информационно)
+        continue-on-error: true
+        run: dotnet build Undertone/Undertone.csproj -c Release --nologo --no-incremental -p:WarningsAsErrors=nullable
