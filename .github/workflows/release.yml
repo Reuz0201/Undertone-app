@@ -89,7 +89,7 @@ jobs:
           $notes += "`n`n**Установка:** скачайте ``Undertone-Setup-$v.exe`` или распакуйте ``Undertone-win-x64.zip`` в свою папку. .NET ставить не нужно."
           Set-Content -Path release-notes.md -Value $notes -Encoding UTF8
 
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v3
         with:
           body_path: release-notes.md
           files: |
