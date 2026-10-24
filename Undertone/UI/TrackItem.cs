@@ -26,6 +26,8 @@ namespace Undertone.UI
         public string Artists => Track.ArtistsText;
         public string Album => Track.Album;
         public string? Cover => Track.CoverUrl(100);
+        /// <summary>Крупная обложка для карточек на полках.</summary>
+        public string? CoverLarge => Track.CoverUrl(300);
         public bool Available => Track.Available;
         public string Duration => Format.Time(Track.Duration);
         public IReadOnlyList<ArtistLink> ArtistLinks => ArtistLink.From(Track.ArtistRefs);
@@ -100,7 +102,7 @@ namespace Undertone.UI
         }
 
         public FriendPresence Presence { get; }
-        public string Name => Presence.Name.Length > 0 ? Presence.Name : "Друг";
+        public string Name => Format.PublicName(Presence.Name);
         public string Initial => Name.Substring(0, 1).ToUpperInvariant();
         public string Title => Presence.Title.Length > 0 ? Presence.Title : "Пока ничего не слушал";
         public string Artists => Presence.Artists;
@@ -173,6 +175,15 @@ namespace Undertone.UI
 
     public static class Format
     {
+        /// <summary>Имя для друзей: логин бывает почтой — показываем только часть до «@».</summary>
+        public static string PublicName(string? name)
+        {
+            name = (name ?? "").Trim();
+            var at = name.IndexOf('@');
+            if (at > 0) name = name[..at];
+            return name.Length > 0 ? name : "Друг";
+        }
+
         public static string Time(System.TimeSpan t) =>
             t.TotalHours >= 1 ? $"{(int)t.TotalHours}:{t.Minutes:00}:{t.Seconds:00}" : $"{(int)t.TotalMinutes}:{t.Seconds:00}";
 

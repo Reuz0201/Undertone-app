@@ -516,6 +516,16 @@ namespace Undertone.Core
             }
         }
 
+        /// <summary>Похожие треки (полка под треком). Пусто — Яндекс ничего не подобрал.</summary>
+        public async Task<List<YaTrack>> GetSimilarTracksAsync(string trackId, CancellationToken ct = default)
+        {
+            var r = await GetAsync($"/tracks/{trackId}/similar", ct);
+            var result = new List<YaTrack>();
+            if (r.TryGetProperty("similarTracks", out var list) && list.ValueKind == JsonValueKind.Array)
+                result.AddRange(list.EnumerateArray().Select(ParseTrack).Where(t => t.Id.Length > 0));
+            return result;
+        }
+
         // ────────── артисты, альбомы ──────────
 
         public async Task<YaArtistPage> GetArtistAsync(string artistId, CancellationToken ct = default)

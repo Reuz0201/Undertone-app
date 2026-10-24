@@ -105,7 +105,7 @@ namespace Undertone
 
         private static string Names(IReadOnlyList<FriendPresence> people)
         {
-            var names = people.Select(p => p.Name.Length > 0 ? p.Name : "Друг").ToList();
+            var names = people.Select(p => Format.PublicName(p.Name)).ToList();
             return names.Count <= 3 ? string.Join(", ", names) : $"{string.Join(", ", names.Take(3))} и ещё {names.Count - 3}";
         }
 
@@ -237,7 +237,7 @@ namespace Undertone
                     _queue.Repeat = RepeatMode.Off;
                     SetRoomPending(state);
                     _ = PlayCurrentAsync();
-                    if (!joining) ShowToast($"{state.ByName} включил «{track.FullTitle}»");
+                    if (!joining) ShowToast($"{Format.PublicName(state.ByName)} включил «{track.FullTitle}»");
                     return;
                 }
 
@@ -262,8 +262,8 @@ namespace Undertone
                 var wasPlaying = _isPlaying;
                 var moved = AlignToRoom(state, force: false);
                 if (joining) return;
-                if (wasPlaying != state.Playing) ShowToast(state.Playing ? $"{state.ByName} продолжил" : $"{state.ByName} поставил на паузу");
-                else if (moved) ShowToast($"{state.ByName} перемотал");
+                if (wasPlaying != state.Playing) ShowToast(state.Playing ? $"{Format.PublicName(state.ByName)} продолжил" : $"{Format.PublicName(state.ByName)} поставил на паузу");
+                else if (moved) ShowToast($"{Format.PublicName(state.ByName)} перемотал");
             }
             finally
             {

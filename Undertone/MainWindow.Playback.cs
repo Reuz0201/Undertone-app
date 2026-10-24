@@ -90,6 +90,7 @@ namespace Undertone
             ProgressSlider.AddHandler(PreviewMouseLeftButtonUpEvent,
                 new MouseButtonEventHandler((_, _) => CommitSeek()), true);
             ProgressSlider.LostMouseCapture += (_, _) => { if (_seeking) CommitSeek(); };
+            InitNowPlaying();
         }
 
         // ────────── запуск треков ──────────
@@ -735,6 +736,7 @@ namespace Undertone
             RefreshLikeMarks();
             PublishNowPlaying();
             OnLyricsTrackChanged();
+            OnNowPlayingTrack(track);
         }
 
         private void ShowEmptyNowPlaying()
@@ -748,6 +750,8 @@ namespace Undertone
             BarLike.IsEnabled = false;
             BarCoverBrush.ImageSource = null;
             BackdropImage.Source = null;
+            _accentFor = null;
+            AnimateAccent(CoverPalette.Neutral);
             Title = "Undertone";
             _upNextItems.Clear();
             PosText.Text = DurText.Text = "0:00";
@@ -763,15 +767,25 @@ namespace Undertone
             _upNextItems = new ObservableCollection<TrackItem>(upcoming.Select((t, i) =>
                 new TrackItem(t, i + 1) { IsLiked = _likedIds.Contains(t.Id), IsPlaying = t.Id == current }));
             UpNextList.ItemsSource = _upNextItems;
-            UpNextHeader.Text = _upNextItems.Count == 0
-                ? (_queue.Repeat == RepeatMode.One ? "Далее · повтор трека" : "Далее · список закончится на этом треке")
-                : "Далее";
+            UpNextHeader.Text = "Далее";
+            if (_upNextItems.Count == 0)
+                UpNextSub.Text = _queue.Repeat == RepeatMode.One ? "Повтор этого трека"
+                    : _queue.Source == QueueSource.Wave ? "Волна подберёт следующий"
+                    : "Список закончится на этом треке";
+            else
+            {
+                var total = TimeSpan.FromMilliseconds(upcoming.Sum(t => t.DurationMs));
+                var n = _queue.Remaining;
+                UpNextSub.Text = $"{n} {Format.Plural(n, "трек", "трека", "треков")}" +
+                                 (n == upcoming.Count ? $" · {Format.Total(total)}" : "");
+            }
         }
 
         private void UpdatePlayState()
         {
             var glyph = _isPlaying ? "" : "";
             PlayBtn.Content = glyph;
+            HeroPlayBtn.Content = glyph;
             WaveCardGlyph.Text = _queue.Source == QueueSource.Wave && IsMyWave && _isPlaying ? "" : "";
             WaveCardSub.Text = _queue.Source == QueueSource.Wave && _queue.Current != null && IsMyWave
                 ? (_isPlaying ? "Играет" : "На паузе")
@@ -793,6 +807,7 @@ namespace Undertone
         private void SetLoading(bool loading)
         {
             PlayBtn.Opacity = loading ? 0.6 : 1;
+            HeroPlayBtn.Opacity = loading ? 0.7 : 1;
             if (loading) Taskbar.ProgressState = TaskbarItemProgressState.Indeterminate;
             else Taskbar.ProgressState = TaskbarItemProgressState.None;
         }
@@ -912,9 +927,13 @@ namespace Undertone
 
         private void UpdateModeButtons()
         {
-            ShuffleBtn.Foreground = _settings.Shuffle ? AccentBrushRes : DimBrush;
-            RepeatBtn.Foreground = _settings.Repeat != RepeatMode.Off ? AccentBrushRes : DimBrush;
-            RepeatBtn.Content = _settings.Repeat == RepeatMode.One ? "" : "";
+            foreach (var (button, on) in new[] { (ShuffleBtn, _settings.Shuffle), (HeroShuffle, _settings.Shuffle),
+                         (RepeatBtn, _settings.Repeat != RepeatMode.Off), (HeroRepeat, _settings.Repeat != RepeatMode.Off) })
+            {
+                if (on) button.SetResourceReference(ForegroundProperty, "LiveAccent");
+                else button.Foreground = DimBrush;
+            }
+            RepeatBtn.Content = HeroRepeat.Content = _settings.Repeat == RepeatMode.One ? "" : "";
         }
 
         private void UpdateVolumeGlyph()

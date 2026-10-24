@@ -26,9 +26,12 @@ namespace Undertone
         private void ToggleLyrics()
         {
             _lyricsMode = !_lyricsMode;
-            UpNextPanel.Visibility = _lyricsMode ? Visibility.Collapsed : Visibility.Visible;
+            // текст встаёт на место полок, очередь справа остаётся
+            ShelvesScroll.Visibility = _lyricsMode ? Visibility.Collapsed : Visibility.Visible;
             LyricsPanel.Visibility = _lyricsMode ? Visibility.Visible : Visibility.Collapsed;
-            NowLyricsText.Text = _lyricsMode ? "Очередь" : "Текст";
+            NowLyricsBtn.ToolTip = _lyricsMode ? "Скрыть текст (T)" : "Текст песни (T)";
+            if (_lyricsMode) NowLyricsGlyph.SetResourceReference(TextBlock.ForegroundProperty, "LiveAccent");
+            else NowLyricsGlyph.ClearValue(TextBlock.ForegroundProperty);
             NowLyricsGlyph.Text = _lyricsMode ? "" : "";
             if (_lyricsMode) _ = LoadLyricsAsync();
         }

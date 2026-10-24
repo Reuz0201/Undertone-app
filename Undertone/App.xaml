@@ -6,23 +6,28 @@
     <Application.Resources>
 
         <!-- ═══════════ Палитра ═══════════ -->
-        <Color x:Key="BgColor">#0E1016</Color>
+        <Color x:Key="BgColor">#0D0E12</Color>
         <Color x:Key="AccentColor">#6EAAFF</Color>
         <Color x:Key="AccentDeepColor">#3C6EC8</Color>
 
-        <SolidColorBrush x:Key="BgBrush" Color="#0E1016"/>
-        <SolidColorBrush x:Key="PanelBrush" Color="#12151D"/>
-        <SolidColorBrush x:Key="CardBrush" Color="#181B24"/>
-        <SolidColorBrush x:Key="HoverBrush" Color="#222634"/>
-        <SolidColorBrush x:Key="PressedBrush" Color="#2B3042"/>
-        <SolidColorBrush x:Key="DividerBrush" Color="#232735"/>
+        <SolidColorBrush x:Key="BgBrush" Color="#0D0E12"/>
+        <SolidColorBrush x:Key="PanelBrush" Color="#111216"/>
+        <SolidColorBrush x:Key="CardBrush" Color="#18191E"/>
+        <SolidColorBrush x:Key="HoverBrush" Color="#212329"/>
+        <SolidColorBrush x:Key="PressedBrush" Color="#2A2C33"/>
+        <SolidColorBrush x:Key="DividerBrush" Color="#202227"/>
         <SolidColorBrush x:Key="AccentBrush" Color="#6EAAFF"/>
         <SolidColorBrush x:Key="AccentHoverBrush" Color="#8DBDFF"/>
         <SolidColorBrush x:Key="GreenBrush" Color="#50C882"/>
         <SolidColorBrush x:Key="RedBrush" Color="#F0566A"/>
-        <SolidColorBrush x:Key="TextBrush" Color="#EBEEF5"/>
-        <SolidColorBrush x:Key="TextDimBrush" Color="#8C91A5"/>
-        <SolidColorBrush x:Key="TextFaintBrush" Color="#5A5F73"/>
+        <SolidColorBrush x:Key="TextBrush" Color="#EEEFF2"/>
+        <SolidColorBrush x:Key="TextDimBrush" Color="#9295A1"/>
+        <SolidColorBrush x:Key="TextFaintBrush" Color="#5E616C"/>
+
+        <!-- Акцент от обложки: окно подменяет эти кисти своими и плавно перекрашивает их под каждый трек -->
+        <SolidColorBrush x:Key="LiveAccent" Color="#BFC3D0"/>
+        <SolidColorBrush x:Key="LiveAccentSoft" Color="#26BFC3D0"/>
+        <SolidColorBrush x:Key="LiveInk" Color="#0D0E12"/>
 
         <LinearGradientBrush x:Key="AccentGradient" StartPoint="0,0" EndPoint="1,1">
             <GradientStop Color="#3C6EC8" Offset="0"/>
@@ -363,23 +368,29 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="RadioButton">
-                        <Border x:Name="Bd" Background="Transparent" CornerRadius="10" Padding="12,10">
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="28"/>
-                                    <ColumnDefinition Width="*"/>
-                                </Grid.ColumnDefinitions>
-                                <TextBlock Text="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}"
-                                           FontFamily="{StaticResource IconFont}" FontSize="16" VerticalAlignment="Center"/>
-                                <ContentPresenter Grid.Column="1" VerticalAlignment="Center"/>
-                            </Grid>
-                        </Border>
+                        <Grid>
+                            <Border x:Name="Bd" Background="Transparent" CornerRadius="10" Padding="12,10">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="28"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock x:Name="Glyph" Text="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}"
+                                               FontFamily="{StaticResource IconFont}" FontSize="16" VerticalAlignment="Center"/>
+                                    <ContentPresenter Grid.Column="1" VerticalAlignment="Center"/>
+                                </Grid>
+                            </Border>
+                            <Border x:Name="Mark" Width="3" Height="18" CornerRadius="2" HorizontalAlignment="Left"
+                                    Background="{DynamicResource LiveAccent}" Visibility="Collapsed"/>
+                        </Grid>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#14FFFFFF"/>
+                                <Setter TargetName="Bd" Property="Background" Value="#0FFFFFFF"/>
                                 <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
                             </Trigger>
                             <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Mark" Property="Visibility" Value="Visible"/>
+                                <Setter TargetName="Glyph" Property="Foreground" Value="{DynamicResource LiveAccent}"/>
                                 <Setter TargetName="Bd" Property="Background" Value="{StaticResource CardBrush}"/>
                                 <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
                                 <Setter Property="FontWeight" Value="SemiBold"/>
@@ -453,9 +464,119 @@
                         </Grid>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Fill" Property="Background" Value="{StaticResource AccentBrush}"/>
+                                <Setter TargetName="Fill" Property="Background" Value="{DynamicResource LiveAccent}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Крупный ползунок прогресса в блоке «Сейчас играет»: полоса цвета обложки, точка видна всегда -->
+        <Style x:Key="HeroFill" TargetType="RepeatButton">
+            <Setter Property="Focusable" Value="False"/>
+            <Setter Property="IsTabStop" Value="False"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RepeatButton">
+                        <Grid Background="Transparent">
+                            <Border Height="5" CornerRadius="3" Background="{TemplateBinding Background}" VerticalAlignment="Center"/>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="HeroSlider" TargetType="Slider">
+            <Setter Property="Focusable" Value="False"/>
+            <Setter Property="IsMoveToPointEnabled" Value="True"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Slider">
+                        <Grid Height="22" Background="Transparent">
+                            <Track x:Name="PART_Track">
+                                <Track.DecreaseRepeatButton>
+                                    <RepeatButton Command="Slider.DecreaseLarge" Style="{StaticResource HeroFill}"
+                                                  Background="{DynamicResource LiveAccent}"/>
+                                </Track.DecreaseRepeatButton>
+                                <Track.IncreaseRepeatButton>
+                                    <RepeatButton Command="Slider.IncreaseLarge" Style="{StaticResource HeroFill}"
+                                                  Background="#24FFFFFF"/>
+                                </Track.IncreaseRepeatButton>
+                                <Track.Thumb>
+                                    <Thumb Focusable="False">
+                                        <Thumb.Template>
+                                            <ControlTemplate TargetType="Thumb">
+                                                <Grid Width="22" Height="22" Background="Transparent">
+                                                    <Ellipse x:Name="Dot" Width="11" Height="11" Fill="White" RenderTransformOrigin="0.5,0.5">
+                                                        <Ellipse.RenderTransform><ScaleTransform/></Ellipse.RenderTransform>
+                                                        <Ellipse.Effect>
+                                                            <DropShadowEffect BlurRadius="8" ShadowDepth="0" Opacity="0.6"/>
+                                                        </Ellipse.Effect>
+                                                    </Ellipse>
+                                                </Grid>
+                                                <ControlTemplate.Triggers>
+                                                    <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=Slider}}" Value="True">
+                                                        <Setter TargetName="Dot" Property="RenderTransform">
+                                                            <Setter.Value><ScaleTransform ScaleX="1.3" ScaleY="1.3"/></Setter.Value>
+                                                        </Setter>
+                                                    </DataTrigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Thumb.Template>
+                                    </Thumb>
+                                </Track.Thumb>
+                            </Track>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Большая кнопка «играть» — залита цветом обложки -->
+        <Style x:Key="HeroPlay" TargetType="Button" BasedOn="{StaticResource PlayButton}">
+            <Setter Property="Width" Value="60"/>
+            <Setter Property="Height" Value="60"/>
+            <Setter Property="FontSize" Value="22"/>
+            <Setter Property="Background" Value="{DynamicResource LiveAccent}"/>
+            <Setter Property="Foreground" Value="{DynamicResource LiveInk}"/>
+        </Style>
+
+        <!-- Полка карточек (Похожие / Недавно): одна строка, листается стрелками -->
+        <Style x:Key="ShelfList" TargetType="ListBox">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+            <Setter Property="ItemsPanel">
+                <Setter.Value>
+                    <ItemsPanelTemplate>
+                        <StackPanel Orientation="Horizontal"/>
+                    </ItemsPanelTemplate>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBox">
+                        <ScrollViewer Focusable="False" CanContentScroll="False"
+                                      HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled">
+                            <ItemsPresenter/>
+                        </ScrollViewer>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="ShelfItemContainer" TargetType="ListBoxItem">
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Margin" Value="0,0,18,0"/>
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <ContentPresenter/>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>

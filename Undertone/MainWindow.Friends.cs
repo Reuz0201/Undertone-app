@@ -20,7 +20,7 @@ namespace Undertone
 
         private string FriendsDisplayName =>
             _settings.FriendsName.Trim() is { Length: > 0 } n ? n
-            : _account is { } a ? (a.DisplayName.Length > 0 ? a.DisplayName : a.Login)
+            : _account is { } a ? Format.PublicName(a.DisplayName.Length > 0 ? a.DisplayName : a.Login)
             : "Друг";
 
         /// <summary>Включает, выключает или перезапускает ленту по текущим настройкам.</summary>
@@ -158,7 +158,7 @@ namespace Undertone
         {
             FriendsToggle.IsChecked = _settings.FriendsEnabled;
             FriendsNameBox.Text = _settings.FriendsName;
-            FriendsNameBox.Tag = _account is { } a ? (a.DisplayName.Length > 0 ? a.DisplayName : a.Login) : "Твоё имя";
+            FriendsNameBox.Tag = _account is { } a ? Format.PublicName(a.DisplayName.Length > 0 ? a.DisplayName : a.Login) : "Твоё имя";
             FriendsCodeText.Text = _settings.FriendsCode.Length > 0 ? _settings.FriendsCode : "ещё не создан";
         }
 

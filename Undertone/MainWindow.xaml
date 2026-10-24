@@ -38,7 +38,7 @@
                 <TextBlock x:Name="Num" Text="{Binding Index}" Foreground="{StaticResource TextFaintBrush}"
                            FontSize="13" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                 <TextBlock x:Name="PlayingGlyph" Text="&#xE995;" FontFamily="{StaticResource IconFont}" FontSize="14"
-                           Foreground="{StaticResource AccentBrush}" HorizontalAlignment="Center" VerticalAlignment="Center"
+                           Foreground="{DynamicResource LiveAccent}" HorizontalAlignment="Center" VerticalAlignment="Center"
                            Visibility="Collapsed"/>
 
                 <Grid Grid.Column="1" Width="44" Height="44" HorizontalAlignment="Left">
@@ -93,7 +93,7 @@
                 <DataTrigger Binding="{Binding IsPlaying}" Value="True">
                     <Setter TargetName="Num" Property="Visibility" Value="Collapsed"/>
                     <Setter TargetName="PlayingGlyph" Property="Visibility" Value="Visible"/>
-                    <Setter TargetName="TitleText" Property="Foreground" Value="{StaticResource AccentBrush}"/>
+                    <Setter TargetName="TitleText" Property="Foreground" Value="{DynamicResource LiveAccent}"/>
                 </DataTrigger>
                 <DataTrigger Binding="{Binding Available}" Value="False">
                     <Setter TargetName="Root" Property="Opacity" Value="0.4"/>
@@ -102,6 +102,170 @@
         </DataTemplate>
 
         <Style x:Key="TrackRow" TargetType="ListBoxItem" BasedOn="{StaticResource TrackRowContainer}">
+            <EventSetter Event="MouseLeftButtonUp" Handler="Row_MouseUp"/>
+            <EventSetter Event="MouseRightButtonUp" Handler="Row_RightClick"/>
+        </Style>
+
+        <!-- Строка очереди справа: узкая, без альбома -->
+        <DataTemplate x:Key="QueueRowTemplate" DataType="{x:Type ui:TrackItem}">
+            <Grid x:Name="Root" Height="54">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="44"/>
+                </Grid.ColumnDefinitions>
+                <Grid Width="42" Height="42" Margin="6,0,12,0">
+                    <Border CornerRadius="7" Background="{StaticResource CardBrush}">
+                        <TextBlock Text="&#xEC4F;" FontFamily="{StaticResource IconFont}" FontSize="14" Foreground="#40FFFFFF"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <Border CornerRadius="7">
+                        <Border.Background>
+                            <ImageBrush ImageSource="{Binding Cover, Converter={StaticResource CoverConverter}, ConverterParameter=84}"
+                                        Stretch="UniformToFill"/>
+                        </Border.Background>
+                    </Border>
+                </Grid>
+                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                    <TextBlock x:Name="TitleText" Text="{Binding Title}" FontSize="13.5" FontWeight="SemiBold"
+                               TextTrimming="CharacterEllipsis"/>
+                    <TextBlock Text="{Binding Artists}" FontSize="12" Foreground="{StaticResource TextDimBrush}"
+                               TextTrimming="CharacterEllipsis" Margin="0,2,0,0"/>
+                </StackPanel>
+                <TextBlock x:Name="Dur" Grid.Column="2" Text="{Binding Duration}" FontSize="12" Foreground="{StaticResource TextFaintBrush}"
+                           HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                <Button x:Name="Heart" Grid.Column="2" Click="RowLike_Click" Width="32" Height="32" FontSize="13"
+                        HorizontalAlignment="Right" Margin="0,0,2,0" ToolTip="Мне нравится" Visibility="Hidden">
+                    <Button.Style>
+                        <Style TargetType="Button" BasedOn="{StaticResource IconButton}">
+                            <Setter Property="Content" Value="&#xEB51;"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsLiked}" Value="True">
+                                    <Setter Property="Content" Value="&#xEB52;"/>
+                                    <Setter Property="Foreground" Value="{StaticResource RedBrush}"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Button.Style>
+                </Button>
+            </Grid>
+            <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Value="True">
+                    <Setter TargetName="Dur" Property="Visibility" Value="Hidden"/>
+                    <Setter TargetName="Heart" Property="Visibility" Value="Visible"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding IsPlaying}" Value="True">
+                    <Setter TargetName="TitleText" Property="Foreground" Value="{DynamicResource LiveAccent}"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Available}" Value="False">
+                    <Setter TargetName="Root" Property="Opacity" Value="0.4"/>
+                </DataTrigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
+
+        <!-- Карточка трека на полке: обложка, при наведении — круглая кнопка цвета обложки -->
+        <DataTemplate x:Key="TrackTileTemplate" DataType="{x:Type ui:TrackItem}">
+            <StackPanel x:Name="Root" Width="152" RenderTransformOrigin="0.5,0.5">
+                <StackPanel.RenderTransform>
+                    <TranslateTransform/>
+                </StackPanel.RenderTransform>
+                <Grid Width="152" Height="152">
+                    <Border CornerRadius="12" Background="{StaticResource CardBrush}">
+                        <TextBlock Text="&#xEC4F;" FontFamily="{StaticResource IconFont}" FontSize="34" Foreground="#30FFFFFF"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <Border CornerRadius="12">
+                        <Border.Background>
+                            <ImageBrush ImageSource="{Binding CoverLarge, Converter={StaticResource CoverConverter}, ConverterParameter=304}"
+                                        Stretch="UniformToFill"/>
+                        </Border.Background>
+                    </Border>
+                    <Border CornerRadius="12" BorderBrush="#14FFFFFF" BorderThickness="1"/>
+                    <Border x:Name="Shade" CornerRadius="12" Opacity="0">
+                        <Border.Background>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                <GradientStop Color="#00000000" Offset="0.35"/>
+                                <GradientStop Color="#A0000000" Offset="1"/>
+                            </LinearGradientBrush>
+                        </Border.Background>
+                    </Border>
+                    <Border x:Name="PlayDot" Width="42" Height="42" CornerRadius="21" Background="{DynamicResource LiveAccent}"
+                            HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,10,10" Opacity="0">
+                        <Border.Effect>
+                            <DropShadowEffect BlurRadius="14" ShadowDepth="3" Opacity="0.45"/>
+                        </Border.Effect>
+                        <TextBlock x:Name="PlayGlyph" Text="&#xE768;" FontFamily="{StaticResource IconFont}" FontSize="15"
+                                   Foreground="{DynamicResource LiveInk}" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                   Margin="2,0,0,0"/>
+                    </Border>
+                </Grid>
+                <Grid Margin="2,10,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel>
+                        <TextBlock x:Name="TitleText" Text="{Binding Title}" FontSize="13.5" FontWeight="SemiBold"
+                                   TextTrimming="CharacterEllipsis"/>
+                        <TextBlock Text="{Binding Artists}" FontSize="12" Foreground="{StaticResource TextDimBrush}"
+                                   TextTrimming="CharacterEllipsis" Margin="0,2,0,0"/>
+                    </StackPanel>
+                    <Button x:Name="Heart" Grid.Column="1" Click="RowLike_Click" Width="28" Height="28" FontSize="12.5"
+                            VerticalAlignment="Top" Margin="4,0,0,0" ToolTip="Мне нравится">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource IconButton}">
+                                <Setter Property="Content" Value="&#xEB51;"/>
+                                <Setter Property="Opacity" Value="0"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Value="True">
+                                        <Setter Property="Opacity" Value="1"/>
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding IsLiked}" Value="True">
+                                        <Setter Property="Opacity" Value="1"/>
+                                        <Setter Property="Content" Value="&#xEB52;"/>
+                                        <Setter Property="Foreground" Value="{StaticResource RedBrush}"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                </Grid>
+            </StackPanel>
+            <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Value="True">
+                    <DataTrigger.EnterActions>
+                        <BeginStoryboard>
+                            <Storyboard>
+                                <DoubleAnimation Storyboard.TargetName="Shade" Storyboard.TargetProperty="Opacity" To="1" Duration="0:0:0.16"/>
+                                <DoubleAnimation Storyboard.TargetName="PlayDot" Storyboard.TargetProperty="Opacity" To="1" Duration="0:0:0.16"/>
+                                <DoubleAnimation Storyboard.TargetName="Root" Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)" To="-3" Duration="0:0:0.18">
+                                    <DoubleAnimation.EasingFunction><CubicEase EasingMode="EaseOut"/></DoubleAnimation.EasingFunction>
+                                </DoubleAnimation>
+                            </Storyboard>
+                        </BeginStoryboard>
+                    </DataTrigger.EnterActions>
+                    <DataTrigger.ExitActions>
+                        <BeginStoryboard>
+                            <Storyboard>
+                                <DoubleAnimation Storyboard.TargetName="Shade" Storyboard.TargetProperty="Opacity" To="0" Duration="0:0:0.2"/>
+                                <DoubleAnimation Storyboard.TargetName="PlayDot" Storyboard.TargetProperty="Opacity" To="0" Duration="0:0:0.2"/>
+                                <DoubleAnimation Storyboard.TargetName="Root" Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)" To="0" Duration="0:0:0.2"/>
+                            </Storyboard>
+                        </BeginStoryboard>
+                    </DataTrigger.ExitActions>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding IsPlaying}" Value="True">
+                    <Setter TargetName="TitleText" Property="Foreground" Value="{DynamicResource LiveAccent}"/>
+                    <Setter TargetName="PlayGlyph" Property="Text" Value="&#xE995;"/>
+                    <Setter TargetName="PlayGlyph" Property="Margin" Value="0"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Available}" Value="False">
+                    <Setter TargetName="Root" Property="Opacity" Value="0.4"/>
+                </DataTrigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
+
+        <Style x:Key="ShelfItem" TargetType="ListBoxItem" BasedOn="{StaticResource ShelfItemContainer}">
             <EventSetter Event="MouseLeftButtonUp" Handler="Row_MouseUp"/>
             <EventSetter Event="MouseRightButtonUp" Handler="Row_RightClick"/>
         </Style>
@@ -286,19 +450,20 @@
             <Grid Grid.Column="1">
 
                 <!-- ── Сейчас играет ── -->
-                <Grid x:Name="PageNow">
+                <Grid x:Name="PageNow" SizeChanged="PageNow_SizeChanged">
+                    <!-- фон: размытая обложка, гаснет к низу -->
                     <Grid ClipToBounds="True" IsHitTestVisible="False">
-                        <Image x:Name="BackdropImage" Stretch="UniformToFill" Opacity="0.45" Margin="-120">
+                        <Image x:Name="BackdropImage" Stretch="UniformToFill" Opacity="0.5" Margin="-120">
                             <Image.Effect>
-                                <BlurEffect Radius="100" KernelType="Gaussian" RenderingBias="Performance"/>
+                                <BlurEffect Radius="110" KernelType="Gaussian" RenderingBias="Performance"/>
                             </Image.Effect>
                         </Image>
                         <Rectangle>
                             <Rectangle.Fill>
                                 <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
-                                    <GradientStop Color="#550E1016" Offset="0"/>
-                                    <GradientStop Color="#E60E1016" Offset="0.75"/>
-                                    <GradientStop Color="#FF0E1016" Offset="1"/>
+                                    <GradientStop Color="#400D0E12" Offset="0"/>
+                                    <GradientStop Color="#D90D0E12" Offset="0.55"/>
+                                    <GradientStop Color="#FF0D0E12" Offset="1"/>
                                 </LinearGradientBrush>
                             </Rectangle.Fill>
                         </Rectangle>
@@ -341,101 +506,163 @@
                             <Button Style="{StaticResource PlayButton}" Width="128" Height="128" Background="Transparent"
                                     Foreground="White" FontSize="40" Content="&#xE768;" Click="Wave_Click" ToolTip="Запустить Мою волну"/>
                         </Grid>
-                        <TextBlock Text="Моя волна" FontSize="34" FontWeight="Bold" HorizontalAlignment="Center" Margin="0,8,0,0"/>
-                        <TextBlock Text="Бесконечный поток музыки, подобранный под ваш вкус" FontSize="15"
+                        <TextBlock Text="Моя волна" FontSize="34" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,8,0,0"
+                                   FontFamily="Segoe UI Variable Display, Segoe UI"/>
+                        <TextBlock Text="Бесконечный поток музыки под ваш вкус" FontSize="15"
                                    Foreground="{StaticResource TextDimBrush}" HorizontalAlignment="Center" Margin="0,8,0,0"/>
-                        <TextBlock Text="или выберите трек в «Мне нравится», «Поиске» или своих плейлистах" FontSize="13"
+                        <TextBlock Text="Или выберите трек в «Мне нравится», поиске или своих плейлистах" FontSize="13"
                                    Foreground="{StaticResource TextFaintBrush}" HorizontalAlignment="Center" Margin="0,6,0,0"/>
                     </StackPanel>
 
-                    <!-- текущий трек -->
-                    <Grid x:Name="NowState" Visibility="Collapsed" Margin="44,40,36,16">
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="*"/>
-                            <RowDefinition Height="Auto"/>
-                        </Grid.RowDefinitions>
+                    <!-- текущий трек: слева — трек и полки, справа — очередь -->
+                    <Grid x:Name="NowState" Visibility="Collapsed">
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="*"/>
+                            <ColumnDefinition x:Name="QueueColumn" Width="320"/>
                         </Grid.ColumnDefinitions>
 
-                        <Grid Width="290" Height="290" VerticalAlignment="Top">
-                            <Border CornerRadius="18" Background="{StaticResource CardBrush}">
-                                <Border.Effect>
-                                    <DropShadowEffect BlurRadius="50" ShadowDepth="10" Opacity="0.55" Color="Black"/>
-                                </Border.Effect>
-                                <TextBlock Text="&#xEC4F;" FontFamily="{StaticResource IconFont}" FontSize="72" Foreground="#30FFFFFF"
-                                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                            </Border>
-                            <Border CornerRadius="18">
-                                <Border.Background>
-                                    <ImageBrush x:Name="BigCoverBrush" Stretch="UniformToFill"/>
-                                </Border.Background>
-                            </Border>
-                        </Grid>
+                        <Grid Margin="40,36,32,0">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
 
-                        <DockPanel Grid.Column="1" Margin="38,0,0,0">
-                            <StackPanel DockPanel.Dock="Top">
-                                <TextBlock x:Name="NowSource" Text="СЕЙЧАС ИГРАЕТ" FontSize="12" FontWeight="SemiBold"
-                                           Foreground="{StaticResource TextDimBrush}"/>
-                                <TextBlock x:Name="NowTitle" FontSize="34" FontWeight="Bold" TextWrapping="Wrap"
-                                           TextTrimming="CharacterEllipsis" MaxHeight="96" Margin="0,8,0,0"
-                                           FontFamily="Segoe UI Variable Display, Segoe UI"/>
-                                <ItemsControl x:Name="NowArtists" ItemTemplate="{StaticResource ArtistLinkTemplate}"
-                                              ItemsPanel="{StaticResource HorizontalPanel}" ClipToBounds="True" Focusable="False"
-                                              FontSize="18" Foreground="{StaticResource TextDimBrush}" Margin="0,6,0,0"/>
-                                <TextBlock x:Name="NowAlbum" FontSize="13.5" Foreground="{StaticResource TextFaintBrush}"
-                                           Style="{StaticResource LinkText}" MouseLeftButtonUp="NowAlbum_Click" HorizontalAlignment="Left"
-                                           TextTrimming="CharacterEllipsis" Margin="0,4,0,0"/>
-                                <StackPanel Orientation="Horizontal" Margin="0,20,0,0">
-                                    <Button x:Name="NowLike" Style="{StaticResource PillSecondary}" Click="Like_Click" Margin="0,0,10,0"
-                                            ToolTip="Мне нравится (L)">
-                                        <StackPanel Orientation="Horizontal">
-                                            <TextBlock x:Name="NowLikeGlyph" Text="&#xEB51;" FontFamily="{StaticResource IconFont}"
-                                                       FontSize="14" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                            <TextBlock x:Name="NowLikeText" Text="Нравится" VerticalAlignment="Center"/>
-                                        </StackPanel>
-                                    </Button>
-                                    <Button x:Name="NowDislike" Style="{StaticResource PillSecondary}" Click="Dislike_Click" Margin="0,0,10,0"
-                                            ToolTip="Не рекомендовать и пропустить (D)">
-                                        <StackPanel Orientation="Horizontal">
-                                            <TextBlock Text="&#xE8E0;" FontFamily="{StaticResource IconFont}" FontSize="14"
-                                                       VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                            <TextBlock Text="Не нравится" VerticalAlignment="Center"/>
-                                        </StackPanel>
-                                    </Button>
-                                    <Button x:Name="NowLyricsBtn" Style="{StaticResource PillSecondary}" Click="NowLyrics_Click"
-                                            Margin="0,0,10,0" ToolTip="Текст песни (T)">
-                                        <StackPanel Orientation="Horizontal">
-                                            <TextBlock x:Name="NowLyricsGlyph" Text="&#xE8D2;" FontFamily="{StaticResource IconFont}"
-                                                       FontSize="14" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                            <TextBlock x:Name="NowLyricsText" Text="Текст" VerticalAlignment="Center"/>
-                                        </StackPanel>
-                                    </Button>
-                                    <Button x:Name="NowMore" Style="{StaticResource CircleGhost}" Width="42" Height="42"
-                                            Content="&#xE712;" ToolTip="Ещё: в плейлист, к артисту, к альбому" Click="NowMore_Click"/>
-                                </StackPanel>
-                            </StackPanel>
-
+                            <!-- ── трек ── -->
                             <Grid>
-                                <!-- очередь «Далее»: перетаскивание меняет порядок, правый клик — убрать -->
-                                <DockPanel x:Name="UpNextPanel">
-                                    <Grid DockPanel.Dock="Top" Margin="8,24,8,8">
-                                        <TextBlock x:Name="UpNextHeader" Text="Далее" FontSize="16" FontWeight="SemiBold"
-                                                   VerticalAlignment="Center"/>
-                                        <Button x:Name="UpNextClear" Style="{StaticResource PillSecondary}" Content="Очистить"
-                                                Padding="12,5" FontSize="12" HorizontalAlignment="Right"
-                                                ToolTip="Убрать из очереди всё, что после текущего трека" Click="UpNextClear_Click"/>
-                                    </Grid>
-                                    <ListBox x:Name="UpNextList" Style="{StaticResource TrackList}" AllowDrop="True"
-                                             ItemContainerStyle="{StaticResource TrackRow}" ItemTemplate="{StaticResource TrackRowTemplate}"
-                                             KeyDown="List_KeyDown"
-                                             PreviewMouseLeftButtonDown="UpNext_PreviewMouseDown" PreviewMouseMove="UpNext_PreviewMouseMove"
-                                             DragOver="UpNext_DragOver" Drop="UpNext_Drop"/>
-                                </DockPanel>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
 
-                                <!-- текст песни -->
-                                <Grid x:Name="LyricsPanel" Visibility="Collapsed" Margin="0,22,0,0">
+                                <Grid x:Name="HeroCover" Width="300" Height="300" VerticalAlignment="Top">
+                                    <!-- свечение цвета обложки под ней -->
+                                    <Border CornerRadius="16" Background="#01000000" Margin="18,26,18,0">
+                                        <Border.Effect>
+                                            <DropShadowEffect x:Name="HeroGlow" Color="#BFC3D0" BlurRadius="90" ShadowDepth="0" Opacity="0.5"/>
+                                        </Border.Effect>
+                                    </Border>
+                                    <Border CornerRadius="16" Background="{StaticResource CardBrush}">
+                                        <Border.Effect>
+                                            <DropShadowEffect BlurRadius="40" ShadowDepth="12" Opacity="0.5" Color="Black"/>
+                                        </Border.Effect>
+                                        <TextBlock Text="&#xEC4F;" FontFamily="{StaticResource IconFont}" FontSize="72" Foreground="#30FFFFFF"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    </Border>
+                                    <Border CornerRadius="16">
+                                        <Border.Background>
+                                            <ImageBrush x:Name="BigCoverBrush" Stretch="UniformToFill"/>
+                                        </Border.Background>
+                                    </Border>
+                                    <Border CornerRadius="16" BorderBrush="#1FFFFFFF" BorderThickness="1"/>
+                                </Grid>
+
+                                <DockPanel Grid.Column="1" Margin="36,0,0,0" LastChildFill="False">
+                                    <StackPanel DockPanel.Dock="Top">
+                                        <!-- откуда играет: волна, плейлист, «слушаем вместе» -->
+                                        <Border x:Name="NowSourceChip" Background="{DynamicResource LiveAccentSoft}" CornerRadius="100"
+                                                Padding="11,4,12,5" HorizontalAlignment="Left">
+                                            <TextBlock x:Name="NowSource" Text="СЕЙЧАС ИГРАЕТ" FontSize="11" FontWeight="SemiBold"
+                                                       Foreground="{DynamicResource LiveAccent}" TextTrimming="CharacterEllipsis"/>
+                                        </Border>
+                                        <TextBlock x:Name="NowTitle" FontSize="42" FontWeight="SemiBold" TextWrapping="Wrap"
+                                                   TextTrimming="CharacterEllipsis" MaxHeight="108" Margin="0,14,0,0" LineHeight="52"
+                                                   LineStackingStrategy="BlockLineHeight" FontFamily="Segoe UI Variable Display, Segoe UI"/>
+                                        <ItemsControl x:Name="NowArtists" ItemTemplate="{StaticResource ArtistLinkTemplate}"
+                                                      ItemsPanel="{StaticResource HorizontalPanel}" ClipToBounds="True" Focusable="False"
+                                                      FontSize="18" Foreground="{StaticResource TextBrush}" Opacity="0.82" Margin="0,6,0,0"/>
+                                        <TextBlock x:Name="NowAlbum" FontSize="13.5" Foreground="{StaticResource TextDimBrush}"
+                                                   Style="{StaticResource LinkText}" MouseLeftButtonUp="NowAlbum_Click" HorizontalAlignment="Left"
+                                                   TextTrimming="CharacterEllipsis" Margin="0,5,0,0"/>
+                                        <StackPanel Orientation="Horizontal" Margin="-6,16,0,0">
+                                            <Button x:Name="NowLike" Style="{StaticResource IconButton}" Width="40" Height="40"
+                                                    Click="Like_Click" ToolTip="Мне нравится (L)">
+                                                <TextBlock x:Name="NowLikeGlyph" Text="&#xEB51;" FontFamily="{StaticResource IconFont}" FontSize="17"/>
+                                            </Button>
+                                            <Button x:Name="NowDislike" Style="{StaticResource IconButton}" Width="40" Height="40" FontSize="16"
+                                                    Content="&#xE8E0;" Click="Dislike_Click" ToolTip="Не рекомендовать и пропустить (D)"/>
+                                            <Button x:Name="NowLyricsBtn" Style="{StaticResource IconButton}" Width="40" Height="40"
+                                                    Click="NowLyrics_Click" ToolTip="Текст песни (T)">
+                                                <TextBlock x:Name="NowLyricsGlyph" Text="&#xE8D2;" FontFamily="{StaticResource IconFont}" FontSize="16"/>
+                                            </Button>
+                                            <Button x:Name="NowMore" Style="{StaticResource IconButton}" Width="40" Height="40" FontSize="16"
+                                                    Content="&#xE712;" ToolTip="Ещё: в плейлист, к артисту, к альбому" Click="NowMore_Click"/>
+                                        </StackPanel>
+                                    </StackPanel>
+
+                                    <!-- плеер прямо под треком -->
+                                    <StackPanel DockPanel.Dock="Bottom" Margin="0,18,0,0">
+                                        <Slider x:Name="HeroSlider" Style="{StaticResource HeroSlider}" Minimum="0" Maximum="1" Value="0"
+                                                ValueChanged="Progress_ValueChanged"/>
+                                        <Grid Margin="0,2,0,0">
+                                            <TextBlock x:Name="HeroPos" Text="0:00" FontSize="12" Foreground="{StaticResource TextDimBrush}"/>
+                                            <TextBlock x:Name="HeroRemain" Text="0:00" FontSize="12" Foreground="{StaticResource TextDimBrush}"
+                                                       HorizontalAlignment="Right"/>
+                                        </Grid>
+                                        <Grid Margin="0,6,0,0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Button x:Name="HeroShuffle" Style="{StaticResource IconButton}" Content="&#xE8B1;" FontSize="16"
+                                                    Click="Shuffle_Click" ToolTip="Перемешать (S)" HorizontalAlignment="Left"/>
+                                            <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                                <Button Style="{StaticResource IconButton}" Content="&#xE892;" FontSize="19" Width="46" Height="46"
+                                                        Foreground="{StaticResource TextBrush}" Click="Prev_Click" ToolTip="Предыдущий (P)" Margin="0,0,14,0"/>
+                                                <Button x:Name="HeroPlayBtn" Style="{StaticResource HeroPlay}" Content="&#xE768;"
+                                                        Click="Play_Click" ToolTip="Играть / пауза (Пробел)"/>
+                                                <Button Style="{StaticResource IconButton}" Content="&#xE893;" FontSize="19" Width="46" Height="46"
+                                                        Foreground="{StaticResource TextBrush}" Click="Next_Click" ToolTip="Следующий (N)" Margin="14,0,0,0"/>
+                                            </StackPanel>
+                                            <Button x:Name="HeroRepeat" Grid.Column="2" Style="{StaticResource IconButton}" Content="&#xE8EE;" FontSize="16"
+                                                    Click="Repeat_Click" ToolTip="Повтор (R)" HorizontalAlignment="Right"/>
+                                        </Grid>
+                                    </StackPanel>
+                                </DockPanel>
+                            </Grid>
+
+                            <!-- визуализатор — граница между «сейчас» и «дальше»; клик меняет вид -->
+                            <ui:Visualizer x:Name="BigViz" Grid.Row="1" Height="44" Margin="0,22,0,0" BarCount="72" Opacity="0.55"/>
+
+                            <!-- ── полки / текст песни ── -->
+                            <Grid Grid.Row="2" Margin="0,10,0,0">
+                                <ScrollViewer x:Name="ShelvesScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                                              Focusable="False">
+                                    <StackPanel Margin="0,8,0,24">
+                                        <DockPanel x:Name="SimilarShelf" Visibility="Collapsed" Margin="0,0,0,26">
+                                            <Grid DockPanel.Dock="Top" Margin="0,0,0,12">
+                                                <TextBlock Text="Похожие треки" FontSize="19" FontWeight="SemiBold" VerticalAlignment="Center"
+                                                           FontFamily="Segoe UI Variable Display, Segoe UI"/>
+                                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                                    <Button Style="{StaticResource IconButton}" Content="&#xE76B;" Width="32" Height="32" FontSize="12"
+                                                            Tag="{Binding ElementName=SimilarList}" Click="ShelfPrev_Click" ToolTip="Назад"/>
+                                                    <Button Style="{StaticResource IconButton}" Content="&#xE76C;" Width="32" Height="32" FontSize="12"
+                                                            Tag="{Binding ElementName=SimilarList}" Click="ShelfNext_Click" ToolTip="Дальше"/>
+                                                </StackPanel>
+                                            </Grid>
+                                            <ListBox x:Name="SimilarList" Style="{StaticResource ShelfList}" ItemContainerStyle="{StaticResource ShelfItem}"
+                                                     ItemTemplate="{StaticResource TrackTileTemplate}" PreviewMouseWheel="Shelf_PreviewMouseWheel"/>
+                                        </DockPanel>
+                                        <DockPanel x:Name="RecentShelf" Visibility="Collapsed">
+                                            <Grid DockPanel.Dock="Top" Margin="0,0,0,12">
+                                                <TextBlock Text="Недавно слушали" FontSize="19" FontWeight="SemiBold" VerticalAlignment="Center"
+                                                           FontFamily="Segoe UI Variable Display, Segoe UI"/>
+                                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                                    <Button Style="{StaticResource IconButton}" Content="&#xE76B;" Width="32" Height="32" FontSize="12"
+                                                            Tag="{Binding ElementName=RecentList}" Click="ShelfPrev_Click" ToolTip="Назад"/>
+                                                    <Button Style="{StaticResource IconButton}" Content="&#xE76C;" Width="32" Height="32" FontSize="12"
+                                                            Tag="{Binding ElementName=RecentList}" Click="ShelfNext_Click" ToolTip="Дальше"/>
+                                                </StackPanel>
+                                            </Grid>
+                                            <ListBox x:Name="RecentList" Style="{StaticResource ShelfList}" ItemContainerStyle="{StaticResource ShelfItem}"
+                                                     ItemTemplate="{StaticResource TrackTileTemplate}" PreviewMouseWheel="Shelf_PreviewMouseWheel"/>
+                                        </DockPanel>
+                                    </StackPanel>
+                                </ScrollViewer>
+
+                                <!-- текст песни встаёт на место полок -->
+                                <Grid x:Name="LyricsPanel" Visibility="Collapsed" Margin="0,4,0,0">
                                     <ListBox x:Name="LyricsList" Style="{StaticResource TrackList}"
                                              ScrollViewer.CanContentScroll="False">
                                         <ListBox.ItemContainerStyle>
@@ -461,18 +688,18 @@
                                         </ListBox.ItemContainerStyle>
                                         <ListBox.ItemTemplate>
                                             <DataTemplate DataType="{x:Type ui:LyricLine}">
-                                                <TextBlock x:Name="Line" Text="{Binding Text}" FontSize="22" FontWeight="SemiBold"
-                                                           TextWrapping="Wrap" Foreground="#5A5F73"
+                                                <TextBlock x:Name="Line" Text="{Binding Text}" FontSize="24" FontWeight="SemiBold"
+                                                           TextWrapping="Wrap" Foreground="#4C4F5A"
                                                            FontFamily="Segoe UI Variable Display, Segoe UI"/>
                                                 <DataTemplate.Triggers>
                                                     <DataTrigger Binding="{Binding IsPast}" Value="True">
-                                                        <Setter TargetName="Line" Property="Foreground" Value="#8C91A5"/>
+                                                        <Setter TargetName="Line" Property="Foreground" Value="#80838F"/>
                                                     </DataTrigger>
                                                     <DataTrigger Binding="{Binding IsActive}" Value="True">
-                                                        <Setter TargetName="Line" Property="Foreground" Value="White"/>
+                                                        <Setter TargetName="Line" Property="Foreground" Value="{DynamicResource LiveAccent}"/>
                                                     </DataTrigger>
                                                     <DataTrigger Binding="{Binding IsPlain}" Value="True">
-                                                        <Setter TargetName="Line" Property="Foreground" Value="#C8CCD8"/>
+                                                        <Setter TargetName="Line" Property="Foreground" Value="#C8CAD2"/>
                                                         <Setter TargetName="Line" Property="FontSize" Value="17"/>
                                                         <Setter TargetName="Line" Property="FontWeight" Value="Normal"/>
                                                     </DataTrigger>
@@ -486,14 +713,33 @@
                                                    TextAlignment="Center" TextWrapping="Wrap" MaxWidth="360" Margin="0,12,0,0"/>
                                     </StackPanel>
                                     <TextBlock x:Name="LyricsCredits" VerticalAlignment="Bottom" HorizontalAlignment="Left"
-                                               FontSize="11" Foreground="{StaticResource TextFaintBrush}" Margin="10,0,0,0"
+                                               FontSize="11" Foreground="{StaticResource TextFaintBrush}" Margin="10,0,0,6"
                                                TextTrimming="CharacterEllipsis"/>
                                 </Grid>
                             </Grid>
-                        </DockPanel>
+                        </Grid>
 
-                        <!-- большой визуализатор -->
-                        <ui:Visualizer x:Name="BigViz" Grid.Row="1" Grid.ColumnSpan="2" Height="130" Margin="0,18,0,0" BarCount="72"/>
+                        <!-- ── очередь «Далее»: перетаскивание меняет порядок, правый клик — убрать ── -->
+                        <Border Grid.Column="1" Background="#0AFFFFFF" BorderBrush="#12FFFFFF" BorderThickness="1,0,0,0">
+                            <DockPanel x:Name="UpNextPanel" Margin="14,30,8,0">
+                                <Grid DockPanel.Dock="Top" Margin="8,0,6,12">
+                                    <StackPanel>
+                                        <TextBlock x:Name="UpNextHeader" Text="Далее" FontSize="19" FontWeight="SemiBold"
+                                                   FontFamily="Segoe UI Variable Display, Segoe UI"/>
+                                        <TextBlock x:Name="UpNextSub" FontSize="12" Foreground="{StaticResource TextDimBrush}"
+                                                   TextWrapping="Wrap" Margin="0,2,0,0"/>
+                                    </StackPanel>
+                                    <Button x:Name="UpNextClear" Style="{StaticResource IconButton}" Content="&#xE894;" Width="34" Height="34"
+                                            FontSize="13" HorizontalAlignment="Right" VerticalAlignment="Top"
+                                            ToolTip="Очистить: убрать всё, что после текущего трека" Click="UpNextClear_Click"/>
+                                </Grid>
+                                <ListBox x:Name="UpNextList" Style="{StaticResource TrackList}" AllowDrop="True"
+                                         ItemContainerStyle="{StaticResource TrackRow}" ItemTemplate="{StaticResource QueueRowTemplate}"
+                                         KeyDown="List_KeyDown"
+                                         PreviewMouseLeftButtonDown="UpNext_PreviewMouseDown" PreviewMouseMove="UpNext_PreviewMouseMove"
+                                         DragOver="UpNext_DragOver" Drop="UpNext_Drop"/>
+                            </DockPanel>
+                        </Border>
                     </Grid>
                 </Grid>
 

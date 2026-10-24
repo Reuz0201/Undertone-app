@@ -640,6 +640,8 @@ namespace Undertone
                 await PlayFromListAsync(_collItems, _collItems.IndexOf(item), QueueSource.Collection, _collLabel);
             else if (list == HistoryList)
                 await PlayFromListAsync(_historyItems, _historyItems.IndexOf(item), QueueSource.Collection, "ИЗ ИСТОРИИ");
+            else if (list == SimilarList || list == RecentList)
+                await ActivateShelfAsync(list, item);
         }
 
         private async void RowLike_Click(object sender, RoutedEventArgs e)
@@ -652,7 +654,7 @@ namespace Undertone
         private void RefreshLikeMarks()
         {
             var current = _queue.Current?.Id;
-            foreach (var list in new[] { _likedItems, _searchItems, _upNextItems, _collItems, _historyItems })
+            foreach (var list in new[] { _likedItems, _searchItems, _upNextItems, _collItems, _historyItems, _similarItems, _recentItems })
                 foreach (var it in list)
                 {
                     it.IsLiked = _likedIds.Contains(it.Track.Id);
@@ -664,7 +666,7 @@ namespace Undertone
             BarLike.Foreground = liked ? RedBrushRes : DimBrush;
             NowLikeGlyph.Text = liked ? "" : "";
             NowLikeGlyph.Foreground = liked ? RedBrushRes : TextBrushRes;
-            NowLikeText.Text = liked ? "В любимых" : "Нравится";
+            NowLike.ToolTip = liked ? "В любимых — убрать (L)" : "Мне нравится (L)";
         }
 
         // ────────── хоткеи ──────────
