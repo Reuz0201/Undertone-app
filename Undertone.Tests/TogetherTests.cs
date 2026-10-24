@@ -72,3 +72,34 @@ public class TogetherTests
 
     private static YaTrack T(string id) => new() { Id = id, Title = id };
 }
+
+public class RoomClockTests
+{
+    [Fact]
+    public void Predicts_FromLocalTime_IgnoringSenderClock()
+    {
+        var c = new Undertone.Core.RoomClock();
+        c.Set(10, playing: true, nowMs: 1000);
+        Assert.Equal(12.5, c.Predict(3500), 3);
+        c.Set(10, playing: false, nowMs: 1000);
+        Assert.Equal(10, c.Predict(9000), 3);
+    }
+
+    [Fact]
+    public void Refine_OnlyMovesForward()
+    {
+        var c = new Undertone.Core.RoomClock();
+        // первое сообщение пришло с опозданием: оценка 10 с
+        c.Set(10, true, 0);
+        // свежий повтор через 1 с говорит «11.4» — подтягиваемся
+        c.Refine(11.4, true, 1000);
+        Assert.Equal(11.4, c.Predict(1000), 3);
+        // запоздавший повтор «10.9» назад не тянет
+        c.Refine(10.9, true, 1000);
+        Assert.Equal(11.4, c.Predict(1000), 3);
+        // повторы на паузе позицию не меняют
+        c.Set(5, false, 0);
+        c.Refine(9, false, 100);
+        Assert.Equal(5, c.Predict(100), 3);
+    }
+}

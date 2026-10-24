@@ -25,6 +25,10 @@ namespace Undertone
         /// <summary>Трек включается по команде комнаты — когда зазвучит, встанем на нужное место.</summary>
         private RoomState? _roomPending;
         private DateTime _roomPendingSince;
+        /// <summary>Какой трек сейчас грузится (PlayCurrentAsync ещё не закончил).</summary>
+        private string? _loadingTrackId;
+        /// <summary>Насколько мы разошлись с комнатой при последней сверке (секунды, + — впереди).</summary>
+        private double? _roomDrift;
         private DispatcherTimer? _roomTimer;
         private string? _roomWaitEndOf;
 
@@ -48,6 +52,7 @@ namespace Undertone
             _inRoom = true;
             _roomPending = null;
             _roomWaitEndOf = null;
+            _roomDrift = null;
             InvalidatePreparedNext(); // кроссфейд в комнате выключен — у всех трек должен меняться в одну секунду
 
             var room = feed.Room;
@@ -77,6 +82,7 @@ namespace Undertone
             _inRoom = false;
             _roomPending = null;
             _roomWaitEndOf = null;
+            _roomDrift = null;
             _roomTimer?.Stop();
 
             // уходим последними — закрываем комнату, чтобы следующий открыл новую со своей музыкой
@@ -121,7 +127,7 @@ namespace Undertone
                 TogetherTitle.Text = "Вы слушаете вместе";
                 TogetherText.Text = others.Count == 0
                     ? "Пока ты один. Друзья увидят кнопку «Присоединиться» здесь же."
-                    : $"В комнате: ты, {Names(others)}. Пауза, перемотка и выбор трека — у всех сразу.";
+                    : $"В комнате: ты, {Names(others)}." + SyncText();
                 TogetherBtn.Content = "Выйти";
             }
             else if (feed.Room is { Active: true } && (others.Count > 0 || feed.RoomAlive))
@@ -188,7 +194,8 @@ namespace Undertone
             if (leader == me) return false;
 
             _roomWaitEndOf = current.Id;
-            _ = Task.Delay(TimeSpan.FromSeconds(4)).ContinueWith(_ => Dispatcher.InvokeAsync(async () =>
+            // ведущему может понадобиться время докачать следующий — ждём с запасом
+            _ = Task.Delay(TimeSpan.FromSeconds(8)).ContinueWith(_ => Dispatcher.InvokeAsync(async () =>
             {
                 if (!_inRoom || _roomWaitEndOf != current.Id || _queue.Current?.Id != current.Id) return;
                 _roomWaitEndOf = null;
@@ -250,7 +257,9 @@ namespace Undertone
 
                 if (!_hasMedia)
                 {
-                    if (_roomPending?.Track?.Id == track.Id) _roomPending = state; // ещё грузится — встанем куда надо, когда зазвучит
+                    // уже грузится (по команде комнаты или потому что мы сами его включили) — просто встанем куда надо, когда зазвучит
+                    if (_roomPending?.Track?.Id == track.Id) _roomPending = state;
+                    else if (_loadingTrackId == track.Id) SetRoomPending(state);
                     else
                     {
                         SetRoomPending(state);
@@ -280,16 +289,21 @@ namespace Undertone
             try
             {
                 var moved = false;
-                var expected = state.ExpectedPosition(TimeSync.NowMs);
+                // позиция комнаты по нашим часам (см. FriendsFeed.RoomPosition); старое состояние — по его собственной позиции
+                var expected = _friendsFeed?.Room?.Seq == state.Seq && _friendsFeed.RoomPosition is { } p ? p
+                    : TimeSpan.FromSeconds(state.Position);
                 var duration = _player.NaturalDuration ?? state.Track.Duration;
                 if (expected < duration - TimeSpan.FromSeconds(1.5))
                 {
-                    var diff = Math.Abs((expected - _player.Position).TotalSeconds);
-                    if (diff > (force ? 0.4 : 1.0))
+                    var drift = (_player.Position - expected).TotalSeconds;
+                    _roomDrift = drift;
+                    if (Math.Abs(drift) > (force ? 0.4 : 1.0))
                     {
+                        Log.Info($"Комната: расхождение {drift:+0.00;-0.00} с, встаю на {expected:m\:ss\.f}");
                         _player.Position = expected;
                         UpdateProgress();
                         moved = true;
+                        _roomDrift = 0;
                     }
                 }
                 if (state.Playing != _isPlaying) SetPlaying(state.Playing);
@@ -300,6 +314,22 @@ namespace Undertone
             {
                 _roomApplying = applying;
             }
+        }
+
+        /// <summary>Трек комнаты у нас не включился: пробуем ещё пару раз, потом ждём следующего трека комнаты.</summary>
+        private async Task RoomRetryAfterFailureAsync(YaTrack? track, int gen)
+        {
+            if (_failStreak >= 3 || track == null)
+            {
+                _failStreak = 0;
+                ShowToast("Этот трек у тебя не включается — подхватишь комнату со следующего", 4);
+                return;
+            }
+            await Task.Delay(TimeSpan.FromSeconds(1.5 * _failStreak));
+            if (!_inRoom || gen != _playGen || _queue.Current?.Id != track.Id) return;
+            // включаем как трек комнаты — когда зазвучит, встанем на её место, а не объявим всем «с начала»
+            if (_friendsFeed?.Room is { Active: true } room && room.Track?.Id == track.Id) SetRoomPending(room);
+            await PlayCurrentAsync();
         }
 
         private void SetPlaying(bool playing)
@@ -318,6 +348,14 @@ namespace Undertone
             _roomPendingSince = DateTime.UtcNow;
         }
 
+        private string SyncText()
+        {
+            if (_friendsFeed?.ConnectedBrokers == 0) return " Нет связи с серверами — проверь интернет или VPN.";
+            if (_roomDrift is not { } d) return "";
+            var abs = Math.Abs(d);
+            return abs < 0.35 ? " Синхронно." : $" Расхождение {abs:0.0} с — подправлю сам.";
+        }
+
         private DispatcherTimer CreateRoomTimer()
         {
             var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(4) };
@@ -331,6 +369,7 @@ namespace Undertone
                 if (_seeking || _player.IsBuffering || _roomPending != null || _roomWaitEndOf != null) return;
                 if (_friendsFeed?.Room is { Active: true } room && room.Track?.Id == _queue.Current?.Id)
                     AlignToRoom(room, force: false);
+                if (PageFriends.Visibility == Visibility.Visible) UpdateTogetherUi();
             };
             return timer;
         }

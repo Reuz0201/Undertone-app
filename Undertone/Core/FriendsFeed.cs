@@ -28,6 +28,34 @@ namespace Undertone.Core
     }
 
     /// <summary>
+    /// Часы комнаты по НАШИМ часам: позиция трека и момент (мс, TickCount64), когда она была такой.
+    /// Чужие часы не используем вовсе — у друзей они могут расходиться на секунды, а сверка с интернетом за VPN не всегда проходит.
+    /// Повторы состояния от участников могут только подтянуть позицию вперёд: задержка в сети делает сообщение
+    /// запоздавшим, поэтому самое «позднее» из них правдивее всего.
+    /// </summary>
+    public sealed class RoomClock
+    {
+        private double _pos;
+        private long _tick;
+        private bool _playing;
+
+        public void Set(double position, bool playing, long nowMs)
+        {
+            _pos = position;
+            _tick = nowMs;
+            _playing = playing;
+        }
+
+        public void Refine(double position, bool playing, long nowMs)
+        {
+            if (!playing || !_playing) return;
+            if (position > Predict(nowMs) + 0.03) Set(position, true, nowMs);
+        }
+
+        public double Predict(long nowMs) => Math.Max(0, _pos + (_playing ? Math.Max(0, nowMs - _tick) / 1000.0 : 0));
+    }
+
+    /// <summary>
     /// Общее состояние комнаты «Слушать вместе». Кто угодно из комнаты может его поменять;
     /// побеждает самое свежее изменение (Seq). Позиция считается от общего времени: Position + (сейчас − At).
     /// </summary>
@@ -110,20 +138,40 @@ namespace Undertone.Core
 
         private const long RoomAliveMs = 15_000;
 
+        // позиция комнаты по НАШИМ часам — см. RoomClock
+        private readonly RoomClock _clock = new();
+
+        /// <summary>Где сейчас должен быть трек комнаты (по нашим часам). null — комнаты нет.</summary>
+        public TimeSpan? RoomPosition
+        {
+            get
+            {
+                lock (_roomSync)
+                    return _room == null ? null : TimeSpan.FromSeconds(_clock.Predict(Environment.TickCount64));
+            }
+        }
+
         /// <summary>
         /// Переотправить текущее состояние комнаты как есть (тот же Seq). Сообщения идут без подтверждения
         /// и иногда теряются — так пропустивший команду получит её через несколько секунд. Дубли все игнорируют.
         /// </summary>
         public void RepublishRoom()
         {
-            RoomState? room;
+            RoomState copy;
             lock (_roomSync)
             {
-                room = _room;
+                var room = _room;
                 if (room == null) return;
-                _roomSeenAt = Environment.TickCount64;
+                var now = Environment.TickCount64;
+                _roomSeenAt = now;
+                // то же состояние, но с позицией «на сейчас» — так вошедший позже не отстанет на возраст сообщения
+                copy = new RoomState
+                {
+                    Seq = room.Seq, By = room.By, ByName = room.ByName, Active = room.Active, Track = room.Track,
+                    Playing = room.Playing, Position = _clock.Predict(now), At = TimeSync.NowMs, Queue = room.Queue,
+                };
             }
-            var payload = Encrypt(JsonSerializer.SerializeToUtf8Bytes(room));
+            var payload = Encrypt(JsonSerializer.SerializeToUtf8Bytes(copy));
             foreach (var client in _clients.Values.Where(c => c.IsConnected))
                 _ = SafePublishAsync(client, RoomTopic, payload);
         }
@@ -176,6 +224,7 @@ namespace Undertone.Core
                 if (_room != null && !RoomState.IsNewer(state, _room)) state.Seq = _room.Seq + 1;
                 _room = state;
                 _roomSeenAt = Environment.TickCount64;
+                _clock.Set(state.Position, state.Playing, _roomSeenAt);
             }
             var payload = Encrypt(JsonSerializer.SerializeToUtf8Bytes(state));
             foreach (var client in _clients.Values.Where(c => c.IsConnected))
@@ -255,14 +304,20 @@ namespace Undertone.Core
                 try { state = JsonSerializer.Deserialize<RoomState>(json); }
                 catch (JsonException) { return; }
                 if (state == null) return;
+                var now = Environment.TickCount64;
                 lock (_roomSync)
                 {
-                    // повтор того же состояния — значит, в комнате кто-то есть
-                    if (_room != null && state.Seq == _room.Seq && state.By == _room.By && state.Active)
-                        _roomSeenAt = Environment.TickCount64;
-                    if (!RoomState.IsNewer(state, _room)) return; // то же самое от второго брокера или наше эхо
+                    if (_room != null && state.Seq == _room.Seq && state.By == _room.By)
+                    {
+                        // повтор того же состояния: в комнате кто-то есть, и можно уточнить позицию
+                        if (state.Active) _roomSeenAt = now;
+                        _clock.Refine(state.Position, state.Playing, now);
+                        return;
+                    }
+                    if (!RoomState.IsNewer(state, _room)) return; // старое (пришло позже нового)
                     _room = state;
-                    if (state.Active) _roomSeenAt = Environment.TickCount64;
+                    _clock.Set(state.Position, state.Playing, now);
+                    if (state.Active) _roomSeenAt = now;
                 }
                 RoomChanged?.Invoke(state);
                 return;

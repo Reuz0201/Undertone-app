@@ -128,6 +128,7 @@ namespace Undertone
             _playCts?.Cancel();
             var cts = _playCts = new CancellationTokenSource();
             var gen = ++_playGen;
+            _loadingTrackId = track.Id;
 
             FlushPlayReport();
             _player.Stop();
@@ -222,7 +223,11 @@ namespace Undertone
             }
             finally
             {
-                if (gen == _playGen) SetLoading(false);
+                if (gen == _playGen)
+                {
+                    SetLoading(false);
+                    _loadingTrackId = null;
+                }
             }
         }
 
@@ -355,6 +360,13 @@ namespace Undertone
             _failStreak++;
             Log.Error($"Не удалось воспроизвести {track?.Id} «{track}»", ex);
             ShowToast($"Не получилось включить «{track?.Title}»: {Short(ex?.Message ?? "ошибка воспроизведения")}", 3.5);
+
+            // в комнате не перескакиваем сами — иначе утащим за собой всех; пробуем этот же трек ещё раз
+            if (_inRoom)
+            {
+                await RoomRetryAfterFailureAsync(track, gen);
+                return;
+            }
 
             if (_failStreak >= 4)
             {
