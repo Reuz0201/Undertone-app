@@ -52,6 +52,10 @@ namespace Undertone
             DependencyPropertyDescriptor.FromProperty(RangeBase.MaximumProperty, typeof(Slider))
                 .AddValueChanged(ProgressSlider, (_, _) => UpdateHeroTime());
 
+            // размытая обложка за шапкой артиста/альбома/плейлиста — та же картинка, что в шапке
+            DependencyPropertyDescriptor.FromProperty(ImageBrush.ImageSourceProperty, typeof(ImageBrush))
+                .AddValueChanged(CollCoverBrush, (_, _) => CollBackdropImage.Source = CollCoverBrush.ImageSource);
+
             SimilarList.ItemsSource = _similarItems;
             RecentList.ItemsSource = _recentItems;
             UpdateHeroTime();

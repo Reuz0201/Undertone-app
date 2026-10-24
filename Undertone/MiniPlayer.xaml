@@ -7,10 +7,20 @@
         FontFamily="Segoe UI Variable Text, Segoe UI" FontSize="13" Foreground="{StaticResource TextBrush}"
         UseLayoutRounding="True" SnapsToDevicePixels="True"
         MouseLeftButtonDown="Root_MouseLeftButtonDown" LocationChanged="Window_LocationChanged">
-    <Border Margin="10" Background="#F2181B24" CornerRadius="16" BorderBrush="#33FFFFFF" BorderThickness="1">
+    <Border Margin="10" Background="#F5131418" CornerRadius="16" BorderBrush="#24FFFFFF" BorderThickness="1">
         <Border.Effect>
-            <DropShadowEffect BlurRadius="20" ShadowDepth="2" Opacity="0.55" Color="Black"/>
+            <DropShadowEffect BlurRadius="24" ShadowDepth="4" Opacity="0.6" Color="Black"/>
         </Border.Effect>
+        <Grid>
+        <!-- мягкий отсвет цвета обложки слева -->
+        <Border CornerRadius="15" Background="{DynamicResource LiveAccentSoft}" IsHitTestVisible="False">
+            <Border.OpacityMask>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                    <GradientStop Color="#FF000000" Offset="0"/>
+                    <GradientStop Color="#00000000" Offset="0.75"/>
+                </LinearGradientBrush>
+            </Border.OpacityMask>
+        </Border>
         <Grid Margin="10,10,8,10">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto"/>
@@ -45,7 +55,7 @@
                         <ColumnDefinition x:Name="ProgressLeft" Width="1*"/>
                     </Grid.ColumnDefinitions>
                     <Border Grid.ColumnSpan="2" CornerRadius="2" Background="#22FFFFFF"/>
-                    <Border CornerRadius="2" Background="{StaticResource AccentBrush}"/>
+                    <Border CornerRadius="2" Background="{DynamicResource LiveAccent}"/>
                 </Grid>
             </Grid>
 
@@ -65,12 +75,13 @@
                             ToolTip="Мне нравится" Click="Like_Click"/>
                     <Button Style="{StaticResource IconButton}" Content="&#xE892;" Width="32" Height="32" FontSize="14"
                             Foreground="{StaticResource TextBrush}" ToolTip="Предыдущий" Click="Prev_Click"/>
-                    <Button x:Name="PlayBtn" Style="{StaticResource PlayButton}" Content="&#xE768;" Width="38" Height="38" FontSize="14"
+                    <Button x:Name="PlayBtn" Style="{StaticResource HeroPlay}" Content="&#xE768;" Width="38" Height="38" FontSize="14"
                             ToolTip="Играть / пауза" Click="Play_Click" Margin="2,0"/>
                     <Button Style="{StaticResource IconButton}" Content="&#xE893;" Width="32" Height="32" FontSize="14"
                             Foreground="{StaticResource TextBrush}" ToolTip="Следующий" Click="Next_Click"/>
                 </StackPanel>
             </Grid>
+        </Grid>
         </Grid>
     </Border>
 </Window>

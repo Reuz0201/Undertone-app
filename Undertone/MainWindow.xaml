@@ -329,6 +329,34 @@
                         </Grid>
                     </Button>
 
+                    <!-- быстрый поиск -->
+                    <Button DockPanel.Dock="Top" Margin="0,-8,0,14" Click="QuickOpen_Click" Cursor="Hand" Focusable="False"
+                            ToolTip="Быстрый поиск (Ctrl+K)">
+                        <Button.Template>
+                            <ControlTemplate TargetType="Button">
+                                <Border x:Name="Bd" Height="38" CornerRadius="10" Background="#0AFFFFFF" BorderBrush="#14FFFFFF"
+                                        BorderThickness="1" Padding="12,0,8,0">
+                                    <Grid>
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                            <TextBlock Text="&#xE721;" FontFamily="{StaticResource IconFont}" FontSize="13"
+                                                       Foreground="{StaticResource TextDimBrush}" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                            <TextBlock Text="Поиск" FontSize="13" Foreground="{StaticResource TextDimBrush}" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                        <Border HorizontalAlignment="Right" VerticalAlignment="Center" Background="#14FFFFFF"
+                                                CornerRadius="5" Padding="6,2">
+                                            <TextBlock Text="Ctrl K" FontSize="10.5" Foreground="{StaticResource TextFaintBrush}"/>
+                                        </Border>
+                                    </Grid>
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="Bd" Property="Background" Value="#14FFFFFF"/>
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Button.Template>
+                    </Button>
+
                     <StackPanel DockPanel.Dock="Top">
                         <RadioButton x:Name="NavNow" Style="{StaticResource NavButton}" Tag="&#xE8D6;" Content="Сейчас играет"
                                      IsChecked="True" Checked="Nav_Checked"/>
@@ -362,8 +390,8 @@
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
                             <Grid Width="38" Height="38">
-                                <Ellipse Fill="{StaticResource AccentGradient}"/>
-                                <TextBlock x:Name="AvatarLetter" Text="?" FontWeight="Bold" FontSize="15" Foreground="White"
+                                <Ellipse Fill="{DynamicResource LiveAccent}"/>
+                                <TextBlock x:Name="AvatarLetter" Text="?" FontWeight="Bold" FontSize="15" Foreground="{DynamicResource LiveInk}"
                                            HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                 <Ellipse>
                                     <Ellipse.Fill>
@@ -449,6 +477,36 @@
             <!-- ═══════════ Контент ═══════════ -->
             <Grid Grid.Column="1">
 
+                <!-- фон страниц артиста/альбома/плейлиста: размытая обложка полосой сверху -->
+                <Grid x:Name="CollBackdrop" ClipToBounds="True" IsHitTestVisible="False" VerticalAlignment="Top" Height="440"
+                      Visibility="{Binding Visibility, ElementName=PageCollection}">
+                    <Image x:Name="CollBackdropImage" Stretch="UniformToFill" Opacity="0.55" Margin="-120,-160,-120,-40">
+                        <Image.Effect>
+                            <BlurEffect Radius="100" KernelType="Gaussian" RenderingBias="Performance"/>
+                        </Image.Effect>
+                    </Image>
+                    <Rectangle>
+                        <Rectangle.Fill>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                <GradientStop Color="#330D0E12" Offset="0"/>
+                                <GradientStop Color="#C00D0E12" Offset="0.6"/>
+                                <GradientStop Color="#FF0D0E12" Offset="1"/>
+                            </LinearGradientBrush>
+                        </Rectangle.Fill>
+                    </Rectangle>
+                </Grid>
+                <!-- «Мне нравится»: тёплый отсвет сверху -->
+                <Rectangle IsHitTestVisible="False" VerticalAlignment="Top" Height="380"
+                           Visibility="{Binding Visibility, ElementName=PageLiked}">
+                    <Rectangle.Fill>
+                        <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                            <GradientStop Color="#40C2365A" Offset="0"/>
+                            <GradientStop Color="#14F0566A" Offset="0.55"/>
+                            <GradientStop Color="#00F0566A" Offset="1"/>
+                        </LinearGradientBrush>
+                    </Rectangle.Fill>
+                </Rectangle>
+
                 <!-- ── Сейчас играет ── -->
                 <Grid x:Name="PageNow" SizeChanged="PageNow_SizeChanged">
                     <!-- фон: размытая обложка, гаснет к низу -->
@@ -495,7 +553,7 @@
                             <Ellipse x:Name="Ring2" Stroke="#9A7BF5" StrokeThickness="2" Opacity="0" RenderTransformOrigin="0.5,0.5">
                                 <Ellipse.RenderTransform><ScaleTransform/></Ellipse.RenderTransform>
                             </Ellipse>
-                            <Ellipse x:Name="Ring3" Stroke="{StaticResource AccentBrush}" StrokeThickness="2" Opacity="0" RenderTransformOrigin="0.5,0.5">
+                            <Ellipse x:Name="Ring3" Stroke="{DynamicResource LiveAccent}" StrokeThickness="2" Opacity="0" RenderTransformOrigin="0.5,0.5">
                                 <Ellipse.RenderTransform><ScaleTransform/></Ellipse.RenderTransform>
                             </Ellipse>
                             <Ellipse Width="128" Height="128" Fill="{StaticResource WaveGradient}">
@@ -760,7 +818,7 @@
                         </Border>
                         <StackPanel Grid.Column="1" Margin="26,0,0,0" VerticalAlignment="Bottom">
                             <TextBlock Text="ПЛЕЙЛИСТ" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource TextDimBrush}"/>
-                            <TextBlock Text="Мне нравится" FontSize="42" FontWeight="Bold" FontFamily="Segoe UI Variable Display, Segoe UI"/>
+                            <TextBlock Text="Мне нравится" FontSize="42" FontWeight="SemiBold" FontFamily="Segoe UI Variable Display, Segoe UI"/>
                             <TextBlock x:Name="LikedCount" Text="" FontSize="13" Foreground="{StaticResource TextDimBrush}" Margin="0,2,0,14"/>
                             <StackPanel Orientation="Horizontal">
                                 <Button Style="{StaticResource CirclePlay}" Content="&#xE768;" Click="LikedPlay_Click"
@@ -921,7 +979,7 @@
                         </Grid>
                         <StackPanel Grid.Column="1" Margin="26,0,0,0" VerticalAlignment="Bottom">
                             <TextBlock x:Name="CollKind" Text="" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource TextDimBrush}"/>
-                            <TextBlock x:Name="CollTitle" Text="" FontSize="40" FontWeight="Bold" TextTrimming="CharacterEllipsis"
+                            <TextBlock x:Name="CollTitle" Text="" FontSize="40" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"
                                        FontFamily="Segoe UI Variable Display, Segoe UI"/>
                             <ItemsControl x:Name="CollArtists" ItemTemplate="{StaticResource ArtistLinkTemplate}"
                                           ItemsPanel="{StaticResource HorizontalPanel}" Focusable="False" ClipToBounds="True"
@@ -1005,7 +1063,7 @@
                         </Border>
                         <StackPanel Grid.Column="1" Margin="26,0,0,0" VerticalAlignment="Bottom">
                             <TextBlock Text="НА ЭТОМ КОМПЬЮТЕРЕ" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource TextDimBrush}"/>
-                            <TextBlock Text="История" FontSize="42" FontWeight="Bold" FontFamily="Segoe UI Variable Display, Segoe UI"/>
+                            <TextBlock Text="История" FontSize="42" FontWeight="SemiBold" FontFamily="Segoe UI Variable Display, Segoe UI"/>
                             <TextBlock x:Name="HistorySub" Text="" FontSize="13" Foreground="{StaticResource TextDimBrush}" Margin="0,2,0,14"/>
                             <StackPanel Orientation="Horizontal">
                                 <Button x:Name="HistoryPlay" Style="{StaticResource CirclePlay}" Content="&#xE768;" Click="HistoryPlay_Click"
@@ -1032,13 +1090,13 @@
                             <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
-                        <Border Width="150" Height="150" CornerRadius="18" Background="{StaticResource AccentGradient}">
-                            <TextBlock Text="&#xE716;" FontFamily="{StaticResource IconFont}" FontSize="58" Foreground="White"
+                        <Border Width="150" Height="150" CornerRadius="18" Background="{DynamicResource LiveAccent}">
+                            <TextBlock Text="&#xE716;" FontFamily="{StaticResource IconFont}" FontSize="58" Foreground="{DynamicResource LiveInk}"
                                        HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
                         <StackPanel Grid.Column="1" Margin="26,0,0,0" VerticalAlignment="Bottom">
                             <TextBlock Text="ЛЕНТА" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource TextDimBrush}"/>
-                            <TextBlock Text="Друзья" FontSize="42" FontWeight="Bold" FontFamily="Segoe UI Variable Display, Segoe UI"/>
+                            <TextBlock Text="Друзья" FontSize="42" FontWeight="SemiBold" FontFamily="Segoe UI Variable Display, Segoe UI"/>
                             <TextBlock x:Name="FriendsStatus" Text="" FontSize="13" Foreground="{StaticResource TextDimBrush}"
                                        TextWrapping="Wrap" Margin="0,2,0,14"/>
                             <Button x:Name="FriendsSetupBtn" Style="{StaticResource PillSecondary}" Content="Настроить"
@@ -1054,8 +1112,8 @@
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
-                            <Border Width="44" Height="44" CornerRadius="22" Background="{StaticResource AccentGradient}">
-                                <TextBlock Text="&#xE902;" FontFamily="{StaticResource IconFont}" FontSize="20" Foreground="White"
+                            <Border Width="44" Height="44" CornerRadius="22" Background="{DynamicResource LiveAccent}">
+                                <TextBlock Text="&#xE902;" FontFamily="{StaticResource IconFont}" FontSize="20" Foreground="{DynamicResource LiveInk}"
                                            HorizontalAlignment="Center" VerticalAlignment="Center"/>
                             </Border>
                             <StackPanel Grid.Column="1" Margin="14,0,12,0" VerticalAlignment="Center">
@@ -1130,7 +1188,7 @@
                 <ScrollViewer x:Name="PageSettings" Visibility="Collapsed" VerticalScrollBarVisibility="Auto"
                               HorizontalScrollBarVisibility="Disabled" Focusable="False">
                     <StackPanel x:Name="SettingsRoot" Margin="32,30,32,30" MaxWidth="760" HorizontalAlignment="Left">
-                        <TextBlock Text="Настройки" FontSize="42" FontWeight="Bold" FontFamily="Segoe UI Variable Display, Segoe UI"
+                        <TextBlock Text="Настройки" FontSize="42" FontWeight="SemiBold" FontFamily="Segoe UI Variable Display, Segoe UI"
                                    Margin="0,0,0,18"/>
 
                         <!-- кэш -->
@@ -1170,7 +1228,7 @@
                                         <ColumnDefinition x:Name="CacheBarFree" Width="1*"/>
                                     </Grid.ColumnDefinitions>
                                     <Border Grid.ColumnSpan="2" CornerRadius="3" Background="#18FFFFFF"/>
-                                    <Border CornerRadius="3" Background="{StaticResource AccentGradient}"/>
+                                    <Border CornerRadius="3" Background="{DynamicResource LiveAccent}"/>
                                 </Grid>
 
                                 <TextBlock Text="Максимальный размер" FontSize="13" Foreground="{StaticResource TextDimBrush}"
@@ -1556,6 +1614,140 @@
             <TextBlock x:Name="ToastText" FontSize="13.5" TextWrapping="Wrap" MaxWidth="560" TextAlignment="Center"/>
         </Border>
 
+        <!-- ═══════════ Быстрый поиск (Ctrl+K) ═══════════ -->
+        <Grid x:Name="QuickOverlay" Grid.RowSpan="2" Visibility="Collapsed" Panel.ZIndex="50">
+            <Border Background="#A6050608" MouseLeftButtonDown="QuickOverlay_Backdrop"/>
+            <Border x:Name="QuickPanel" Width="640" VerticalAlignment="Top" Margin="0,84,0,0" CornerRadius="18"
+                    Background="#F0151619" BorderBrush="#1FFFFFFF" BorderThickness="1" RenderTransformOrigin="0.5,0">
+                <Border.RenderTransform>
+                    <ScaleTransform/>
+                </Border.RenderTransform>
+                <Border.Effect>
+                    <DropShadowEffect BlurRadius="60" ShadowDepth="18" Opacity="0.6" Color="Black"/>
+                </Border.Effect>
+                <DockPanel>
+                    <Grid DockPanel.Dock="Top" Height="62" Margin="20,0,16,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="&#xE721;" FontFamily="{StaticResource IconFont}" FontSize="17"
+                                   Foreground="{DynamicResource LiveAccent}" VerticalAlignment="Center" Margin="0,0,14,0"/>
+                        <Grid Grid.Column="1">
+                            <TextBlock x:Name="QuickPlaceholder" Text="Трек, артист, альбом…" FontSize="18"
+                                       Foreground="{StaticResource TextFaintBrush}" VerticalAlignment="Center" IsHitTestVisible="False"/>
+                            <TextBox x:Name="QuickBox" FontSize="18" Background="Transparent" BorderThickness="0"
+                                     Foreground="{StaticResource TextBrush}" CaretBrush="{DynamicResource LiveAccent}"
+                                     SelectionBrush="{DynamicResource LiveAccent}" VerticalAlignment="Center"
+                                     TextChanged="QuickBox_TextChanged" PreviewKeyDown="QuickBox_PreviewKeyDown">
+                                <TextBox.Template>
+                                    <ControlTemplate TargetType="TextBox">
+                                        <ScrollViewer x:Name="PART_ContentHost" Focusable="False"
+                                                      HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Hidden"/>
+                                    </ControlTemplate>
+                                </TextBox.Template>
+                            </TextBox>
+                        </Grid>
+                        <Control x:Name="QuickSpinner" Grid.Column="2" Style="{StaticResource Spinner}" Width="18" Height="18"
+                                 Margin="0,0,10,0" Visibility="Collapsed"/>
+                        <Border Grid.Column="2" x:Name="QuickEsc" Background="#14FFFFFF" CornerRadius="6" Padding="7,3"
+                                VerticalAlignment="Center">
+                            <TextBlock Text="Esc" FontSize="11" Foreground="{StaticResource TextDimBrush}"/>
+                        </Border>
+                    </Grid>
+                    <Border DockPanel.Dock="Top" Height="1" Background="#14FFFFFF"/>
+
+                    <!-- подсказка внизу -->
+                    <Border DockPanel.Dock="Bottom" BorderBrush="#14FFFFFF" BorderThickness="0,1,0,0" Padding="20,9">
+                        <TextBlock FontSize="11.5" Foreground="{StaticResource TextFaintBrush}"
+                                   Text="↑ ↓  выбрать      Enter  включить      Ctrl+Enter  сыграть следующим      Esc  закрыть"/>
+                    </Border>
+
+                    <Grid MaxHeight="460">
+                        <ListBox x:Name="QuickList" Style="{StaticResource TrackList}" Margin="8,8,8,8"
+                                 ScrollViewer.CanContentScroll="False" Focusable="False">
+                            <ListBox.ItemContainerStyle>
+                                <Style TargetType="ListBoxItem">
+                                    <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+                                    <Setter Property="Cursor" Value="Hand"/>
+                                    <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+                                    <EventSetter Event="MouseLeftButtonUp" Handler="QuickItem_Click"/>
+                                    <Setter Property="Template">
+                                        <Setter.Value>
+                                            <ControlTemplate TargetType="ListBoxItem">
+                                                <StackPanel>
+                                                    <TextBlock Text="{Binding Section}" FontSize="11" FontWeight="SemiBold"
+                                                               Foreground="{StaticResource TextFaintBrush}" Margin="12,10,0,6"
+                                                               Visibility="{Binding HasSection, Converter={StaticResource BoolToVis}}"/>
+                                                    <Border x:Name="Bd" CornerRadius="10" Background="Transparent" Padding="8,6">
+                                                        <ContentPresenter/>
+                                                    </Border>
+                                                </StackPanel>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="Bd" Property="Background" Value="#0DFFFFFF"/>
+                                                    </Trigger>
+                                                    <Trigger Property="IsSelected" Value="True">
+                                                        <Setter TargetName="Bd" Property="Background" Value="{DynamicResource LiveAccentSoft}"/>
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Setter.Value>
+                                    </Setter>
+                                </Style>
+                            </ListBox.ItemContainerStyle>
+                            <ListBox.ItemTemplate>
+                                <DataTemplate DataType="{x:Type ui:QuickItem}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Grid Width="40" Height="40" Margin="0,0,14,0">
+                                            <Border x:Name="Back" CornerRadius="8" Background="{StaticResource CardBrush}">
+                                                <TextBlock Text="{Binding Glyph}" FontFamily="{StaticResource IconFont}" FontSize="15"
+                                                           Foreground="#50FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            </Border>
+                                            <Border x:Name="Img" CornerRadius="8">
+                                                <Border.Background>
+                                                    <ImageBrush ImageSource="{Binding Cover, Converter={StaticResource CoverConverter}, ConverterParameter=80}"
+                                                                Stretch="UniformToFill"/>
+                                                </Border.Background>
+                                            </Border>
+                                        </Grid>
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                            <TextBlock x:Name="T" Text="{Binding Title}" FontSize="14" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                                            <TextBlock Text="{Binding Sub}" FontSize="12" Foreground="{StaticResource TextDimBrush}"
+                                                       TextTrimming="CharacterEllipsis" Margin="0,2,0,0"/>
+                                        </StackPanel>
+                                        <TextBlock x:Name="Enter" Grid.Column="2" Text="&#xE751;" FontFamily="{StaticResource IconFont}" FontSize="12"
+                                                   Foreground="{StaticResource TextDimBrush}" VerticalAlignment="Center" Margin="10,0,6,0"
+                                                   Visibility="Hidden"/>
+                                    </Grid>
+                                    <DataTemplate.Triggers>
+                                        <DataTrigger Binding="{Binding IsRound}" Value="True">
+                                            <Setter TargetName="Back" Property="CornerRadius" Value="20"/>
+                                            <Setter TargetName="Img" Property="CornerRadius" Value="20"/>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding IsAll}" Value="True">
+                                            <Setter TargetName="T" Property="Foreground" Value="{DynamicResource LiveAccent}"/>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Value="True">
+                                            <Setter TargetName="Enter" Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                    </DataTemplate.Triggers>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                        <TextBlock x:Name="QuickHint" HorizontalAlignment="Center" Margin="0,26,0,30" FontSize="13"
+                                   Foreground="{StaticResource TextDimBrush}" TextAlignment="Center" TextWrapping="Wrap" MaxWidth="440"/>
+                    </Grid>
+                </DockPanel>
+            </Border>
+        </Grid>
+
         <!-- ═══════════ Диалог (создать / переименовать / подтвердить) ═══════════ -->
         <Grid x:Name="DialogOverlay" Grid.RowSpan="2" Background="#B3000000" Visibility="Collapsed">
             <Border Width="420" Background="#1B1E28" CornerRadius="18" Padding="28,24" BorderBrush="#2E3342" BorderThickness="1"
@@ -1599,7 +1791,7 @@
 
                     <Border Background="{StaticResource BgBrush}" CornerRadius="14" Padding="16,18" Margin="0,18,0,0">
                         <TextBlock x:Name="AuthCode" Text="· · · · · ·" FontFamily="Cascadia Mono, Consolas"
-                                   FontSize="40" FontWeight="Bold" HorizontalAlignment="Center" Foreground="White"/>
+                                   FontSize="40" FontWeight="SemiBold" HorizontalAlignment="Center" Foreground="White"/>
                     </Border>
 
                     <StackPanel Orientation="Horizontal" Margin="0,18,0,0">

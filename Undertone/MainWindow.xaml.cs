@@ -690,6 +690,19 @@ namespace Undertone
                 return;
             }
 
+            if (mods == ModifierKeys.Control && e.Key == Key.K)
+            {
+                e.Handled = true;
+                OpenQuickSearch();
+                return;
+            }
+            // быстрый поиск открыт — клавиши его (стрелки, Enter, Esc обрабатывает само окно поиска)
+            if (QuickOverlay.Visibility == Visibility.Visible)
+            {
+                if (!QuickBox.IsKeyboardFocusWithin) QuickBox.Focus();
+                return;
+            }
+
             // Backspace / Alt+← — назад со страницы артиста/альбома
             if (PageCollection.Visibility == Visibility.Visible && Keyboard.FocusedElement is not TextBox &&
                 (e.Key == Key.Back || (mods == ModifierKeys.Alt && e.SystemKey == Key.Left)))

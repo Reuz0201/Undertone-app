@@ -241,8 +241,8 @@
         <Style x:Key="CirclePlay" TargetType="Button">
             <Setter Property="Width" Value="58"/>
             <Setter Property="Height" Value="58"/>
-            <Setter Property="Background" Value="{StaticResource SilverGradient}"/>
-            <Setter Property="Foreground" Value="#0B0C10"/>
+            <Setter Property="Background" Value="{DynamicResource LiveAccent}"/>
+            <Setter Property="Foreground" Value="{DynamicResource LiveInk}"/>
             <Setter Property="FontFamily" Value="{StaticResource IconFont}"/>
             <Setter Property="FontSize" Value="22"/>
             <Setter Property="Cursor" Value="Hand"/>
@@ -698,7 +698,7 @@
                                 <Setter TargetName="Placeholder" Property="Visibility" Value="Visible"/>
                             </Trigger>
                             <Trigger Property="IsKeyboardFocused" Value="True">
-                                <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource LiveAccent}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -734,8 +734,8 @@
                                 <Setter TargetName="Knob" Property="Fill" Value="{StaticResource TextBrush}"/>
                             </Trigger>
                             <Trigger Property="IsChecked" Value="True">
-                                <Setter TargetName="Track" Property="Background" Value="{StaticResource AccentBrush}"/>
-                                <Setter TargetName="Track" Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
+                                <Setter TargetName="Track" Property="Background" Value="{DynamicResource LiveAccent}"/>
+                                <Setter TargetName="Track" Property="BorderBrush" Value="{DynamicResource LiveAccent}"/>
                                 <Setter TargetName="Knob" Property="Fill" Value="#0B0C10"/>
                                 <Setter TargetName="Knob" Property="HorizontalAlignment" Value="Right"/>
                                 <Setter TargetName="Knob" Property="Margin" Value="0,0,4,0"/>
@@ -769,8 +769,8 @@
                                 <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
                             </Trigger>
                             <Trigger Property="IsChecked" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource AccentBrush}"/>
-                                <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource LiveAccent}"/>
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource LiveAccent}"/>
                                 <Setter Property="Foreground" Value="#0B0C10"/>
                                 <Setter Property="FontWeight" Value="SemiBold"/>
                             </Trigger>
@@ -819,7 +819,7 @@
                             <Track x:Name="PART_Track" Orientation="Vertical">
                                 <Track.DecreaseRepeatButton>
                                     <RepeatButton Command="Slider.DecreaseLarge" Style="{StaticResource EqFill}"
-                                                  Background="{StaticResource AccentBrush}"/>
+                                                  Background="{DynamicResource LiveAccent}"/>
                                 </Track.DecreaseRepeatButton>
                                 <Track.IncreaseRepeatButton>
                                     <RepeatButton Command="Slider.IncreaseLarge" Style="{StaticResource EqFill}" Background="#26FFFFFF"/>
@@ -921,7 +921,7 @@
         <Style x:Key="Spinner" TargetType="Control">
             <Setter Property="Width" Value="28"/>
             <Setter Property="Height" Value="28"/>
-            <Setter Property="Foreground" Value="{StaticResource AccentBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource LiveAccent}"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Control">

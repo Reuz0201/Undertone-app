@@ -55,6 +55,9 @@ namespace Undertone
                 return;
             }
             var mini = new MiniPlayer(_settings);
+            // мини-плеер — отдельное окно: даём ему те же кисти акцента, чтобы он перекрашивался вместе с главным
+            mini.Resources["LiveAccent"] = _liveAccent;
+            mini.Resources["LiveAccentSoft"] = _liveAccentSoft;
             mini.PlayPauseRequested += TogglePlay;
             mini.NextRequested += () => _ = NextAsync(auto: false);
             mini.PrevRequested += () => _ = PrevAsync();
