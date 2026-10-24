@@ -127,10 +127,9 @@ namespace Undertone
                 _ = PlayCurrentAsync();
                 return;
             }
+            if (RoomSuggestInstead(track)) return;
             _queue.InsertNext(track);
-            InvalidatePreparedNext();
-            UpdateUpNext();
-            _ = PrefetchNextAsync();
+            QueueEdited(); // в том числе — сообщает комнате
             ShowToast($"«{track.FullTitle}» сыграет следующим");
         }
     }

@@ -44,6 +44,10 @@ namespace Undertone.UI
             set { if (_isPlaying != value) { _isPlaying = value; OnChanged(); } }
         }
 
+        /// <summary>В комнате: кто поставил трек в очередь («Федуня»).</summary>
+        public string AddedBy { get; init; } = "";
+        public string AddedText => AddedBy.Length > 0 ? $" · добавил {AddedBy}" : "";
+
         public bool IsLiked
         {
             get => _isLiked;

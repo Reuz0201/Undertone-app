@@ -46,6 +46,7 @@ namespace Undertone
                 _friendsFeed = new FriendsFeed(_settings.FriendsCode, _settings.FriendsMemberId, FriendsDisplayName);
                 _friendsFeed.Changed += QueueFriendsRefresh;
                 _friendsFeed.RoomChanged += OnRoomChanged;
+                _friendsFeed.EventReceived += OnRoomEvent;
                 _friendsSink = new FriendsSink(_friendsFeed, () => FriendsDisplayName, () => _inRoom);
                 TimeSync.EnsureStarted();
                 _sinks.Add(_friendsSink);
@@ -138,6 +139,7 @@ namespace Undertone
         {
             var name = (sender as FrameworkElement)?.DataContext is FriendItem f ? f.Name : "";
             if (await FriendTrackAsync(sender) is not { } track) return;
+            if (RoomSuggestInstead(track)) return;
             ReportSkip();
             _waveSession = null;
             _waveKey = "";

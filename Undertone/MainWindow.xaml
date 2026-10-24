@@ -129,8 +129,10 @@
                 <StackPanel Grid.Column="1" VerticalAlignment="Center">
                     <TextBlock x:Name="TitleText" Text="{Binding Title}" FontSize="13.5" FontWeight="SemiBold"
                                TextTrimming="CharacterEllipsis"/>
-                    <TextBlock Text="{Binding Artists}" FontSize="12" Foreground="{StaticResource TextDimBrush}"
-                               TextTrimming="CharacterEllipsis" Margin="0,2,0,0"/>
+                    <TextBlock FontSize="12" Foreground="{StaticResource TextDimBrush}" TextTrimming="CharacterEllipsis" Margin="0,2,0,0">
+                        <Run Text="{Binding Artists, Mode=OneWay}"/><Run Text="{Binding AddedText, Mode=OneWay}"
+                                                                         Foreground="{DynamicResource LiveAccent}"/>
+                    </TextBlock>
                 </StackPanel>
                 <TextBlock x:Name="Dur" Grid.Column="2" Text="{Binding Duration}" FontSize="12" Foreground="{StaticResource TextFaintBrush}"
                            HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,8,0"/>
@@ -613,6 +615,8 @@
                                         </Border.Background>
                                     </Border>
                                     <Border CornerRadius="16" BorderBrush="#1FFFFFFF" BorderThickness="1"/>
+                                    <!-- реакции комнаты всплывают над обложкой -->
+                                    <Canvas x:Name="ReactionLayer" IsHitTestVisible="False" ClipToBounds="False"/>
                                 </Grid>
 
                                 <DockPanel Grid.Column="1" Margin="36,0,0,0" LastChildFill="False" MaxWidth="680" HorizontalAlignment="Left">
@@ -645,6 +649,28 @@
                                             </Button>
                                             <Button x:Name="NowMore" Style="{StaticResource IconButton}" Width="40" Height="40" FontSize="16"
                                                     Content="&#xE712;" ToolTip="Ещё: в плейлист, к артисту, к альбому" Click="NowMore_Click"/>
+                                            <!-- реакции — только в комнате «Слушать вместе» -->
+                                            <StackPanel x:Name="ReactionBar" Orientation="Horizontal" Visibility="Collapsed" Margin="10,0,0,0">
+                                                <Border Width="1" Height="20" Background="#24FFFFFF" Margin="0,0,10,0" VerticalAlignment="Center"/>
+                                                <Button Style="{StaticResource ReactionButton}" Tag="fire" Click="Reaction_Click" ToolTip="Огонь">
+                                                    <Image Source="/Assets/Reactions/fire.png" Width="22" Height="22" RenderOptions.BitmapScalingMode="HighQuality"/>
+                                                </Button>
+                                                <Button Style="{StaticResource ReactionButton}" Tag="heart" Click="Reaction_Click" ToolTip="Люблю">
+                                                    <Image Source="/Assets/Reactions/heart.png" Width="22" Height="22" RenderOptions.BitmapScalingMode="HighQuality"/>
+                                                </Button>
+                                                <Button Style="{StaticResource ReactionButton}" Tag="laugh" Click="Reaction_Click" ToolTip="Смешно">
+                                                    <Image Source="/Assets/Reactions/laugh.png" Width="22" Height="22" RenderOptions.BitmapScalingMode="HighQuality"/>
+                                                </Button>
+                                                <Button Style="{StaticResource ReactionButton}" Tag="mind" Click="Reaction_Click" ToolTip="Взрыв мозга">
+                                                    <Image Source="/Assets/Reactions/mind.png" Width="22" Height="22" RenderOptions.BitmapScalingMode="HighQuality"/>
+                                                </Button>
+                                                <Button Style="{StaticResource ReactionButton}" Tag="clap" Click="Reaction_Click" ToolTip="Браво">
+                                                    <Image Source="/Assets/Reactions/clap.png" Width="22" Height="22" RenderOptions.BitmapScalingMode="HighQuality"/>
+                                                </Button>
+                                                <Button Style="{StaticResource ReactionButton}" Tag="skull" Click="Reaction_Click" ToolTip="Умер">
+                                                    <Image Source="/Assets/Reactions/skull.png" Width="22" Height="22" RenderOptions.BitmapScalingMode="HighQuality"/>
+                                                </Button>
+                                            </StackPanel>
                                         </StackPanel>
                                     </StackPanel>
 
@@ -1121,8 +1147,16 @@
                                 <TextBlock x:Name="TogetherText" FontSize="12.5" Foreground="{StaticResource TextDimBrush}" TextWrapping="Wrap"
                                            Text="Включите одну музыку на всех: пауза, перемотка и выбор трека — у всех сразу."/>
                             </StackPanel>
-                            <Button x:Name="TogetherBtn" Grid.Column="2" Style="{StaticResource PillButton}" Content="Слушать вместе"
-                                    VerticalAlignment="Center" Click="Together_Click"/>
+                            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                <CheckBox x:Name="TogetherHostOnly" Style="{StaticResource ToggleSwitch}" Visibility="Collapsed"
+                                          VerticalAlignment="Center" Margin="0,0,18,0" Checked="TogetherHostOnly_Changed"
+                                          Unchecked="TogetherHostOnly_Changed"
+                                          ToolTip="Пауза, перемотка и выбор трека — только у тебя; друзья предлагают треки">
+                                    <TextBlock Text="Управляю только я" FontSize="12.5" Foreground="{StaticResource TextDimBrush}"/>
+                                </CheckBox>
+                                <Button x:Name="TogetherBtn" Style="{StaticResource PillButton}" Content="Слушать вместе"
+                                        VerticalAlignment="Center" Click="Together_Click"/>
+                            </StackPanel>
                         </Grid>
                     </Border>
                     <Grid>

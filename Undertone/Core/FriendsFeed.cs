@@ -27,6 +27,18 @@ namespace Undertone.Core
         public bool InRoom { get; set; }
     }
 
+    /// <summary>Разовое событие комнаты: реакция или предложенный трек. Не хранится на брокере.</summary>
+    public sealed class RoomEvent
+    {
+        public string Id { get; set; } = Guid.NewGuid().ToString("N");
+        /// <summary>react — реакция (Emoji), suggest — предложить трек хозяину (Track).</summary>
+        public string Type { get; set; } = "";
+        public string By { get; set; } = "";
+        public string Name { get; set; } = "";
+        public string Emoji { get; set; } = "";
+        public YaTrack? Track { get; set; }
+    }
+
     /// <summary>
     /// Часы комнаты по НАШИМ часам: позиция трека и момент (мс, TickCount64), когда она была такой.
     /// Чужие часы не используем вовсе — у друзей они могут расходиться на секунды, а сверка с интернетом за VPN не всегда проходит.
@@ -72,6 +84,13 @@ namespace Undertone.Core
         public double Position { get; set; }
         public long At { get; set; }
         public List<YaTrack> Queue { get; set; } = new();
+        /// <summary>Кто открыл комнату — «хозяин».</summary>
+        public string Host { get; set; } = "";
+        public string HostName { get; set; } = "";
+        /// <summary>Управляет только хозяин; остальные предлагают треки.</summary>
+        public bool HostOnly { get; set; }
+        /// <summary>Кто поставил трек в очередь: id трека → имя.</summary>
+        public Dictionary<string, string> Added { get; set; } = new();
 
         /// <summary>Где трек должен быть сейчас.</summary>
         public TimeSpan ExpectedPosition(long nowMs)
@@ -124,6 +143,37 @@ namespace Undertone.Core
 
         public string MemberId => _member;
 
+        /// <summary>Реакция или предложение от друга (в фоновом потоке). Свои не приходят.</summary>
+        public event Action<RoomEvent>? EventReceived;
+
+        private string EventTopic => $"{_topicBase}/event";
+        private readonly Queue<string> _seenEvents = new();
+        private readonly HashSet<string> _seenEventSet = new();
+
+        public void PublishEvent(RoomEvent ev)
+        {
+            ev.By = _member;
+            lock (_seenEvents) Remember(ev.Id);
+            var payload = Encrypt(JsonSerializer.SerializeToUtf8Bytes(ev));
+            foreach (var client in _clients.Values.Where(c => c.IsConnected))
+                _ = SafePublishEventAsync(client, payload);
+        }
+
+        private async Task SafePublishEventAsync(MqttLite client, byte[] payload)
+        {
+            try { await client.PublishAsync(EventTopic, payload, retain: false, _cts.Token); }
+            catch (Exception ex) when (ex is not OperationCanceledException) { Log.Warn($"Друзья: {client.Host} не принял событие", ex); }
+        }
+
+        /// <returns>false — уже видели (то же событие от второго брокера).</returns>
+        private bool Remember(string id)
+        {
+            if (!_seenEventSet.Add(id)) return false;
+            _seenEvents.Enqueue(id);
+            while (_seenEvents.Count > 200) _seenEventSet.Remove(_seenEvents.Dequeue());
+            return true;
+        }
+
         /// <summary>Когда последний раз приходило (или уходило) состояние комнаты — Environment.TickCount64.</summary>
         private long _roomSeenAt = long.MinValue / 2;
 
@@ -169,6 +219,7 @@ namespace Undertone.Core
                 {
                     Seq = room.Seq, By = room.By, ByName = room.ByName, Active = room.Active, Track = room.Track,
                     Playing = room.Playing, Position = _clock.Predict(now), At = TimeSync.NowMs, Queue = room.Queue,
+                    Host = room.Host, HostName = room.HostName, HostOnly = room.HostOnly, Added = room.Added,
                 };
             }
             var payload = Encrypt(JsonSerializer.SerializeToUtf8Bytes(copy));
@@ -297,6 +348,17 @@ namespace Undertone.Core
             if (!topic.StartsWith(_topicBase + "/", StringComparison.Ordinal) || payload.Length == 0) return;
             var json = Decrypt(payload);
             if (json == null) return; // чужое или битое — молча пропускаем
+
+            if (topic == EventTopic)
+            {
+                RoomEvent? ev;
+                try { ev = JsonSerializer.Deserialize<RoomEvent>(json); }
+                catch (JsonException) { return; }
+                if (ev == null || ev.By == _member) return;
+                lock (_seenEvents) if (!Remember(ev.Id)) return;
+                EventReceived?.Invoke(ev);
+                return;
+            }
 
             if (topic == RoomTopic)
             {

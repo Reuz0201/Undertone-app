@@ -98,6 +98,7 @@ namespace Undertone
         private async Task PlayFromListAsync(IList<TrackItem> items, int index, QueueSource source, string? label = null)
         {
             if (index < 0 || items.Count == 0) return;
+            if (RoomSuggestInstead(items[index].Track)) return;
             ReportSkip();
             _waveSession = null;
             _waveKey = "";
@@ -115,6 +116,7 @@ namespace Undertone
         private async Task JumpAheadAsync(int steps)
         {
             if (steps < 1) return;
+            if (RoomBlocksControl()) return;
             ReportSkip();
             if (_queue.SkipAhead(steps) != null) await PlayCurrentAsync();
         }
@@ -423,6 +425,7 @@ namespace Undertone
         private async Task NextAsync(bool auto, bool report = true)
         {
             if (_queue.IsEmpty) return;
+            if (!auto && RoomBlocksControl()) return;
             if (report)
             {
                 if (auto) ReportFinished();
@@ -446,6 +449,7 @@ namespace Undertone
         private async Task PrevAsync()
         {
             if (_queue.IsEmpty) return;
+            if (RoomBlocksControl()) return;
             if (_hasMedia && _player.Position.TotalSeconds > 3)
             {
                 _player.Position = TimeSpan.Zero;
@@ -566,6 +570,7 @@ namespace Undertone
         private async Task StartWaveAsync(string[] seeds, string label)
         {
             if (_api == null) return;
+            if (RoomBlocksControl()) return;
             var key = string.Join(",", seeds);
             if (_queue.Source == QueueSource.Wave && _waveSession != null && _queue.Current != null && _waveKey == key)
             {
@@ -776,8 +781,13 @@ namespace Undertone
         {
             var current = _queue.Current?.Id;
             var upcoming = _queue.Upcoming(40);
+            var added = _inRoom && _friendsFeed?.Room is { } room ? room.Added : null;
             _upNextItems = new ObservableCollection<TrackItem>(upcoming.Select((t, i) =>
-                new TrackItem(t, i + 1) { IsLiked = _likedIds.Contains(t.Id), IsPlaying = t.Id == current }));
+                new TrackItem(t, i + 1)
+                {
+                    IsLiked = _likedIds.Contains(t.Id), IsPlaying = t.Id == current,
+                    AddedBy = added != null && added.TryGetValue(t.Id, out var who) ? Format.PublicName(who) : "",
+                }));
             UpNextList.ItemsSource = _upNextItems;
             UpNextHeader.Text = "Далее";
             if (_upNextItems.Count == 0)

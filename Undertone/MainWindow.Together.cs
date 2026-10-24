@@ -122,12 +122,15 @@ namespace Undertone
             if (feed == null) return;
 
             var others = RoomFriends();
+            ReactionBar.Visibility = _inRoom ? Visibility.Visible : Visibility.Collapsed;
+            TogetherHostOnly.Visibility = _inRoom && IsRoomHost && others.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+            if (_inRoom && feed.Room is { } hr && TogetherHostOnly.IsChecked != hr.HostOnly) TogetherHostOnly.IsChecked = hr.HostOnly;
             if (_inRoom)
             {
                 TogetherTitle.Text = "Вы слушаете вместе";
                 TogetherText.Text = others.Count == 0
                     ? "Пока ты один. Друзья увидят кнопку «Присоединиться» здесь же."
-                    : $"В комнате: ты, {Names(others)}." + SyncText();
+                    : $"В комнате: ты, {Names(others)}." + (RoomLocked ? $" Управляет {Format.PublicName(feed.Room!.HostName)}, ты предлагаешь треки." : "") + SyncText();
                 TogetherBtn.Content = "Выйти";
             }
             else if (feed.Room is { Active: true } && (others.Count > 0 || feed.RoomAlive))
@@ -151,19 +154,35 @@ namespace Undertone
         private void RoomPublishLocal()
         {
             if (!_inRoom || _roomApplying || _friendsFeed is not { } feed) return;
+            var prev = feed.Room is { Active: true } r ? r : null;
+
+            // управляет только хозяин — возвращаем как в комнате (пауза, перемотка, правки очереди)
+            if (RoomLocked && prev != null)
+            {
+                ShowToast($"Сейчас управляет {Format.PublicName(prev.HostName)} — можно предложить трек", 3);
+                ApplyRoomState(prev, joining: true);
+                return;
+            }
+
             _roomWaitEndOf = null;
             var now = TimeSync.NowMs;
             var position = _hasMedia ? _player.Position : _resumeAt?.Position ?? TimeSpan.Zero;
+            var track = _queue.Current;
+            var upcoming = _queue.Upcoming(RoomQueueMax).ToList();
             feed.PublishRoom(new RoomState
             {
                 Seq = now,
                 At = now,
                 ByName = FriendsDisplayName,
                 Active = true,
-                Track = _queue.Current,
+                Track = track,
                 Playing = _hasMedia && _isPlaying,
                 Position = position.TotalSeconds,
-                Queue = _queue.Upcoming(RoomQueueMax).ToList(),
+                Queue = upcoming,
+                Host = prev?.Host is { Length: > 0 } h ? h : feed.MemberId,
+                HostName = prev?.Host is { Length: > 0 } ? prev.HostName : FriendsDisplayName,
+                HostOnly = prev?.HostOnly ?? false,
+                Added = NextAddedMap(prev, track, upcoming),
             });
             QueueFriendsRefresh();
         }
@@ -209,7 +228,11 @@ namespace Undertone
         private void OnRoomChanged(RoomState state) =>
             Dispatcher.InvokeAsync(() =>
             {
-                if (_inRoom) ApplyRoomState(state, joining: false);
+                if (_inRoom)
+                {
+                    ApplyRoomState(state, joining: false);
+                    UpdateUpNext(); // отметки «добавил …» могли поменяться и без правки очереди
+                }
                 UpdateTogetherUi();
             });
 

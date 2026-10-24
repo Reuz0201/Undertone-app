@@ -103,6 +103,7 @@ namespace Undertone
                 PlayNext(track);
                 return;
             }
+            if (RoomSuggestInstead(track)) return;
             _queue.AddToEnd(track);
             QueueEdited();
             ShowToast($"«{track.FullTitle}» добавлен в конец очереди");

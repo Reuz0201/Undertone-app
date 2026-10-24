@@ -11,7 +11,7 @@
     <RootNamespace>Undertone</RootNamespace>
     <AssemblyName>Undertone</AssemblyName>
     <Product>Undertone</Product>
-    <Version>3.4.0</Version>
+    <Version>3.5.0</Version>
     <SatelliteResourceLanguages>ru</SatelliteResourceLanguages>
     <ApplicationIcon>Assets\undertone.ico</ApplicationIcon>
     <UseWindowsForms>true</UseWindowsForms>
@@ -27,6 +27,7 @@
   <ItemGroup>
     <Resource Include="Assets\undertone.ico" />
     <Resource Include="Assets\logo-mark.png" />
+    <Resource Include="Assets\Reactions\*.png" />
   </ItemGroup>
 
   <!-- CI передаёт -p:UpdateRepo=owner/repo — откуда приложение будет брать обновления -->

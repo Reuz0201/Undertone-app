@@ -79,3 +79,7 @@
 
 Undertone — неофициальный проект, он не связан с Яндексом. Используется то же API, что и у публичной библиотеки
 [yandex-music](https://github.com/MarshalX/yandex-music-api). Пожалуйста, слушай музыку по своей подписке.
+
+## Сторонние материалы
+
+- Эмодзи реакций в «Слушать вместе» взяты из шрифта [Noto Color Emoji](https://github.com/googlefonts/noto-emoji) (Google, SIL Open Font License 1.1).
