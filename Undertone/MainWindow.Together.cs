@@ -24,6 +24,7 @@ namespace Undertone
         private bool _roomApplying;
         /// <summary>Трек включается по команде комнаты — когда зазвучит, встанем на нужное место.</summary>
         private RoomState? _roomPending;
+        private DateTime _roomPendingSince;
         private DispatcherTimer? _roomTimer;
         private string? _roomWaitEndOf;
 
@@ -51,7 +52,7 @@ namespace Undertone
 
             var room = feed.Room;
             var others = RoomFriends();
-            if (room is { Active: true } && others.Count > 0)
+            if (room is { Active: true } && (others.Count > 0 || feed.RoomAlive))
             {
                 ApplyRoomState(room, joining: true);
                 ShowToast($"Ты в комнате с {Names(others)}");
@@ -123,11 +124,11 @@ namespace Undertone
                     : $"В комнате: ты, {Names(others)}. Пауза, перемотка и выбор трека — у всех сразу.";
                 TogetherBtn.Content = "Выйти";
             }
-            else if (feed.Room is { Active: true } && others.Count > 0)
+            else if (feed.Room is { Active: true } && (others.Count > 0 || feed.RoomAlive))
             {
                 TogetherTitle.Text = "Друзья слушают вместе";
                 var t = feed.Room.Track;
-                TogetherText.Text = $"{Names(others)}" + (t != null ? $" · «{t.FullTitle}» — {t.ArtistsText}" : "");
+                TogetherText.Text = (others.Count > 0 ? Names(others) : "Комната открыта") + (t != null ? $" · «{t.FullTitle}» — {t.ArtistsText}" : "");
                 TogetherBtn.Content = "Присоединиться";
             }
             else
@@ -234,7 +235,7 @@ namespace Undertone
                     _queueLabel = "СЛУШАЕМ ВМЕСТЕ";
                     _queue.Set(new[] { track }.Concat(state.Queue), 0, QueueSource.Collection, shuffle: false);
                     _queue.Repeat = RepeatMode.Off;
-                    _roomPending = state;
+                    SetRoomPending(state);
                     _ = PlayCurrentAsync();
                     if (!joining) ShowToast($"{state.ByName} включил «{track.FullTitle}»");
                     return;
@@ -252,7 +253,7 @@ namespace Undertone
                     if (_roomPending?.Track?.Id == track.Id) _roomPending = state; // ещё грузится — встанем куда надо, когда зазвучит
                     else
                     {
-                        _roomPending = state;
+                        SetRoomPending(state);
                         _ = PlayCurrentAsync();
                     }
                     return;
@@ -311,12 +312,23 @@ namespace Undertone
         }
 
         /// <summary>Раз в несколько секунд сверяемся с комнатой: если разъехались больше чем на секунду — подправляем.</summary>
+        private void SetRoomPending(RoomState state)
+        {
+            _roomPending = state;
+            _roomPendingSince = DateTime.UtcNow;
+        }
+
         private DispatcherTimer CreateRoomTimer()
         {
             var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(4) };
             timer.Tick += (_, _) =>
             {
-                if (!_inRoom || _seeking || _player.IsBuffering || _roomPending != null || _roomWaitEndOf != null) return;
+                if (!_inRoom) return;
+                // напоминаем всем текущее состояние: кто пропустил команду — догонит, и видно, что комната жива
+                _friendsFeed?.RepublishRoom();
+                // трек по команде комнаты так и не зазвучал (недоступен, ошибка сети) — не ждём вечно
+                if (_roomPending != null && DateTime.UtcNow - _roomPendingSince > TimeSpan.FromSeconds(25)) _roomPending = null;
+                if (_seeking || _player.IsBuffering || _roomPending != null || _roomWaitEndOf != null) return;
                 if (_friendsFeed?.Room is { Active: true } room && room.Track?.Id == _queue.Current?.Id)
                     AlignToRoom(room, force: false);
             };

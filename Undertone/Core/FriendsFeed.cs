@@ -96,6 +96,38 @@ namespace Undertone.Core
 
         public string MemberId => _member;
 
+        /// <summary>Когда последний раз приходило (или уходило) состояние комнаты — Environment.TickCount64.</summary>
+        private long _roomSeenAt = long.MinValue / 2;
+
+        /// <summary>
+        /// В комнате кто-то есть: участники переотправляют состояние каждые несколько секунд,
+        /// так что свежее сообщение значит «комната жива», даже если чей-то статус потерялся.
+        /// </summary>
+        public bool RoomAlive
+        {
+            get { lock (_roomSync) return _room is { Active: true } && Environment.TickCount64 - _roomSeenAt < RoomAliveMs; }
+        }
+
+        private const long RoomAliveMs = 15_000;
+
+        /// <summary>
+        /// Переотправить текущее состояние комнаты как есть (тот же Seq). Сообщения идут без подтверждения
+        /// и иногда теряются — так пропустивший команду получит её через несколько секунд. Дубли все игнорируют.
+        /// </summary>
+        public void RepublishRoom()
+        {
+            RoomState? room;
+            lock (_roomSync)
+            {
+                room = _room;
+                if (room == null) return;
+                _roomSeenAt = Environment.TickCount64;
+            }
+            var payload = Encrypt(JsonSerializer.SerializeToUtf8Bytes(room));
+            foreach (var client in _clients.Values.Where(c => c.IsConnected))
+                _ = SafePublishAsync(client, RoomTopic, payload);
+        }
+
         /// <summary>Сколько брокеров сейчас на связи (0 — оффлайн).</summary>
         public int ConnectedBrokers => _clients.Values.Count(c => c.IsConnected);
 
@@ -143,6 +175,7 @@ namespace Undertone.Core
             {
                 if (_room != null && !RoomState.IsNewer(state, _room)) state.Seq = _room.Seq + 1;
                 _room = state;
+                _roomSeenAt = Environment.TickCount64;
             }
             var payload = Encrypt(JsonSerializer.SerializeToUtf8Bytes(state));
             foreach (var client in _clients.Values.Where(c => c.IsConnected))
@@ -224,8 +257,12 @@ namespace Undertone.Core
                 if (state == null) return;
                 lock (_roomSync)
                 {
+                    // повтор того же состояния — значит, в комнате кто-то есть
+                    if (_room != null && state.Seq == _room.Seq && state.By == _room.By && state.Active)
+                        _roomSeenAt = Environment.TickCount64;
                     if (!RoomState.IsNewer(state, _room)) return; // то же самое от второго брокера или наше эхо
                     _room = state;
+                    if (state.Active) _roomSeenAt = Environment.TickCount64;
                 }
                 RoomChanged?.Invoke(state);
                 return;

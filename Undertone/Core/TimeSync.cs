@@ -47,6 +47,8 @@ namespace Undertone.Core
                     Log.Warn($"SNTP {server} не ответил", ex);
                 }
             }
+            // ни один не ответил (бывает за VPN) — попробуем снова при следующем входе в комнату
+            Interlocked.Exchange(ref _started, 0);
         }
 
         /// <summary>Классический SNTP: offset = ((t1 − t0) + (t2 − t3)) / 2.</summary>
