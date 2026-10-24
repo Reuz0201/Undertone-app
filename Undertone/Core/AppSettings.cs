@@ -63,6 +63,15 @@ namespace Undertone.Core
         /// <summary>Application ID из Discord Developer Portal.</summary>
         public string DiscordAppId { get; set; } = "";
 
+        // ── лента друзей ──
+        public bool FriendsEnabled { get; set; }
+        /// <summary>Код компании: у кого он одинаковый, те видят друг друга.</summary>
+        public string FriendsCode { get; set; } = "";
+        /// <summary>Как тебя видят друзья (пусто — имя из Яндекса).</summary>
+        public string FriendsName { get; set; } = "";
+        /// <summary>Случайный id этой установки — чтобы отличать себя от друзей.</summary>
+        public string FriendsMemberId { get; set; } = "";
+
         // ── мини-плеер ──
         public double? MiniLeft { get; set; }
         public double? MiniTop { get; set; }

@@ -163,6 +163,7 @@ namespace Undertone
                 ShowToast("Без подписки Плюс Яндекс отдаёт только 30-секундные фрагменты треков", 5);
 
             LoadHistory();
+            ApplyFriends();
             RestoreSession();
             _ = LoadAvatarAsync();
             _ = LoadPlaylistsAsync();
@@ -201,6 +202,7 @@ namespace Undertone
             _api?.Dispose();
             _api = null;
             _account = null;
+            ApplyFriends(); // без аккаунта лента не работает — отключаемся
             _likedTracks.Clear();
             _likedIds.Clear();
             _likedItems.Clear();
@@ -226,10 +228,12 @@ namespace Undertone
             PageSearch.Visibility = NavSearch.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
             PageSettings.Visibility = NavSettings.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
             PageHistory.Visibility = NavHistory.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+            PageFriends.Visibility = NavFriends.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
             PageCollection.Visibility = Visibility.Collapsed;
             ClearPlaylistSelection();
             if (NavSettings.IsChecked == true) ShowSettings();
             if (NavHistory.IsChecked == true) ShowHistory();
+            if (NavFriends.IsChecked == true) RebuildFriends();
 
             if (NavSearch.IsChecked == true)
                 Dispatcher.InvokeAsync(() =>
@@ -744,7 +748,8 @@ namespace Undertone
                 case Key.D2: case Key.NumPad2: GoTo(NavLiked); break;
                 case Key.D3: case Key.NumPad3: GoTo(NavSearch); break;
                 case Key.D4: case Key.NumPad4: GoTo(NavHistory); break;
-                case Key.D5: case Key.NumPad5: GoTo(NavSettings); break;
+                case Key.D5: case Key.NumPad5: GoTo(NavFriends); break;
+                case Key.D6: case Key.NumPad6: GoTo(NavSettings); break;
                 case Key.T: ToggleLyrics(); if (NavNow.IsChecked != true) GoTo(NavNow); break;
                 default: e.Handled = false; break;
             }
@@ -814,6 +819,7 @@ namespace Undertone
             foreach (var sink in _sinks) (sink as IDisposable)?.Dispose();
             _authCts?.Cancel();
             _updateTimer.Stop();
+            _friendsFeed?.Dispose();
             _player.Dispose();
             _api?.Dispose();
             _tray?.Dispose();

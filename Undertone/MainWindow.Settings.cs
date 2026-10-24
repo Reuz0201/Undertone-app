@@ -46,6 +46,7 @@ namespace Undertone
                 HotkeysToggle.IsChecked = _settings.GlobalHotkeys;
                 BuildHotkeyRows();
                 DiscordToggle.IsChecked = _settings.DiscordEnabled;
+                FillFriendsSettings();
                 DiscordAppIdBox.Text = _settings.DiscordAppId;
                 AutostartToggle.IsChecked = Autostart.IsEnabled;
                 AutostartHint.Text = EnvFile.IsRunningFromSource

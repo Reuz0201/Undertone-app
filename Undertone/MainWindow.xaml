@@ -174,6 +174,8 @@
                                      Checked="Nav_Checked"/>
                         <RadioButton x:Name="NavHistory" Style="{StaticResource NavButton}" Tag="&#xE81C;" Content="История"
                                      Checked="Nav_Checked"/>
+                        <RadioButton x:Name="NavFriends" Style="{StaticResource NavButton}" Tag="&#xE716;" Content="Друзья"
+                                     Checked="Nav_Checked"/>
                         <RadioButton x:Name="NavSettings" Style="{StaticResource NavButton}" Tag="&#xE713;" Content="Настройки"
                                      Checked="Nav_Checked"/>
                     </StackPanel>
@@ -777,6 +779,85 @@
                     </Grid>
                 </DockPanel>
 
+                <!-- ── Друзья ── -->
+                <DockPanel x:Name="PageFriends" Visibility="Collapsed" Margin="32,30,16,0">
+                    <Grid DockPanel.Dock="Top" Margin="0,0,16,22">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Border Width="150" Height="150" CornerRadius="18" Background="{StaticResource AccentGradient}">
+                            <TextBlock Text="&#xE716;" FontFamily="{StaticResource IconFont}" FontSize="58" Foreground="White"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <StackPanel Grid.Column="1" Margin="26,0,0,0" VerticalAlignment="Bottom">
+                            <TextBlock Text="ЛЕНТА" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource TextDimBrush}"/>
+                            <TextBlock Text="Друзья" FontSize="42" FontWeight="Bold" FontFamily="Segoe UI Variable Display, Segoe UI"/>
+                            <TextBlock x:Name="FriendsStatus" Text="" FontSize="13" Foreground="{StaticResource TextDimBrush}"
+                                       TextWrapping="Wrap" Margin="0,2,0,14"/>
+                            <Button x:Name="FriendsSetupBtn" Style="{StaticResource PillSecondary}" Content="Настроить"
+                                    HorizontalAlignment="Left" Click="FriendsSetup_Click"/>
+                        </StackPanel>
+                    </Grid>
+                    <Grid>
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
+                            <ItemsControl x:Name="FriendsList" Margin="0,0,16,20">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type ui:FriendItem}">
+                                        <Border Background="{StaticResource CardBrush}" CornerRadius="14" Padding="14" Margin="0,0,0,10" MaxWidth="760"
+                                                HorizontalAlignment="Left">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <Grid Width="60" Height="60">
+                                                    <Border CornerRadius="10" Background="{StaticResource HoverBrush}">
+                                                        <TextBlock Text="{Binding Initial}" FontSize="22" FontWeight="Bold" Foreground="#70FFFFFF"
+                                                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                    </Border>
+                                                    <Border CornerRadius="10">
+                                                        <Border.Background>
+                                                            <ImageBrush ImageSource="{Binding Cover, Converter={StaticResource CoverConverter}, ConverterParameter=120}"
+                                                                        Stretch="UniformToFill"/>
+                                                        </Border.Background>
+                                                    </Border>
+                                                </Grid>
+                                                <StackPanel Grid.Column="1" Margin="14,0,12,0" VerticalAlignment="Center">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <Ellipse x:Name="Dot" Width="8" Height="8" Fill="{StaticResource TextFaintBrush}"
+                                                                 VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="14"/>
+                                                        <TextBlock Text="{Binding StatusText}" FontSize="12" Foreground="{StaticResource TextDimBrush}"
+                                                                   VerticalAlignment="Center" Margin="10,0,0,0"/>
+                                                    </StackPanel>
+                                                    <TextBlock Text="{Binding Title}" FontSize="15" Margin="0,4,0,0" TextTrimming="CharacterEllipsis"/>
+                                                    <TextBlock Text="{Binding Artists}" FontSize="12.5" Foreground="{StaticResource TextDimBrush}"
+                                                               TextTrimming="CharacterEllipsis"/>
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                                    <Button Style="{StaticResource CircleGhost}" Content="&#xE768;" ToolTip="Включить этот трек"
+                                                            Click="FriendPlay_Click" IsEnabled="{Binding HasTrack}" Margin="0,0,8,0"/>
+                                                    <Button Style="{StaticResource IconButton}" Content="&#xE710;" ToolTip="Сыграть следующим"
+                                                            Click="FriendQueue_Click" IsEnabled="{Binding HasTrack}"/>
+                                                </StackPanel>
+                                            </Grid>
+                                        </Border>
+                                        <DataTemplate.Triggers>
+                                            <DataTrigger Binding="{Binding IsLive}" Value="True">
+                                                <Setter TargetName="Dot" Property="Fill" Value="{StaticResource GreenBrush}"/>
+                                            </DataTrigger>
+                                        </DataTemplate.Triggers>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                        <TextBlock x:Name="FriendsEmpty" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                   Foreground="{StaticResource TextDimBrush}" TextAlignment="Center" TextWrapping="Wrap" MaxWidth="440"/>
+                    </Grid>
+                </DockPanel>
+
                 <!-- ── Настройки ── -->
                 <ScrollViewer x:Name="PageSettings" Visibility="Collapsed" VerticalScrollBarVisibility="Auto"
                               HorizontalScrollBarVisibility="Disabled" Focusable="False">
@@ -1028,6 +1109,46 @@
                                 <TextBox x:Name="DiscordAppIdBox" Style="{StaticResource PlainBox}" Tag="Application ID, например 1234567890123456789"
                                          Margin="0,10,0,0" MaxWidth="420" HorizontalAlignment="Left" Width="420"
                                          LostFocus="DiscordAppId_LostFocus" KeyDown="DiscordAppId_KeyDown"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- друзья -->
+                        <TextBlock x:Name="FriendsSettingsHeader" Text="ДРУЗЬЯ" Style="{StaticResource SettingsHeader}"/>
+                        <Border Style="{StaticResource SettingsCard}">
+                            <StackPanel>
+                                <CheckBox x:Name="FriendsToggle" Style="{StaticResource ToggleSwitch}"
+                                          Checked="FriendsToggle_Changed" Unchecked="FriendsToggle_Changed">
+                                    <StackPanel>
+                                        <TextBlock Text="Показывать друзьям, что я слушаю"/>
+                                        <TextBlock Style="{StaticResource SettingsHint}"
+                                                   Text="Все, у кого одинаковый код компании, видят друг друга на странице «Друзья». Сообщения зашифрованы этим кодом и идут через публичные серверы MQTT — своего сервера не нужно."/>
+                                    </StackPanel>
+                                </CheckBox>
+
+                                <TextBlock Text="Как тебя зовут для друзей" FontSize="13" Foreground="{StaticResource TextDimBrush}" Margin="0,16,0,6"/>
+                                <TextBox x:Name="FriendsNameBox" Style="{StaticResource PlainBox}" Tag="Имя из Яндекса" Width="300"
+                                         HorizontalAlignment="Left" MaxLength="40" LostFocus="FriendsName_LostFocus" KeyDown="FriendsName_KeyDown"/>
+
+                                <TextBlock Text="Код компании" FontSize="13" Foreground="{StaticResource TextDimBrush}" Margin="0,16,0,6"/>
+                                <StackPanel Orientation="Horizontal">
+                                    <Border Background="{StaticResource BgBrush}" CornerRadius="10" Padding="14,9" Margin="0,0,8,0">
+                                        <TextBlock x:Name="FriendsCodeText" Text="—" FontFamily="Cascadia Mono, Consolas" FontSize="15"/>
+                                    </Border>
+                                    <Button Style="{StaticResource PillSecondary}" Content="Скопировать" Padding="14,7" FontSize="12.5"
+                                            Margin="0,0,8,0" Click="FriendsCopy_Click"/>
+                                    <Button Style="{StaticResource PillSecondary}" Content="Создать новый" Padding="14,7" FontSize="12.5"
+                                            Click="FriendsNewCode_Click"/>
+                                </StackPanel>
+                                <TextBlock Style="{StaticResource SettingsHint}" Margin="0,6,0,0"
+                                           Text="Отправь код друзьям. Новый код — новая компания: старые друзья перестанут тебя видеть, пока не введут его."/>
+
+                                <TextBlock Text="Есть код от друга?" FontSize="13" Foreground="{StaticResource TextDimBrush}" Margin="0,16,0,6"/>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBox x:Name="FriendsJoinBox" Style="{StaticResource PlainBox}" Tag="XXXX-XXXX-XXXX-XXXX-XXXX" Width="300"
+                                             KeyDown="FriendsJoin_KeyDown"/>
+                                    <Button Style="{StaticResource PillButton}" Content="Вступить" Padding="16,8" FontSize="13"
+                                            Margin="8,0,0,0" Click="FriendsJoin_Click"/>
+                                </StackPanel>
                             </StackPanel>
                         </Border>
 

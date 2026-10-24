@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
@@ -82,6 +83,40 @@ namespace Undertone.UI
             }
         }
         public string? Cover => Album.CoverUrl(300);
+    }
+
+    /// <summary>Карточка друга на странице «Друзья».</summary>
+    public sealed class FriendItem
+    {
+        public FriendItem(FriendPresence p)
+        {
+            Presence = p;
+            var ago = DateTimeOffset.UtcNow - DateTimeOffset.FromUnixTimeSeconds(p.Ts);
+            // «слушает сейчас» — играет и последний сигнал свежий (статус шлётся раз в минуту)
+            IsLive = p.Online && p.Playing && ago < TimeSpan.FromMinutes(3);
+            StatusText = IsLive ? "слушает сейчас"
+                : p.Online && ago < TimeSpan.FromMinutes(3) ? "на паузе"
+                : "был " + Ago(ago);
+        }
+
+        public FriendPresence Presence { get; }
+        public string Name => Presence.Name.Length > 0 ? Presence.Name : "Друг";
+        public string Initial => Name.Substring(0, 1).ToUpperInvariant();
+        public string Title => Presence.Title.Length > 0 ? Presence.Title : "Пока ничего не слушал";
+        public string Artists => Presence.Artists;
+        public string? Cover => Presence.Cover;
+        public bool HasTrack => Presence.TrackId.Length > 0;
+        public bool IsLive { get; }
+        public string StatusText { get; }
+
+        private static string Ago(TimeSpan t)
+        {
+            if (t < TimeSpan.FromMinutes(1)) return "только что";
+            if (t < TimeSpan.FromHours(1)) return $"{(int)t.TotalMinutes} мин назад";
+            if (t < TimeSpan.FromDays(1)) return $"{(int)t.TotalHours} ч назад";
+            var d = (int)t.TotalDays;
+            return $"{d} {Format.Plural(d, "день", "дня", "дней")} назад";
+        }
     }
 
     public enum SearchCardKind { Artist, Album, Playlist }
