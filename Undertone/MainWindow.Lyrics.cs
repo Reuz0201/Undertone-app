@@ -149,6 +149,7 @@ namespace Undertone
                 _player.Position = time;
                 UpdateProgress();
                 PublishNowPlaying(force: true);
+                RoomPublishLocal();
             }
             else if (_resumeAt is { } r)
             {

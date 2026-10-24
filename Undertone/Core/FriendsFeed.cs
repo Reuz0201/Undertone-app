@@ -23,6 +23,38 @@ namespace Undertone.Core
         public string Artists { get; set; } = "";
         public string? Cover { get; set; }
         public long Ts { get; set; }
+        /// <summary>Сейчас в комнате «Слушать вместе».</summary>
+        public bool InRoom { get; set; }
+    }
+
+    /// <summary>
+    /// Общее состояние комнаты «Слушать вместе». Кто угодно из комнаты может его поменять;
+    /// побеждает самое свежее изменение (Seq). Позиция считается от общего времени: Position + (сейчас − At).
+    /// </summary>
+    public sealed class RoomState
+    {
+        /// <summary>Порядок изменений: точное время в мс (TimeSync.NowMs) в момент изменения.</summary>
+        public long Seq { get; set; }
+        public string By { get; set; } = "";
+        public string ByName { get; set; } = "";
+        public bool Active { get; set; }
+        public YaTrack? Track { get; set; }
+        public bool Playing { get; set; }
+        /// <summary>Позиция трека (секунды) в момент At.</summary>
+        public double Position { get; set; }
+        public long At { get; set; }
+        public List<YaTrack> Queue { get; set; } = new();
+
+        /// <summary>Где трек должен быть сейчас.</summary>
+        public TimeSpan ExpectedPosition(long nowMs)
+        {
+            var seconds = Position + (Playing ? Math.Max(0, nowMs - At) / 1000.0 : 0);
+            return TimeSpan.FromSeconds(Math.Max(0, seconds));
+        }
+
+        /// <summary>a новее b: по времени, при равенстве — по id участника (чтобы все выбрали одно и то же).</summary>
+        public static bool IsNewer(RoomState a, RoomState? b) =>
+            b == null || a.Seq > b.Seq || (a.Seq == b.Seq && string.CompareOrdinal(a.By, b.By) > 0);
     }
 
     /// <summary>
@@ -49,6 +81,20 @@ namespace Undertone.Core
 
         /// <summary>Список друзей изменился (в фоновом потоке).</summary>
         public event Action? Changed;
+
+        /// <summary>Пришло более свежее состояние комнаты «Слушать вместе» (в фоновом потоке).</summary>
+        public event Action<RoomState>? RoomChanged;
+
+        private RoomState? _room;
+        private readonly object _roomSync = new();
+
+        /// <summary>Последнее известное состояние комнаты (может быть старым — смотри, есть ли кто в комнате).</summary>
+        public RoomState? Room
+        {
+            get { lock (_roomSync) return _room; }
+        }
+
+        public string MemberId => _member;
 
         /// <summary>Сколько брокеров сейчас на связи (0 — оффлайн).</summary>
         public int ConnectedBrokers => _clients.Values.Count(c => c.IsConnected);
@@ -78,13 +124,30 @@ namespace Undertone.Core
                 _ = SafePublishAsync(client, payload);
         }
 
-        private async Task SafePublishAsync(MqttLite client, byte[] payload)
+        private Task SafePublishAsync(MqttLite client, byte[] payload) => SafePublishAsync(client, MyTopic, payload);
+
+        private async Task SafePublishAsync(MqttLite client, string topic, byte[] payload)
         {
-            try { await client.PublishAsync(MyTopic, payload, retain: true, _cts.Token); }
+            try { await client.PublishAsync(topic, payload, retain: true, _cts.Token); }
             catch (Exception ex) when (ex is not OperationCanceledException) { Log.Warn($"Друзья: {client.Host} не принял статус", ex); }
         }
 
         private string MyTopic => $"{_topicBase}/{_member}";
+        private string RoomTopic => $"{_topicBase}/room";
+
+        /// <summary>Разослать новое состояние комнаты (оно же сразу становится текущим и у нас).</summary>
+        public void PublishRoom(RoomState state)
+        {
+            state.By = _member;
+            lock (_roomSync)
+            {
+                if (_room != null && !RoomState.IsNewer(state, _room)) state.Seq = _room.Seq + 1;
+                _room = state;
+            }
+            var payload = Encrypt(JsonSerializer.SerializeToUtf8Bytes(state));
+            foreach (var client in _clients.Values.Where(c => c.IsConnected))
+                _ = SafePublishAsync(client, RoomTopic, payload);
+        }
 
         private async Task RunBrokerAsync(string host, CancellationToken ct)
         {
@@ -100,7 +163,7 @@ namespace Undertone.Core
                     {
                         Member = _member, Name = me.Name, Online = false, Playing = false,
                         TrackId = me.TrackId, AlbumId = me.AlbumId, Title = me.Title, Artists = me.Artists, Cover = me.Cover,
-                        Ts = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
+                        Ts = DateTimeOffset.UtcNow.ToUnixTimeSeconds(), InRoom = false,
                     };
                     client.MessageReceived += OnMessage;
                     await client.ConnectAsync($"undertone-{_member}-{Guid.NewGuid():N}"[..40], KeepAlive,
@@ -152,6 +215,22 @@ namespace Undertone.Core
             if (!topic.StartsWith(_topicBase + "/", StringComparison.Ordinal) || payload.Length == 0) return;
             var json = Decrypt(payload);
             if (json == null) return; // чужое или битое — молча пропускаем
+
+            if (topic == RoomTopic)
+            {
+                RoomState? state;
+                try { state = JsonSerializer.Deserialize<RoomState>(json); }
+                catch (JsonException) { return; }
+                if (state == null) return;
+                lock (_roomSync)
+                {
+                    if (!RoomState.IsNewer(state, _room)) return; // то же самое от второго брокера или наше эхо
+                    _room = state;
+                }
+                RoomChanged?.Invoke(state);
+                return;
+            }
+
             FriendPresence? p;
             try { p = JsonSerializer.Deserialize<FriendPresence>(json); }
             catch (JsonException) { return; }

@@ -115,6 +115,7 @@ namespace Undertone
             UpdateUpNext();
             _ = PrefetchNextAsync();
             SaveSession();
+            RoomPublishLocal();
         }
 
         private static T? FindAncestor<T>(DependencyObject d) where T : DependencyObject
