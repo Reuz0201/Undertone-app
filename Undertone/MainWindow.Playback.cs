@@ -266,7 +266,8 @@ namespace Undertone
         /// <summary>У конца трека готовит следующий в движке, если он уже скачан.</summary>
         private void MaybePrepareNext()
         {
-            if (_settings.CrossfadeSeconds < 0 || !_hasMedia || !_isPlaying || _inRoom) return;
+            // ждём перезапуска после обновления — пусть трек доиграет до конца, переход сделает уже новая версия
+            if (_settings.CrossfadeSeconds < 0 || !_hasMedia || !_isPlaying || _inRoom || _restartPending) return;
             if (_player.HasPreparedNext) return;
             _preparedNextId = null;
 
@@ -433,6 +434,8 @@ namespace Undertone
             UpdatePlayState();
             if (!_isPlaying) SaveSession();
             RoomPublishLocal();
+            // пауза, а новая версия ждёт — перезапуск сейчас (через 3 с: успеешь передумать, нажав ▶)
+            OnPlayStateChangedForUpdate();
         }
 
         private async Task NextAsync(bool auto, bool report = true)
@@ -454,8 +457,11 @@ namespace Undertone
                 StopPlayback();
                 ProgressSlider.Value = 0;
                 PosText.Text = "0:00";
+                OnPlayStateChangedForUpdate();
                 return;
             }
+            // трек доиграл, а новая версия уже установлена — следующий начнётся в ней
+            if (auto && RestartInsteadOfNextTrack()) return;
             await PlayCurrentAsync();
         }
 
@@ -891,7 +897,17 @@ namespace Undertone
 
         private void SaveSession()
         {
-            if (!_settings.ResumeSession || _account == null) return;
+            if (!_settings.ResumeSession) return;
+            SaveSessionCore(atNextTrack: false);
+        }
+
+        /// <summary>Перед перезапуском в новую версию — всегда, даже если «продолжить с места» выключено.</summary>
+        private void SaveSessionForUpdate(bool atNextTrack) => SaveSessionCore(atNextTrack);
+
+        /// <param name="atNextTrack">Очередь уже переключена на следующий трек — начинать его с нуля.</param>
+        private void SaveSessionCore(bool atNextTrack)
+        {
+            if (_account == null) return;
             var (tracks, index) = _queue.Snapshot(before: 30, after: 200);
             if (index < 0) return;
             SessionStore.Save(new PlaybackSession
@@ -899,7 +915,8 @@ namespace Undertone
                 Uid = _account.Uid,
                 Tracks = tracks,
                 Index = index,
-                PositionSeconds = _hasMedia ? _player.Position.TotalSeconds : _resumeAt?.Position.TotalSeconds ?? 0,
+                PositionSeconds = atNextTrack ? 0
+                    : _hasMedia ? _player.Position.TotalSeconds : _resumeAt?.Position.TotalSeconds ?? 0,
                 // волну продолжаем как обычный список: сессия волны на сервере к тому времени истечёт
                 Source = _queue.Source == QueueSource.Wave ? QueueSource.Collection : _queue.Source,
                 Label = _queueLabel,
@@ -909,7 +926,9 @@ namespace Undertone
         /// <summary>Показывает трек, на котором остановились, на паузе — ▶ продолжит с того же места.</summary>
         private void RestoreSession()
         {
-            if (!_settings.ResumeSession || _account == null || _queue.Current != null) return;
+            // после обновления продолжаем всегда: перезапуск был наш, а не пользователя
+            var afterUpdate = App.UpdatedFrom != null;
+            if ((!_settings.ResumeSession && !afterUpdate) || _account == null || _queue.Current != null) return;
             var s = SessionStore.Load(_account.Uid);
             if (s == null) return;
 
@@ -930,6 +949,13 @@ namespace Undertone
             SetProgressValue(pos.TotalSeconds);
             PosText.Text = Format.Time(pos);
             UpdatePlayState();
+            if (App.ResumePlay)
+            {
+                // перезапуск после обновления посреди музыки — играем дальше без ▶
+                App.ResumePlay = false;
+                TogglePlay();
+                return;
+            }
             _ = PrefetchCurrentAsync(track);
         }
 

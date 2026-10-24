@@ -90,17 +90,30 @@ namespace Undertone.Core
 
         // ────────── проверка ──────────
 
+        private string? _etag, _lastJson;
+
         public async Task<UpdateInfo?> CheckAsync(CancellationToken ct = default)
         {
             string json;
             try
             {
-                using var resp = await Http.GetAsync($"https://api.github.com/repos/{Repo}/releases/latest", ct);
+                // ETag: пока релиз не менялся, GitHub отвечает 304 и не тратит лимит запросов —
+                // поэтому можно проверять часто и узнавать о новой версии почти сразу
+                using var req = new HttpRequestMessage(HttpMethod.Get, $"https://api.github.com/repos/{Repo}/releases/latest");
+                if (_etag != null) req.Headers.TryAddWithoutValidation("If-None-Match", _etag);
+                using var resp = await Http.SendAsync(req, ct);
+                if (resp.StatusCode == System.Net.HttpStatusCode.NotModified && _lastJson != null)
+                    json = _lastJson;
+                else
+                {
                 if (resp.StatusCode == System.Net.HttpStatusCode.NotFound) return null; // релизов ещё нет
                 if ((int)resp.StatusCode == 403 || (int)resp.StatusCode == 429)
                     throw new UpdateException("GitHub временно ограничил запросы, проверю позже");
                 resp.EnsureSuccessStatusCode();
                 json = await resp.Content.ReadAsStringAsync(ct);
+                _etag = resp.Headers.ETag?.ToString();
+                _lastJson = json;
+                }
             }
             catch (HttpRequestException ex)
             {

@@ -101,4 +101,13 @@ public class UpdaterTests
             root.Delete(recursive: true);
         }
     }
+
+    [Fact]
+    public void PlainReleaseNotes_StripsMarkdownAndInstallTail()
+    {
+        var md = "## Что нового\r\n\r\n- **SoundCloud**: вход и `HLS`\r\n- [Ссылка](https://x.y) работает\r\n\r\n\r\n\r\n**Установка:** скачай zip";
+        var plain = Undertone.MainWindow.PlainReleaseNotes(md);
+        Assert.Equal("Что нового\n\n• SoundCloud: вход и HLS\n• Ссылка работает", plain);
+        Assert.Equal("", Undertone.MainWindow.PlainReleaseNotes("  "));
+    }
 }

@@ -22,6 +22,10 @@ namespace Undertone
         /// <summary>Запуск из автозагрузки (--tray): окно не показываем, сразу в трей.</summary>
         public static bool StartInTray { get; private set; }
 
+        /// <summary>Перезапуск после обновления, когда играла музыка: продолжить с того же места сразу, без ▶.</summary>
+        public const string ResumePlayArg = "--resume-play";
+        public static bool ResumePlay { get; set; }
+
         protected override void OnStartup(StartupEventArgs e)
         {
             DispatcherUnhandledException += OnDispatcherUnhandledException;
@@ -39,6 +43,8 @@ namespace Undertone
                     UpdatedFrom = pid;
                 if (e.Args[i] == Autostart.TrayArg)
                     StartInTray = true;
+                if (e.Args[i] == ResumePlayArg)
+                    ResumePlay = true;
             }
 
             if (UpdatedFrom is { } oldPid)

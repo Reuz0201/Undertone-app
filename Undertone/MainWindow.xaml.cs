@@ -835,6 +835,14 @@ namespace Undertone
                 return;
             }
 
+            // окно обновления: Esc скрывает, остальные клавиши (пробел, медиаклавиши) работают как обычно
+            if (UpdateOverlay.Visibility == Visibility.Visible && e.Key == Key.Escape)
+            {
+                e.Handled = true;
+                HideUpdateOverlay();
+                return;
+            }
+
             if (e.Key == Key.F11 && mods == ModifierKeys.None)
             {
                 e.Handled = true;

@@ -2123,6 +2123,42 @@
         </Grid>
 
         <!-- ═══════════ Диалог (создать / переименовать / подтвердить) ═══════════ -->
+        <!-- ═══════════ Обновление: по центру, фон затемнён, ставится само ═══════════ -->
+        <Grid x:Name="UpdateOverlay" Grid.RowSpan="2" Background="#B3000000" Visibility="Collapsed">
+            <Border Width="440" Background="#17181D" CornerRadius="18" Padding="28,24" BorderBrush="#26282E" BorderThickness="1"
+                    HorizontalAlignment="Center" VerticalAlignment="Center">
+                <Border.Effect>
+                    <DropShadowEffect BlurRadius="50" ShadowDepth="0" Opacity="0.6" Color="Black"/>
+                </Border.Effect>
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                        <Border Width="10" Height="10" CornerRadius="5" Background="{DynamicResource LiveAccent}"
+                                VerticalAlignment="Center" Margin="0,0,10,0"/>
+                        <TextBlock Text="Вышло обновление" FontSize="20" FontWeight="Bold"/>
+                    </StackPanel>
+                    <TextBlock x:Name="UpdOverlayVersion" FontSize="13" Foreground="{StaticResource TextDimBrush}" Margin="0,6,0,0"/>
+                    <ScrollViewer MaxHeight="240" Margin="0,16,0,0" VerticalScrollBarVisibility="Auto">
+                        <TextBlock x:Name="UpdOverlayNotes" FontSize="13.5" TextWrapping="Wrap" LineHeight="20"/>
+                    </ScrollViewer>
+                    <Grid x:Name="UpdOverlayTrack" Height="6" Margin="0,20,0,0">
+                        <Border CornerRadius="3" Background="#26282E"/>
+                        <Border x:Name="UpdOverlayBar" CornerRadius="3" RenderTransformOrigin="0,0.5"
+                                Background="{DynamicResource LiveAccent}">
+                            <Border.RenderTransform>
+                                <ScaleTransform x:Name="UpdOverlayBarScale" ScaleX="0"/>
+                            </Border.RenderTransform>
+                        </Border>
+                    </Grid>
+                    <Grid Margin="0,12,0,0">
+                        <TextBlock x:Name="UpdOverlayStatus" FontSize="12.5" Foreground="{StaticResource TextDimBrush}"
+                                   VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Margin="0,0,90,0"/>
+                        <Button x:Name="UpdOverlayHide" Style="{StaticResource PillSecondary}" Content="Скрыть"
+                                HorizontalAlignment="Right" Click="UpdOverlayHide_Click"/>
+                    </Grid>
+                </StackPanel>
+            </Border>
+        </Grid>
+
         <Grid x:Name="DialogOverlay" Grid.RowSpan="2" Background="#B3000000" Visibility="Collapsed">
             <Border Width="420" Background="#17181D" CornerRadius="18" Padding="28,24" BorderBrush="#26282E" BorderThickness="1"
                     HorizontalAlignment="Center" VerticalAlignment="Center">
