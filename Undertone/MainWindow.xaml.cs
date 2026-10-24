@@ -190,6 +190,7 @@ namespace Undertone
                 MessageBoxButton.YesNo, MessageBoxImage.Question);
             if (answer != MessageBoxResult.Yes) return;
 
+            LeaveTogether(announce: false);
             StopPlayback();
             _queue.Clear();
             _waveSession = null;
@@ -819,6 +820,7 @@ namespace Undertone
             foreach (var sink in _sinks) (sink as IDisposable)?.Dispose();
             _authCts?.Cancel();
             _updateTimer.Stop();
+            LeaveTogether(announce: false);
             _friendsFeed?.Dispose();
             _player.Dispose();
             _api?.Dispose();

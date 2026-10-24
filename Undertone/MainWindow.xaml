@@ -799,6 +799,28 @@
                                     HorizontalAlignment="Left" Click="FriendsSetup_Click"/>
                         </StackPanel>
                     </Grid>
+                    <!-- Слушать вместе -->
+                    <Border x:Name="TogetherCard" DockPanel.Dock="Top" Background="{StaticResource CardBrush}" CornerRadius="14"
+                            Padding="16,14" Margin="0,0,32,16" MaxWidth="760" HorizontalAlignment="Stretch" Visibility="Collapsed">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <Border Width="44" Height="44" CornerRadius="22" Background="{StaticResource AccentGradient}">
+                                <TextBlock Text="&#xE902;" FontFamily="{StaticResource IconFont}" FontSize="20" Foreground="White"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                            <StackPanel Grid.Column="1" Margin="14,0,12,0" VerticalAlignment="Center">
+                                <TextBlock x:Name="TogetherTitle" Text="Слушать вместе" FontWeight="SemiBold" FontSize="15"/>
+                                <TextBlock x:Name="TogetherText" FontSize="12.5" Foreground="{StaticResource TextDimBrush}" TextWrapping="Wrap"
+                                           Text="Включите одну музыку на всех: пауза, перемотка и выбор трека — у всех сразу."/>
+                            </StackPanel>
+                            <Button x:Name="TogetherBtn" Grid.Column="2" Style="{StaticResource PillButton}" Content="Слушать вместе"
+                                    VerticalAlignment="Center" Click="Together_Click"/>
+                        </Grid>
+                    </Border>
                     <Grid>
                         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
                             <ItemsControl x:Name="FriendsList" Margin="0,0,16,20">

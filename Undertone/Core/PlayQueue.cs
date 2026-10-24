@@ -215,6 +215,17 @@ namespace Undertone.Core
             _nextRound = null;
         }
 
+        /// <summary>Заменяет всё после текущего трека («Слушать вместе» — очередь как у друзей).</summary>
+        public void ReplaceUpcoming(IEnumerable<YaTrack> tracks)
+        {
+            ClearUpcoming();
+            foreach (var t in tracks)
+            {
+                _items.Add(t);
+                _order.Add(_items.Count - 1);
+            }
+        }
+
         /// <summary>Добавить трек в конец очереди («Добавить в очередь»).</summary>
         public void AddToEnd(YaTrack track)
         {

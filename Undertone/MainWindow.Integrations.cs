@@ -38,6 +38,7 @@ namespace Undertone
                 _player.Position = pos;
                 UpdateProgress();
                 PublishNowPlaying(force: true);
+                RoomPublishLocal();
             });
         }
 

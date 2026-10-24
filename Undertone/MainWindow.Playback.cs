@@ -54,7 +54,11 @@ namespace Undertone
                 ProgressSlider.Maximum = Math.Max(1, d.TotalSeconds);
                 DurText.Text = Format.Time(d);
             };
-            _player.MediaEnded += async (_, _) => await NextAsync(auto: true);
+            _player.MediaEnded += async (_, _) =>
+            {
+                if (RoomDefersAutoNext()) return; // в комнате следующий включает ведущий
+                await NextAsync(auto: true);
+            };
             _player.MediaFailed += async (_, ex) => await OnPlaybackFailedAsync(ex);
             _player.AdvancedToNext += (_, path) => OnAdvancedToNext(path);
             _player.Equalizer.SetGains(_settings.EqGains);
@@ -230,6 +234,7 @@ namespace Undertone
             _ = PrefetchNextAsync();
             _ = EnsureWaveBufferAsync(force: false);
             SaveSession();
+            RoomOnTrackStarted(track);
         }
 
         // ────────── переход без паузы / кроссфейд ──────────
@@ -240,7 +245,7 @@ namespace Undertone
         /// <summary>У конца трека готовит следующий в движке, если он уже скачан.</summary>
         private void MaybePrepareNext()
         {
-            if (_settings.CrossfadeSeconds < 0 || !_hasMedia || !_isPlaying) return;
+            if (_settings.CrossfadeSeconds < 0 || !_hasMedia || !_isPlaying || _inRoom) return;
             if (_player.HasPreparedNext) return;
             _preparedNextId = null;
 
@@ -399,6 +404,7 @@ namespace Undertone
             _isPlaying = !_isPlaying;
             UpdatePlayState();
             if (!_isPlaying) SaveSession();
+            RoomPublishLocal();
         }
 
         private async Task NextAsync(bool auto, bool report = true)
@@ -431,6 +437,7 @@ namespace Undertone
             {
                 _player.Position = TimeSpan.Zero;
                 UpdateProgress();
+                RoomPublishLocal();
                 return;
             }
             ReportSkip();
@@ -446,6 +453,7 @@ namespace Undertone
             _player.Position = target < TimeSpan.Zero ? TimeSpan.Zero : target > max ? max : target;
             UpdateProgress();
             PublishNowPlaying(force: true);
+            RoomPublishLocal();
         }
 
         private void CommitSeek()
@@ -454,6 +462,7 @@ namespace Undertone
             {
                 _player.Position = TimeSpan.FromSeconds(ProgressSlider.Value);
                 PublishNowPlaying(force: true);
+                RoomPublishLocal();
             }
             else if (_seeking && _resumeAt is { } r)
             {
@@ -474,6 +483,7 @@ namespace Undertone
             _progressTimer.Stop();
             SetLoading(false);
             UpdatePlayState();
+            RoomPublishLocal();
         }
 
         private void ToggleShuffle()

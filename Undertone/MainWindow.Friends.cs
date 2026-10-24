@@ -31,6 +31,7 @@ namespace Undertone
                 _sinks.Remove(_friendsSink);
                 _friendsSink = null;
             }
+            LeaveTogether(announce: false);
             _friendsFeed?.Dispose();
             _friendsFeed = null;
 
@@ -44,7 +45,9 @@ namespace Undertone
             {
                 _friendsFeed = new FriendsFeed(_settings.FriendsCode, _settings.FriendsMemberId, FriendsDisplayName);
                 _friendsFeed.Changed += QueueFriendsRefresh;
-                _friendsSink = new FriendsSink(_friendsFeed, () => FriendsDisplayName);
+                _friendsFeed.RoomChanged += OnRoomChanged;
+                _friendsSink = new FriendsSink(_friendsFeed, () => FriendsDisplayName, () => _inRoom);
+                TimeSync.EnsureStarted();
                 _sinks.Add(_friendsSink);
                 PublishNowPlaying();
             }
@@ -88,6 +91,7 @@ namespace Undertone
                     : "Нужен код компании: создай его в настройках или вставь код от друга.";
                 FriendsEmpty.Visibility = Visibility.Visible;
                 FriendsSetupBtn.Visibility = Visibility.Visible;
+                UpdateTogetherUi();
                 return;
             }
 
@@ -105,6 +109,7 @@ namespace Undertone
                 : "Пока никого. Отправь друзьям код компании из настроек — и они появятся здесь, как только включат музыку.";
             FriendsEmpty.Visibility = friends.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
             FriendsSetupBtn.Visibility = friends.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+            UpdateTogetherUi();
         }
 
         private void FriendsSetup_Click(object sender, RoutedEventArgs e)
@@ -256,21 +261,23 @@ namespace Undertone
     {
         private readonly FriendsFeed _feed;
         private readonly Func<string> _name;
+        private readonly Func<bool> _inRoom;
         private NowPlayingState? _last;
         private string _lastKey = "";
         private DateTime _lastSent = DateTime.MinValue;
 
-        public FriendsSink(FriendsFeed feed, Func<string> name)
+        public FriendsSink(FriendsFeed feed, Func<string> name, Func<bool> inRoom)
         {
             _feed = feed;
             _name = name;
+            _inRoom = inRoom;
         }
 
         public void Update(NowPlayingState state, bool positionOnly)
         {
             if (positionOnly) return;
             _last = state;
-            var key = $"{state.Track?.Id}|{state.IsPlaying}|{_name()}";
+            var key = $"{state.Track?.Id}|{state.IsPlaying}|{_name()}|{_inRoom()}";
             if (key == _lastKey) return;
             _lastKey = key;
             Send(state);
@@ -280,7 +287,8 @@ namespace Undertone
         public void Heartbeat(bool force = false)
         {
             if (_last is not { } state) return;
-            if (!force && (!state.IsPlaying || DateTime.UtcNow - _lastSent < TimeSpan.FromSeconds(55))) return;
+            // в комнате сигналим и на паузе — иначе через 3 минуты нас перестанут считать участником
+            if (!force && ((!state.IsPlaying && !_inRoom()) || DateTime.UtcNow - _lastSent < TimeSpan.FromSeconds(55))) return;
             Send(state);
         }
 
@@ -297,6 +305,7 @@ namespace Undertone
                 Title = t?.FullTitle ?? "",
                 Artists = t?.ArtistsText ?? "",
                 Cover = t?.CoverUrl(200),
+                InRoom = _inRoom(),
             });
         }
     }
