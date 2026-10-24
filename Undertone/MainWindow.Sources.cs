@@ -125,10 +125,12 @@ namespace Undertone
 
         private YaTrack? _reportTrack;
         private string _reportPlayId = "";
+        private DateTime _reportStartedAt;
 
         private void BeginPlayReport(YaTrack track)
         {
             _reportTrack = track;
+            _reportStartedAt = DateTime.Now;
             _reportPlayId = Guid.NewGuid().ToString();
             AddToHistory(track);
             _stats.Count(track, DateTime.Now);
@@ -139,8 +141,10 @@ namespace Undertone
         {
             var track = _reportTrack;
             _reportTrack = null;
-            if (track == null || _api == null || !_settings.ReportPlays || IsLocalTrack(track)) return;
+            if (track == null) return;
             var end = atEnd ? track.Duration.TotalSeconds : _hasMedia ? _player.Position.TotalSeconds : 0;
+            LogPlayForRecap(track, end);
+            if (_api == null || !_settings.ReportPlays || IsLocalTrack(track)) return;
             if (end < 3) return; // случайный клик — не считаем
             _ = _api.ReportPlayAsync(track, end, end, _reportPlayId);
         }

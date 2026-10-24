@@ -376,6 +376,31 @@
                                      Checked="Nav_Checked"/>
                         <RadioButton x:Name="NavSettings" Style="{StaticResource NavButton}" Tag="&#xE713;" Content="Настройки"
                                      Checked="Nav_Checked"/>
+                        <!-- не страница, а окно поверх: кнопка в стиле пунктов меню -->
+                        <Button x:Name="NavRecap" Click="Recap_Click" Cursor="Hand" Focusable="False" Margin="0,0,0,4"
+                                Foreground="{StaticResource TextDimBrush}" FontSize="14" ToolTip="Твои итоги: минуты, топ треков и артистов (Y)">
+                            <Button.Template>
+                                <ControlTemplate TargetType="Button">
+                                    <Border x:Name="Bd" Background="Transparent" CornerRadius="10" Padding="12,10">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="28"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Text="&#xE734;" FontFamily="{StaticResource IconFont}" FontSize="16"
+                                                       Foreground="{DynamicResource LiveAccent}" VerticalAlignment="Center"/>
+                                            <TextBlock Grid.Column="1" Text="Итоги" VerticalAlignment="Center"/>
+                                        </Grid>
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="Bd" Property="Background" Value="#0FFFFFFF"/>
+                                            <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Button.Template>
+                        </Button>
                     </StackPanel>
 
                     <!-- заголовок «Плейлисты» -->
@@ -1862,6 +1887,60 @@
                 <!-- мини-визуализатор + громкость -->
                 <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
                     <ui:Visualizer x:Name="MiniViz" Width="112" Height="30" BarCount="20" Margin="0,0,10,0" VerticalAlignment="Center"/>
+                    <!-- эффекты: slowed + reverb, speed up, 8D -->
+                    <Grid Margin="0,0,4,0">
+                        <Button x:Name="FxBtn" Style="{StaticResource IconButton}" Content="&#xE9E9;" FontSize="14" Click="Fx_Click"
+                                ToolTip="Эффекты: slowed + reverb, speed up, 8D (E)"/>
+                        <Border x:Name="FxDot" Width="6" Height="6" CornerRadius="3" Background="{DynamicResource LiveAccent}"
+                                HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,4,4,0" IsHitTestVisible="False"
+                                Visibility="Collapsed"/>
+                        <Popup x:Name="FxPopup" PlacementTarget="{Binding ElementName=FxBtn}" Placement="Top" StaysOpen="False"
+                               AllowsTransparency="True" PopupAnimation="Fade" HorizontalOffset="-150" VerticalOffset="-8">
+                            <Border Width="340" Background="#17181D" CornerRadius="16" Padding="18,16" BorderBrush="#26282E"
+                                    BorderThickness="1" Margin="12">
+                                <Border.Effect>
+                                    <DropShadowEffect BlurRadius="30" ShadowDepth="0" Opacity="0.55" Color="Black"/>
+                                </Border.Effect>
+                                <StackPanel>
+                                    <Grid>
+                                        <TextBlock Text="Эффекты" FontSize="16" FontWeight="Bold" VerticalAlignment="Center"/>
+                                        <TextBlock x:Name="FxReset" Text="Сбросить" FontSize="12.5" Foreground="{StaticResource TextDimBrush}"
+                                                   HorizontalAlignment="Right" VerticalAlignment="Center" Cursor="Hand"
+                                                   MouseLeftButtonUp="FxReset_Click"/>
+                                    </Grid>
+                                    <TextBlock x:Name="FxHint" FontSize="12" Foreground="{StaticResource TextDimBrush}" Margin="0,4,0,12"
+                                               TextWrapping="Wrap"/>
+                                    <WrapPanel x:Name="FxPresets"/>
+
+                                    <Grid Margin="0,10,0,0">
+                                        <TextBlock Text="Скорость" FontSize="13"/>
+                                        <TextBlock x:Name="FxSpeedText" FontSize="13" Foreground="{DynamicResource LiveAccent}"
+                                                   HorizontalAlignment="Right"/>
+                                    </Grid>
+                                    <Slider x:Name="FxSpeedSlider" Style="{StaticResource ThinSlider}" Minimum="0.6" Maximum="1.5"
+                                            Value="1" Margin="0,6,0,0" ValueChanged="FxSpeed_Changed"
+                                            ToolTip="Медленнее — ниже, быстрее — выше, как у пластинки. Двойной клик — 1×"
+                                            MouseDoubleClick="FxSpeed_DoubleClick"/>
+
+                                    <Grid Margin="0,12,0,0">
+                                        <TextBlock Text="Эхо" FontSize="13"/>
+                                        <TextBlock x:Name="FxReverbText" FontSize="13" Foreground="{DynamicResource LiveAccent}"
+                                                   HorizontalAlignment="Right"/>
+                                    </Grid>
+                                    <Slider x:Name="FxReverbSlider" Style="{StaticResource ThinSlider}" Minimum="0" Maximum="1"
+                                            Value="0" Margin="0,6,0,0" ValueChanged="FxReverb_Changed"/>
+
+                                    <CheckBox x:Name="FxSpinToggle" Style="{StaticResource ToggleSwitch}" Margin="0,14,0,0"
+                                              Checked="FxSpin_Changed" Unchecked="FxSpin_Changed">
+                                        <StackPanel>
+                                            <TextBlock Text="8D-звук" FontSize="13"/>
+                                            <TextBlock Style="{StaticResource SettingsHint}" Text="Музыка кружит вокруг головы. Лучше в наушниках."/>
+                                        </StackPanel>
+                                    </CheckBox>
+                                </StackPanel>
+                            </Border>
+                        </Popup>
+                    </Grid>
                     <Button Style="{StaticResource IconButton}" Content="&#xE740;" FontSize="14" Click="Party_Click"
                             ToolTip="Режим вечеринки — на весь экран (F11)" Margin="0,0,4,0"/>
                     <Button x:Name="SleepBtn" Style="{StaticResource IconButton}" Content="&#xE708;" FontSize="14" Click="Sleep_Click"
@@ -2123,6 +2202,42 @@
         </Grid>
 
         <!-- ═══════════ Диалог (создать / переименовать / подтвердить) ═══════════ -->
+        <!-- ═══════════ Итоги: истории на весь экран, как Wrapped ═══════════ -->
+        <Grid x:Name="RecapOverlay" Grid.RowSpan="2" Visibility="Collapsed" Background="#0B0C10" ClipToBounds="True"
+              Focusable="True" MouseLeftButtonUp="RecapOverlay_MouseUp">
+            <!-- живой фон: два размытых пятна цвета обложки медленно плавают -->
+            <Canvas IsHitTestVisible="False">
+                <Ellipse x:Name="RecapBlobA" Width="760" Height="760" Canvas.Left="-160" Canvas.Top="-220">
+                    <Ellipse.RenderTransform><TranslateTransform x:Name="RecapBlobAMove"/></Ellipse.RenderTransform>
+                </Ellipse>
+                <Ellipse x:Name="RecapBlobB" Width="680" Height="680" Canvas.Left="520" Canvas.Top="260">
+                    <Ellipse.RenderTransform><TranslateTransform x:Name="RecapBlobBMove"/></Ellipse.RenderTransform>
+                </Ellipse>
+            </Canvas>
+            <Border Background="#66000000" IsHitTestVisible="False"/>
+
+            <Grid Margin="36,22,36,18">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+                <Grid>
+                    <UniformGrid x:Name="RecapSegments" Rows="1" Height="4" Margin="0,0,56,0" VerticalAlignment="Center"/>
+                    <Button Style="{StaticResource IconButton}" Content="&#xE711;" FontSize="14" HorizontalAlignment="Right"
+                            Click="RecapClose_Click" ToolTip="Закрыть (Esc)"/>
+                </Grid>
+                <StackPanel x:Name="RecapPeriods" Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,14,0,0"/>
+                <ContentControl x:Name="RecapStage" Grid.Row="2" MaxWidth="620" Margin="0,10" VerticalAlignment="Center"
+                                Focusable="False">
+                    <ContentControl.RenderTransform><TranslateTransform x:Name="RecapStageMove"/></ContentControl.RenderTransform>
+                </ContentControl>
+                <TextBlock Grid.Row="3" HorizontalAlignment="Center" FontSize="12" Foreground="#80FFFFFF"
+                           Text="Клик справа или → — дальше · слева или ← — назад · пробел — пауза · Esc — закрыть"/>
+            </Grid>
+        </Grid>
+
         <!-- ═══════════ Обновление: по центру, фон затемнён, ставится само ═══════════ -->
         <Grid x:Name="UpdateOverlay" Grid.RowSpan="2" Background="#B3000000" Visibility="Collapsed">
             <Border Width="440" Background="#17181D" CornerRadius="18" Padding="28,24" BorderBrush="#26282E" BorderThickness="1"

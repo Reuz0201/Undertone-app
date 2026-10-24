@@ -27,7 +27,7 @@ namespace Undertone.Audio
     /// <summary>
     /// Воспроизведение на NAudio с API в духе WPF MediaPlayer.
     /// Цепочка: источник (MediaFoundationReader для файла или StreamingMp3Reader для идущей закачки)
-    /// → сэмплы (под блокировкой) → «отвод» в анализатор → эквалайзер → громкость → WASAPI (запасной вариант — WaveOut).
+    /// → сэмплы (под блокировкой) → эффекты (скорость, эхо, 8D) → «отвод» в анализатор → эквалайзер → громкость → WASAPI (запасной вариант — WaveOut).
     /// Анализатор получает сигнал ДО регулятора громкости — визуализация не «сжимается» при тихом звуке, как в Winamp.
     /// Все события приходят в UI-поток: NAudio постит их в SynchronizationContext, где создан плеер,
     /// а уведомления о смене устройства мы постим туда сами.
@@ -81,6 +81,10 @@ namespace Undertone.Audio
         /// <summary>Эквалайзер в цепочке (между анализатором и громкостью). Настраивается снаружи.</summary>
         public Equalizer Equalizer { get; } = new();
 
+        /// <summary>Скорость / эхо / 8D — до анализатора, чтобы визуализатор плясал под то, что слышно.</summary>
+        public SoundEffects Effects { get; } = new();
+        private SoundEffects.Provider? _effects;
+
         public event EventHandler? MediaOpened;
         public event EventHandler? MediaEnded;
         /// <summary>Аргумент — <see cref="AudioDecodeException"/>, <see cref="AudioOutputException"/> или <see cref="StreamInterruptedException"/>.</summary>
@@ -133,7 +137,7 @@ namespace Undertone.Audio
                 if (reader == null) return TimeSpan.Zero;
                 TimeSpan pos;
                 lock (_sync) pos = reader.CurrentTime;
-                if (IsPlaying && !IsBuffering) pos -= TimeSpan.FromMilliseconds(LatencyMs);
+                if (IsPlaying && !IsBuffering) pos -= TimeSpan.FromMilliseconds(LatencyMs * Effects.EffectiveSpeed); // буфер вывода звучит с учётом скорости
                 return pos < TimeSpan.Zero ? TimeSpan.Zero : pos;
             }
             set
@@ -149,6 +153,7 @@ namespace Undertone.Audio
                     _mixer?.CancelNext();
                     reader.CurrentTime = value;
                 }
+                _effects?.Flush();
             }
         }
 
@@ -224,7 +229,8 @@ namespace Undertone.Audio
             _decodeError = null;
             var mixer = new Mixer(this, reader);
             var guarded = new GuardedSource(mixer, this);
-            var tap = new AnalyzerTap(guarded, Analyzer);
+            var effects = Effects.Attach(guarded);
+            var tap = new AnalyzerTap(effects, Analyzer);
             var eq = Equalizer.Attach(tap);
             var volume = new VolumeSampleProvider(eq);
 
@@ -242,6 +248,7 @@ namespace Undertone.Audio
 
             _chainEnd = volume;
             _mixer = mixer;
+            _effects = effects;
             _volume = volume;
             ApplyVolume();
             _output = output;
@@ -380,6 +387,7 @@ namespace Undertone.Audio
             _wantPlaying = false;
             _output.Stop();
             lock (_sync) _reader.CurrentTime = TimeSpan.Zero;
+            _effects?.Flush();
         }
 
         public void Close()
@@ -391,6 +399,7 @@ namespace Undertone.Audio
             _reader = null;
             _readerPath = null;
             _mixer = null;
+            _effects = null;
             _volume = null;
             _chainEnd = null;
             _wantPlaying = false;

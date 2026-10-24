@@ -214,6 +214,7 @@ namespace Undertone
 
             LoadHistory();
             LoadStats();
+            MaybeAnnounceRecap();
             ApplyRemote();
             LoadOffline();
             InitLocal();
@@ -835,6 +836,13 @@ namespace Undertone
                 return;
             }
 
+            // итоги на весь экран: свои стрелки, пробел и Esc
+            if (RecapOverlay.Visibility == Visibility.Visible)
+            {
+                e.Handled = HandleRecapKey(e.Key);
+                return;
+            }
+
             // окно обновления: Esc скрывает, остальные клавиши (пробел, медиаклавиши) работают как обычно
             if (UpdateOverlay.Visibility == Visibility.Visible && e.Key == Key.Escape)
             {
@@ -921,6 +929,8 @@ namespace Undertone
                 case Key.S: ToggleShuffle(); break;
                 case Key.R: CycleRepeat(); break;
                 case Key.M: ToggleMute(); break;
+                case Key.E: ToggleFxPopup(); break;
+                case Key.Y: OpenRecap(); break;
                 case Key.L: if (_queue.Current is { } c) await ToggleLikeAsync(c); break;
                 case Key.D: await DislikeCurrentAsync(); break;
                 case Key.W: await StartWaveAsync(); break;

@@ -63,6 +63,7 @@ namespace Undertone
             _player.AdvancedToNext += (_, path) => OnAdvancedToNext(path);
             _player.Equalizer.SetGains(_settings.EqGains);
             _player.Equalizer.Enabled = _settings.EqEnabled;
+            InitEffects();
             _player.OutputRecovered += (_, name) =>
             {
                 ShowToast($"Звук переключён: {name}");

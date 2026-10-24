@@ -48,6 +48,13 @@ namespace Undertone.Core
         // ── эквалайзер ──
         public bool EqEnabled { get; set; }
         public float[] EqGains { get; set; } = new float[10];
+        /// <summary>Эффекты: скорость (1 — как записано), эхо 0..1, «8D».</summary>
+        public float FxSpeed { get; set; } = 1f;
+        public float FxReverb { get; set; }
+        public bool FxSpin { get; set; }
+
+        /// <summary>«uid:mYYYY-MM» — о каких итогах месяца уже напомнили.</summary>
+        public string RecapAnnounced { get; set; } = "";
 
         // ── Моя волна ──
         /// <summary>"" — любое; favorite / discover / popular.</summary>

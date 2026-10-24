@@ -50,6 +50,7 @@ namespace Undertone
             }
             TimeSync.EnsureStarted();
             _inRoom = true;
+            ApplyEffectsRoomLock();
             _roomPending = null;
             _roomWaitEndOf = null;
             _roomDrift = null;
@@ -80,6 +81,7 @@ namespace Undertone
         {
             if (!_inRoom) return;
             _inRoom = false;
+            ApplyEffectsRoomLock();
             _roomPending = null;
             _roomWaitEndOf = null;
             _roomDrift = null;
