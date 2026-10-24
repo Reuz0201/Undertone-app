@@ -89,7 +89,23 @@ namespace Undertone
                 menu.Items.Add(Item(string.IsNullOrEmpty(track.Album) ? "Перейти к альбому" : $"Перейти к альбому: {track.Album}",
                     "", () => _ = OpenAlbumAsync(albumId)));
             }
+            menu.Items.Add(new Separator());
+            menu.Items.Add(Item("Поделиться: скопировать ссылку", "", () => ShareTrack(track)));
             return menu;
+        }
+
+        /// <summary>Ссылка на трек в Яндекс Музыке — в буфер обмена, чтобы кинуть в мессенджер.</summary>
+        private void ShareTrack(YaTrack track)
+        {
+            var url = track.AlbumId.Length > 0
+                ? $"https://music.yandex.ru/album/{track.AlbumId}/track/{track.Id}"
+                : $"https://music.yandex.ru/track/{track.Id}";
+            try
+            {
+                Clipboard.SetText(url);
+                ShowToast($"Ссылка на «{track.FullTitle}» скопирована");
+            }
+            catch (Exception) { ShowToast("Буфер обмена занят — попробуй ещё раз"); }
         }
 
         private ContextMenu BuildPlaylistMenu(PlaylistItem item)

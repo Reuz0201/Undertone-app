@@ -115,6 +115,7 @@ namespace Undertone
             CollEmpty.Visibility = Visibility.Collapsed;
             CollLoading.Visibility = Visibility.Visible;
             CollPlay.IsEnabled = CollShuffle.IsEnabled = false;
+            CollDownload.Visibility = Visibility.Collapsed;
         }
 
         private void FillTracks(IEnumerable<YaTrack> tracks, string emptyText)
@@ -125,6 +126,14 @@ namespace Undertone
             CollList.ItemsSource = _collItems;
             CollLoading.Visibility = Visibility.Collapsed;
             CollPlay.IsEnabled = CollShuffle.IsEnabled = _collItems.Count > 0;
+            // скачанный плейлист могли пополнить — новые треки докачаются
+            if (_offline.Has(_collKey))
+            {
+                var playable = _collItems.Select(i => i.Track).Where(t => t.Available).ToList();
+                _offline.Set(_collKey, CollTitle.Text, playable.Select(t => t.Id));
+                QueueOfflineDownloads(playable);
+            }
+            UpdateOfflineButtons();
             if (_collItems.Count == 0)
             {
                 CollEmpty.Text = emptyText;
@@ -144,6 +153,7 @@ namespace Undertone
             if (_api == null) return;
             var gen = ++_collGen;
             ResetCollection(CollectionKind.Artist, "АРТИСТ", "Загрузка…", round: true);
+            _collKey = "artist:" + artistId;
             try
             {
                 var page = await _api.GetArtistAsync(artistId);
@@ -177,6 +187,7 @@ namespace Undertone
             if (_api == null) return;
             var gen = ++_collGen;
             ResetCollection(CollectionKind.Album, "АЛЬБОМ", "Загрузка…", round: false);
+            _collKey = "album:" + albumId;
             try
             {
                 var (album, tracks) = await _api.GetAlbumAsync(albumId);
@@ -207,6 +218,7 @@ namespace Undertone
             if (_api == null) return;
             var gen = ++_collGen;
             ResetCollection(CollectionKind.Playlist, "ПЛЕЙЛИСТ", item.Title, round: false);
+            _collKey = $"playlist:{item.Playlist.OwnerUid}:{item.Playlist.Kind}";
             _collPlaylist = item;
             CollCoverBrush.ImageSource = Covers.Load(item.Playlist.CoverUrl(400), 320);
             try
@@ -245,6 +257,7 @@ namespace Undertone
             if (_api == null) return;
             var gen = ++_collGen;
             ResetCollection(CollectionKind.PublicPlaylist, "ПЛЕЙЛИСТ", source.Title, round: false);
+            _collKey = $"playlist:{source.OwnerUid}:{source.Kind}";
             CollCoverBrush.ImageSource = Covers.Load(source.CoverUrl(400), 320);
             try
             {

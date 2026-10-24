@@ -93,6 +93,25 @@ namespace Undertone
             CacheBarUsed.Width = new GridLength(ratio, GridUnitType.Star);
             CacheBarFree.Width = new GridLength(1 - ratio, GridUnitType.Star);
             CacheClearBtn.IsEnabled = files > 0;
+
+            var (offBytes, _) = await Task.Run(_cache.GetPinnedUsage);
+            var offTracks = _offline.PinnedCount;
+            OfflineUsageRow.Visibility = offTracks > 0 ? Visibility.Visible : Visibility.Collapsed;
+            OfflineUsageText.Text = $"Скачано для офлайна: {offTracks} {Format.Plural(offTracks, "трек", "трека", "треков")} · {FormatSize(offBytes)} (в лимит не входит)";
+        }
+
+        private async void OfflineClear_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            var titles = string.Join(", ", _offline.Collections.Values.Select(c => $"«{c.Title}»").Take(4));
+            var ok = await ShowDialogAsync("Удалить всё скачанное?",
+                $"{titles} перестанут быть доступны без интернета, файлы удалятся с диска.", null, "Удалить");
+            if (ok == null) return;
+            var ids = _offline.Collections.Values.SelectMany(c => c.TrackIds).ToHashSet();
+            _offline.Clear();
+            var freed = await Task.Run(() => _cache.DeleteTracks(ids));
+            ShowToast($"Скачанное удалено: освобождено {FormatSize(freed)}");
+            UpdateOfflineButtons();
+            await RefreshCacheUsageAsync();
         }
 
         internal static string FormatSize(long bytes)

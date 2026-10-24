@@ -34,8 +34,41 @@ namespace Undertone.Core
 
         public string Directory { get; }
 
-        /// <summary>Лимит размера; меняется на странице настроек.</summary>
+        /// <summary>Лимит размера; меняется на странице настроек. Скачанное для офлайна в него не входит.</summary>
         public long MaxBytes { get; set; }
+
+        /// <summary>Трек скачан для офлайна — его файлы не удаляются ни по лимиту, ни очисткой кэша.</summary>
+        public Func<string, bool>? IsPinned { get; set; }
+
+        /// <summary>id трека из имени файла: 123.mp3, 123.lq.mp3, 123.flac → 123.</summary>
+        internal static string TrackIdOf(string fileName)
+        {
+            var dot = fileName.IndexOf('.');
+            return dot > 0 ? fileName[..dot] : fileName;
+        }
+
+        private bool Pinned(FileInfo f) => IsPinned?.Invoke(TrackIdOf(f.Name)) == true;
+
+        /// <summary>Сколько занимает скачанное для офлайна.</summary>
+        public (long Bytes, int Files) GetPinnedUsage()
+        {
+            try
+            {
+                long total = 0;
+                int count = 0;
+                foreach (var f in new DirectoryInfo(Directory).EnumerateFiles())
+                {
+                    if (f.Name.EndsWith(".part", StringComparison.Ordinal) || !Pinned(f)) continue;
+                    total += f.Length;
+                    count++;
+                }
+                return (total, count);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                return (0, 0);
+            }
+        }
 
         public static string DefaultDirectory => Path.Combine(EnvFile.DataDirectory, "cache");
         private static string LegacyDirectory => Path.Combine(Path.GetTempPath(), "Undertone");
@@ -253,6 +286,7 @@ namespace Undertone.Core
                 int count = 0;
                 foreach (var f in new DirectoryInfo(Directory).EnumerateFiles())
                 {
+                    if (Pinned(f)) continue; // скачанное для офлайна считаем отдельно
                     total += f.Length;
                     count++;
                 }
@@ -264,6 +298,25 @@ namespace Undertone.Core
             }
         }
 
+        /// <summary>Удаляет файлы офлайн-треков (после «Удалить скачанное»), кроме тех, что сейчас качаются.</summary>
+        public long DeleteTracks(IReadOnlyCollection<string> trackIds)
+        {
+            long freed = 0;
+            try
+            {
+                var ids = trackIds.ToHashSet();
+                var busy = _inflight.Values.Select(d => d.PartPath).ToHashSet(StringComparer.OrdinalIgnoreCase);
+                foreach (var f in new DirectoryInfo(Directory).GetFiles())
+                {
+                    if (busy.Contains(f.FullName) || !ids.Contains(TrackIdOf(f.Name))) continue;
+                    var size = f.Length;
+                    if (TryDelete(f)) freed += size;
+                }
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+            return freed;
+        }
+
         /// <summary>Удаляет весь кэш, кроме файлов, которые сейчас качаются или играют. Возвращает освобождённые байты.</summary>
         public long Clear()
         {
@@ -273,7 +326,7 @@ namespace Undertone.Core
                 var busy = _inflight.Values.Select(d => d.PartPath).ToHashSet(StringComparer.OrdinalIgnoreCase);
                 foreach (var f in new DirectoryInfo(Directory).GetFiles())
                 {
-                    if (busy.Contains(f.FullName)) continue;
+                    if (busy.Contains(f.FullName) || Pinned(f)) continue;
                     var size = f.Length;
                     if (TryDelete(f)) freed += size;
                 }
@@ -302,6 +355,7 @@ namespace Undertone.Core
                         if (!busy.Contains(f.FullName)) TryDelete(f);
                         continue;
                     }
+                    if (Pinned(f)) continue; // скачанное для офлайна не трогаем и в лимит не считаем
                     total += f.Length;
                     if (total > MaxBytes) TryDelete(f);
                 }

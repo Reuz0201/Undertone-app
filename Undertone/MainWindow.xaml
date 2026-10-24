@@ -850,7 +850,15 @@
                                 <Button Style="{StaticResource CirclePlay}" Content="&#xE768;" Click="LikedPlay_Click"
                                         ToolTip="Слушать по порядку" Margin="0,0,14,0"/>
                                 <Button Style="{StaticResource CircleGhost}" Content="&#xE8B1;" Click="LikedShuffle_Click"
-                                        ToolTip="Перемешать" VerticalAlignment="Center"/>
+                                        ToolTip="Перемешать" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                <Button x:Name="LikedDownload" Style="{StaticResource PillSecondary}" Click="LikedDownload_Click"
+                                        VerticalAlignment="Center" Margin="0,0,10,0" Visibility="Collapsed">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock x:Name="LikedDownloadGlyph" Text="&#xE896;" FontFamily="{StaticResource IconFont}" FontSize="14"
+                                                   VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                        <TextBlock x:Name="LikedDownloadText" Text="Скачать" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </Button>
                             </StackPanel>
                         </StackPanel>
                         <TextBox x:Name="LikedFilter" Grid.Column="2" Width="250" VerticalAlignment="Bottom"
@@ -1017,6 +1025,14 @@
                                         ToolTip="Слушать" Margin="0,0,14,0"/>
                                 <Button x:Name="CollShuffle" Style="{StaticResource CircleGhost}" Content="&#xE8B1;" Click="CollShuffle_Click"
                                         ToolTip="Перемешать" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                <Button x:Name="CollDownload" Style="{StaticResource PillSecondary}" Click="CollDownload_Click"
+                                        VerticalAlignment="Center" Margin="0,0,10,0" Visibility="Collapsed">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock x:Name="CollDownloadGlyph" Text="&#xE896;" FontFamily="{StaticResource IconFont}" FontSize="14"
+                                                   VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                        <TextBlock x:Name="CollDownloadText" Text="Скачать" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </Button>
                                 <Button x:Name="CollWave" Style="{StaticResource PillSecondary}" Click="CollWave_Click"
                                         VerticalAlignment="Center" Margin="0,0,10,0" Visibility="Collapsed">
                                     <StackPanel Orientation="Horizontal">
@@ -1236,6 +1252,14 @@
                                     </Grid.ColumnDefinitions>
                                     <StackPanel>
                                         <TextBlock x:Name="CacheUsageText" Text="Считаю…" FontSize="15" FontWeight="SemiBold"/>
+                                        <StackPanel x:Name="OfflineUsageRow" Orientation="Horizontal" Margin="0,4,0,0" Visibility="Collapsed">
+                                            <TextBlock Text="&#xE896;" FontFamily="{StaticResource IconFont}" FontSize="12"
+                                                       Foreground="{DynamicResource LiveAccent}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                            <TextBlock x:Name="OfflineUsageText" FontSize="13" Foreground="{StaticResource TextDimBrush}" VerticalAlignment="Center"/>
+                                            <TextBlock Text="Удалить" Style="{StaticResource LinkText}" FontSize="13" Margin="12,0,0,0"
+                                                       Foreground="{StaticResource TextDimBrush}" VerticalAlignment="Center"
+                                                       MouseLeftButtonUp="OfflineClear_Click"/>
+                                        </StackPanel>
                                         <TextBlock Style="{StaticResource SettingsHint}"
                                                    Text="Прослушанные треки хранятся на диске и повторно не скачиваются. Когда кэш заполнится, удаляются те, что играли давно всего."/>
                                     </StackPanel>
@@ -1628,6 +1652,8 @@
                 <!-- мини-визуализатор + громкость -->
                 <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
                     <ui:Visualizer x:Name="MiniViz" Width="112" Height="30" BarCount="20" Margin="0,0,10,0" VerticalAlignment="Center"/>
+                    <Button x:Name="SleepBtn" Style="{StaticResource IconButton}" Content="&#xE708;" FontSize="14" Click="Sleep_Click"
+                            ToolTip="Таймер сна" Margin="0,0,4,0"/>
                     <Button Style="{StaticResource IconButton}" Content="&#xE8A7;" FontSize="14" Click="MiniPlayer_Click"
                             ToolTip="Мини-плеер поверх всех окон" Margin="0,0,4,0"/>
                     <Button x:Name="MuteBtn" Style="{StaticResource IconButton}" Content="&#xE995;" FontSize="15"

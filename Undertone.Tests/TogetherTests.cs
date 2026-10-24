@@ -103,3 +103,14 @@ public class RoomClockTests
         Assert.Equal(5, c.Predict(100), 3);
     }
 }
+
+public class OfflineTests
+{
+    [Theory]
+    [InlineData("123.mp3", "123")]
+    [InlineData("123.lq.mp3", "123")]
+    [InlineData("98765.flac", "98765")]
+    [InlineData("noext", "noext")]
+    public void TrackIdOf_ParsesCacheFileNames(string file, string id) =>
+        Assert.Equal(id, Undertone.Core.AudioCache.TrackIdOf(file));
+}

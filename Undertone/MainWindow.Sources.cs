@@ -39,13 +39,15 @@ namespace Undertone
         }
 
         /// <summary>Готовый файл трека в кэше для текущего качества. В «Экономии» годится и обычный MP3 — он лучше.</summary>
-        private string? FindCachedFile(YaTrack track) => EffectiveQuality switch
+        private string? FindCachedFile(YaTrack track) => (EffectiveQuality switch
         {
             AudioQuality.Lossless => _cache.FindCached(track.Id, LosslessExts)
                                      ?? (_noLossless.Contains(track.Id) ? _cache.FindCached(track.Id, "mp3") : null),
             AudioQuality.Economy => _cache.FindCached(track.Id, "lq.mp3", "mp3"),
             _ => _cache.FindCached(track.Id, "mp3"),
-        };
+        })
+        // скачанное для офлайна играем в том качестве, в каком скачали, — без интернета другого не будет
+        ?? (_offline.IsPinned(track.Id) ? _cache.FindCached(track.Id, "mp3", "lq.mp3", "flac", "mp4", "m4a", "aac") : null);
 
         private static bool IsLosslessFile(string path)
         {

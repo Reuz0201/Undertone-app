@@ -163,6 +163,7 @@ namespace Undertone
                 ShowToast("Без подписки Плюс Яндекс отдаёт только 30-секундные фрагменты треков", 5);
 
             LoadHistory();
+            LoadOffline();
             ApplyFriends();
             RestoreSession();
             _ = LoadAvatarAsync();
@@ -310,6 +311,8 @@ namespace Undertone
             foreach (var t in _likedTracks) _likedIds.Add(t.Id);
             RebuildLiked();
             RefreshLikeMarks();
+            SyncOfflineLiked();
+            UpdateOfflineButtons();
         }
 
         private void BindLiked(ObservableCollection<TrackItem> items)
