@@ -95,7 +95,7 @@ namespace Undertone.Remote
                     var request = await ReadRequestAsync(stream, ct);
                     RemoteResponse response;
                     if (request == null) response = RemoteResponse.Text(400, "bad request");
-                    else response = await RouteAsync(request);
+                    else response = await RouteAsync(request.Value);
                     await WriteResponseAsync(stream, response, ct);
                 }
                 catch (Exception ex) when (ex is IOException or SocketException or OperationCanceledException or ObjectDisposedException) { }
