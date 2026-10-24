@@ -11,7 +11,7 @@
     <RootNamespace>Undertone</RootNamespace>
     <AssemblyName>Undertone</AssemblyName>
     <Product>Undertone</Product>
-    <Version>4.0.1</Version>
+    <Version>4.0.2</Version>
     <SatelliteResourceLanguages>ru</SatelliteResourceLanguages>
     <ApplicationIcon>Assets\undertone.ico</ApplicationIcon>
     <UseWindowsForms>true</UseWindowsForms>
