@@ -1,0 +1,3 @@
+# cmd.exe читает .bat построчно по CRLF: с LF и кириллицей (chcp 65001) строки рвутся посередине
+*.bat text eol=crlf
+*.cmd text eol=crlf
