@@ -24,9 +24,11 @@ namespace Undertone
     /// </summary>
     public partial class MainWindow
     {
-        // кисти акцента — окно перекрывает ими нейтральные из App.xaml и плавно перекрашивает под каждую обложку
-        private readonly SolidColorBrush _liveAccent = new(CoverPalette.Neutral);
-        private readonly SolidColorBrush _liveAccentSoft = new(WithAlpha(CoverPalette.Neutral, 0x29));
+        // кисти акцента — окно перекрывает ими нейтральные из App.xaml и плавно перекрашивает под каждую обложку.
+        // Не readonly: WPF может заморозить кисть (её значение берёт триггер шаблона через DynamicResource),
+        // и тогда её заменяет свежая копия — см. EnsureAnimatableAccent.
+        private SolidColorBrush _liveAccent = new(CoverPalette.Neutral);
+        private SolidColorBrush _liveAccentSoft = new(WithAlpha(CoverPalette.Neutral, 0x29));
         private Color _accentShown = CoverPalette.Neutral;
         private string? _accentFor;
 
@@ -122,11 +124,32 @@ namespace Undertone
         {
             if (color == _accentShown) return;
             _accentShown = color;
+            EnsureAnimatableAccent();
             var duration = new Duration(TimeSpan.FromMilliseconds(750));
             var ease = new CubicEase { EasingMode = EasingMode.EaseInOut };
             _liveAccent.BeginAnimation(SolidColorBrush.ColorProperty, new ColorAnimation(color, duration) { EasingFunction = ease });
             _liveAccentSoft.BeginAnimation(SolidColorBrush.ColorProperty, new ColorAnimation(WithAlpha(color, 0x29), duration) { EasingFunction = ease });
-            HeroGlow.BeginAnimation(DropShadowEffect.ColorProperty, new ColorAnimation(color, duration) { EasingFunction = ease });
+            if (!HeroGlow.IsFrozen)
+                HeroGlow.BeginAnimation(DropShadowEffect.ColorProperty, new ColorAnimation(color, duration) { EasingFunction = ease });
+        }
+
+        /// <summary>
+        /// Замороженную кисть анимировать нельзя («объект запечатан или заморожен»): так бывает, когда её значение
+        /// подхватил триггер шаблона (лайк, выделение строки) — WPF запечатывает такие значения. Тогда ставим свежую
+        /// копию того же цвета во все окна (главное, мини-плеер, вечеринка); DynamicResource сам переключится на неё.
+        /// </summary>
+        private void EnsureAnimatableAccent()
+        {
+            if (!_liveAccent.IsFrozen && !_liveAccentSoft.IsFrozen) return;
+            if (_liveAccent.IsFrozen) _liveAccent = new SolidColorBrush(_liveAccent.Color);
+            if (_liveAccentSoft.IsFrozen) _liveAccentSoft = new SolidColorBrush(_liveAccentSoft.Color);
+            foreach (var window in new Window?[] { this, _mini, _party })
+            {
+                if (window == null) continue;
+                window.Resources["LiveAccent"] = _liveAccent;
+                window.Resources["LiveAccentSoft"] = _liveAccentSoft;
+            }
+            Log.Info("Кисть акцента была заморожена — заменена свежей");
         }
 
         private static Color WithAlpha(Color c, byte a) => Color.FromArgb(a, c.R, c.G, c.B);
