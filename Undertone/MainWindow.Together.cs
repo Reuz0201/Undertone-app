@@ -299,7 +299,7 @@ namespace Undertone
                     _roomDrift = drift;
                     if (Math.Abs(drift) > (force ? 0.4 : 1.0))
                     {
-                        Log.Info($"Комната: расхождение {drift:+0.00;-0.00} с, встаю на {expected:m\:ss\.f}");
+                        Log.Info($"Комната: расхождение {drift:+0.00;-0.00} с, встаю на {expected.TotalSeconds:0.0} с");
                         _player.Position = expected;
                         UpdateProgress();
                         moved = true;
