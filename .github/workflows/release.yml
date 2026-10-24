@@ -39,6 +39,8 @@ jobs:
         shell: pwsh
         env:
           UPDATE_PUBLIC_KEY: ${{ vars.UPDATE_PUBLIC_KEY }}
+          SOUNDCLOUD_CLIENT_ID: ${{ secrets.SOUNDCLOUD_CLIENT_ID }}
+          SOUNDCLOUD_CLIENT_SECRET: ${{ secrets.SOUNDCLOUD_CLIENT_SECRET }}
         run: |
           $publishArgs = @(
             'publish', 'Undertone/Undertone.csproj', '-c', 'Release', '-r', 'win-x64', '--self-contained', 'true',
@@ -46,6 +48,9 @@ jobs:
             '-p:DebugType=none', "-p:Version=${{ steps.ver.outputs.version }}", "-p:UpdateRepo=${{ github.repository }}",
             '-o', 'publish')
           if ($env:UPDATE_PUBLIC_KEY) { $publishArgs += "-p:UpdatePublicKey=$($env:UPDATE_PUBLIC_KEY.Trim())" }
+          # ключи приложения SoundCloud (секреты репозитория); нет — вход в SoundCloud попросит вписать их в .env
+          if ($env:SOUNDCLOUD_CLIENT_ID) { $publishArgs += "-p:SoundCloudClientId=$($env:SOUNDCLOUD_CLIENT_ID.Trim())" }
+          if ($env:SOUNDCLOUD_CLIENT_SECRET) { $publishArgs += "-p:SoundCloudClientSecret=$($env:SOUNDCLOUD_CLIENT_SECRET.Trim())" }
           & dotnet @publishArgs
           if ($LASTEXITCODE -ne 0) { throw 'dotnet publish упал' }
 

@@ -93,6 +93,12 @@ namespace Undertone.Core
         public double? MiniLeft { get; set; }
         public double? MiniTop { get; set; }
 
+        // ── аккаунты ──
+        /// <summary>Сервис, с которым работали в прошлый раз: yandex / soundcloud.</summary>
+        public string ActiveService { get; set; } = "yandex";
+        /// <summary>Имена подключённых аккаунтов для меню профиля (сервис → имя).</summary>
+        public Dictionary<string, string> AccountNames { get; set; } = new();
+
         public const int MinCacheMb = 256;
 
         [JsonIgnore]

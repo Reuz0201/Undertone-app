@@ -101,7 +101,7 @@ namespace Undertone
                     {
                         if (EffectiveQuality == AudioQuality.Lossless && !_noLossless.Contains(t.Id) &&
                             await DownloadLosslessAsync(api, t, CancellationToken.None) != null) { }
-                        else await _cache.GetAsync(t.Id, Mp3Resolver(api, t), CancellationToken.None, Mp3Ext);
+                        else await _cache.GetAsync(t.Id, Mp3Resolver(api, t), Mp3Ext, CancellationToken.None);
                         failures = 0;
                     }
                     catch (Exception ex)

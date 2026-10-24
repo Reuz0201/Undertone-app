@@ -45,10 +45,8 @@ namespace Undertone
             Backdrop.Source = Covers.Load(track.CoverUrl(200), 200);
             // включён пульт — QR для гостей «предложи трек», иначе ссылка на сам трек
             if (_guestLink != null) SetQr(_guestLink);
-            else if (!LocalLibrary.IsLocal(track))
-                SetQr(track.AlbumId.Length > 0
-                    ? $"https://music.yandex.ru/album/{track.AlbumId}/track/{track.Id}"
-                    : $"https://music.yandex.ru/track/{track.Id}");
+            else if (track.WebUrl is { } url)
+                SetQr(url);
             SetLyrics(Array.Empty<LyricLine>());
         }
 

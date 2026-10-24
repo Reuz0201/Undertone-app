@@ -153,6 +153,9 @@ namespace Undertone
             try
             {
                 if (!track.Available) throw new YaApiException("трек недоступен в вашем регионе");
+                // трек другого сервиса (например, из ленты друга) текущий аккаунт не сыграет
+                if (MusicServices.Of(track) is { } owner && owner != api.Kind && FindCachedFile(track) == null)
+                    throw new YaApiException($"это трек из {owner.TitleGenitive()} — переключитесь на этот аккаунт в меню профиля");
 
                 // 1) уже в кэше (в нужном качестве) — или это свой файл
                 var path = FindCachedFile(track);
@@ -242,11 +245,13 @@ namespace Undertone
         }
 
         /// <summary>Трек зазвучал — обычным запуском или бесшовным переходом.</summary>
-        private void OnTrackStarted(YaTrack track, YaApi api)
+        private void OnTrackStarted(YaTrack track, IMusicService api)
         {
             if (_queue.Source == QueueSource.Wave && _waveSession != null)
                 _ = api.WaveFeedbackAsync(_waveSession, _waveBatch, "trackStarted", track.Id);
             BeginPlayReport(track);
+            if (track.IsPreview)
+                ShowToast($"{api.Kind.Title()} отдаёт только 30-секундный фрагмент этого трека — целиком он доступен по подписке", 4);
             _ = PrefetchNextAsync();
             _ = EnsureWaveBufferAsync(force: false);
             SaveSession();
@@ -406,7 +411,7 @@ namespace Undertone
                     if (EffectiveQuality == AudioQuality.Lossless && !_noLossless.Contains(next.Id) &&
                         await DownloadLosslessAsync(api, next, CancellationToken.None) != null)
                         continue;
-                    await _cache.GetAsync(next.Id, Mp3Resolver(api, next), CancellationToken.None, Mp3Ext);
+                    await _cache.GetAsync(next.Id, Mp3Resolver(api, next), Mp3Ext, CancellationToken.None);
                 }
                 catch (Exception) { return; /* догрузим при переключении; ошибка уже в журнале */ }
             }
@@ -558,7 +563,17 @@ namespace Undertone
 
         // ────────── Моя волна ──────────
 
-        private Task StartWaveAsync() => StartWaveAsync(MyWaveSeeds(), "МОЯ ВОЛНА");
+        /// <summary>Кнопка/клавиша «волна». Где волны нет (SoundCloud) — играем «Мне нравится» или идём в поиск.</summary>
+        private async Task StartWaveAsync()
+        {
+            if (_api is { SupportsWave: false })
+            {
+                if (_likedItems.Count > 0) await PlayLikedAsync(shuffle: _settings.Shuffle);
+                else GoTo(NavSearch);
+                return;
+            }
+            await StartWaveAsync(MyWaveSeeds(), "МОЯ ВОЛНА");
+        }
 
         private const string MyWaveSeed = "user:onyourwave";
 
@@ -577,7 +592,7 @@ namespace Undertone
         /// <param name="seeds">user:onyourwave — Моя волна; artist:123 — волна по артисту</param>
         private async Task StartWaveAsync(string[] seeds, string label)
         {
-            if (_api == null) return;
+            if (_api is not { SupportsWave: true }) return;
             if (RoomBlocksControl()) return;
             var key = string.Join(",", seeds);
             if (_queue.Source == QueueSource.Wave && _waveSession != null && _queue.Current != null && _waveKey == key)
@@ -623,7 +638,7 @@ namespace Undertone
             return _waveFetch = FetchWaveAsync(_api, _waveSession);
         }
 
-        private async Task FetchWaveAsync(YaApi api, string session)
+        private async Task FetchWaveAsync(IMusicService api, string session)
         {
             try
             {
@@ -715,7 +730,7 @@ namespace Undertone
         private async Task DislikeCurrentAsync()
         {
             var track = _queue.Current;
-            if (track == null || _api == null) return;
+            if (track == null || _api is not { SupportsDislike: true }) return;
             if (LocalUnsupported(track, "Это твой файл — «не нравится» бывает только у треков Яндекса")) return;
             try
             {
@@ -772,7 +787,7 @@ namespace Undertone
             EmptyState.Visibility = Visibility.Visible;
             NowState.Visibility = Visibility.Collapsed;
             BarTitle.Text = "Ничего не играет";
-            BarArtist.Text = "Включите Мою волну";
+            BarArtist.Text = EmptyBarHint;
             BarArtist.Visibility = Visibility.Visible;
             BarArtists.Visibility = Visibility.Collapsed;
             BarLike.IsEnabled = false;
@@ -927,7 +942,7 @@ namespace Undertone
             {
                 if (EffectiveQuality == AudioQuality.Lossless && await DownloadLosslessAsync(api, track, CancellationToken.None) != null)
                     return;
-                await _cache.GetAsync(track.Id, Mp3Resolver(api, track), CancellationToken.None, Mp3Ext);
+                await _cache.GetAsync(track.Id, Mp3Resolver(api, track), Mp3Ext, CancellationToken.None);
             }
             catch (Exception) { /* скачаем при нажатии ▶ */ }
         }

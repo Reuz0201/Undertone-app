@@ -21,11 +21,15 @@ namespace Undertone
     {
         private readonly AppSettings _settings = AppSettings.Load();
         private readonly EnvFile _env = EnvFile.Locate();
-        private readonly TokenStore _tokens;
+        private readonly TokenStore _yaTokens;
+        private readonly TokenStore _scTokens;
+        private SoundCloudConfig? _scConfig;
         private readonly AudioCache _cache;
 
-        private YaApi? _api;
+        private IMusicService? _api;
+        private MusicServiceKind _service;
         private YaAccount? _account;
+        private int _connectGen;
         private bool _ready;
 
         private List<YaTrack> _likedTracks = new();
@@ -55,7 +59,10 @@ namespace Undertone
         public MainWindow()
         {
             InitializeComponent();
-            _tokens = new TokenStore(_env);
+            _yaTokens = new TokenStore(_env);
+            _scConfig = SoundCloudConfig.Load(_env);
+            _scTokens = TokenStore.ForSoundCloud(_env, (refresh, ct) =>
+                SoundCloudAuth.RefreshAsync(_scConfig ?? throw new AuthException("Не задан ключ приложения SoundCloud"), refresh, ct));
             _cache = new AudioCache(_settings.CacheLimitBytes);
 
             BindLiked(_likedItems);
@@ -82,6 +89,8 @@ namespace Undertone
             InitPlayer();
             InitTray();
             RestoreSettings();
+            _service = MusicServices.Parse(_settings.ActiveService);
+            ApplyServiceUi();
             _ready = true;
 
             Loaded += async (_, _) => await StartOnceAsync();
@@ -118,49 +127,90 @@ namespace Undertone
             ApplyDiscord();
             InitUpdater();
 
-            var token = _tokens.AccessToken;
-            if (string.IsNullOrWhiteSpace(token))
+            // прошлый сервис, если в нём есть вход, иначе другой; ни одного — экран выбора
+            var preferred = MusicServices.Parse(_settings.ActiveService);
+            foreach (var service in new[] { preferred, preferred.Other() })
             {
-                if (!IsVisible) ShowFromTray(); // из автозапуска, но входа нет — без окна не войти
-                ShowAuth();
-                return;
+                if (TokensFor(service).AccessToken is { Length: > 0 } token)
+                {
+                    await ConnectAsync(service, token);
+                    return;
+                }
             }
-            await ConnectAsync(token);
+            if (!IsVisible) ShowFromTray(); // из автозапуска, но входа нет — без окна не войти
+            ShowAuth();
         }
 
-        private async Task ConnectAsync(string token)
+        // ────────── аккаунты: Яндекс Музыка и SoundCloud ──────────
+
+        private TokenStore TokensFor(MusicServiceKind service) =>
+            service == MusicServiceKind.SoundCloud ? _scTokens : _yaTokens;
+
+        private async Task ConnectAsync(MusicServiceKind service, string token)
         {
+            var gen = ++_connectGen;
             _api?.Dispose();
-            _api = new YaApi(token, (old, ct) => _tokens.TryRefreshAsync(old, ct));
+            var store = TokensFor(service);
+            _service = service;
+            IMusicService api = service == MusicServiceKind.SoundCloud
+                ? new ScApi(token, (old, ct) => store.TryRefreshAsync(old, ct))
+                : new YaApi(token, (old, ct) => store.TryRefreshAsync(old, ct));
+            _api = api;
+            if (_settings.ActiveService != service.Id())
+            {
+                _settings.ActiveService = service.Id();
+                PersistSettings();
+            }
+            ApplyServiceUi();
             RetryBtn.Visibility = Visibility.Collapsed;
             AccountName.Text = "Подключение…";
-            AccountSub.Text = "";
+            AccountSub.Text = service.Title();
 
+            YaAccount account;
             try
             {
-                _account = await _api.GetAccountAsync();
+                account = await api.GetAccountAsync();
             }
             catch (YaApiException ex) when (ex.IsUnauthorized)
             {
-                ShowAuth("Сохранённый токен больше не работает — войдите заново.");
+                if (gen != _connectGen) return;
+                Log.Warn($"Токен {service.Title()} отклонён — нужен повторный вход");
+                if (!IsVisible) ShowFromTray();
+                ShowAuth(service, $"Сохранённый вход в {service.Title()} больше не работает — войдите заново.");
                 return;
             }
             catch (Exception ex)
             {
+                if (gen != _connectGen) return;
+                Log.Error($"Не удалось подключиться к {service.TitleGenitive()}", ex);
                 AccountName.Text = "Нет подключения";
-                AccountSub.Text = Short(ex.Message);
+                AccountSub.Text = $"{service.Title()} · {Short(ex.Message)}";
                 RetryBtn.Visibility = Visibility.Visible;
-                ShowToast("Не удалось подключиться к Яндекс Музыке: " + Short(ex.Message));
+                ShowToast($"Не удалось подключиться к {service.TitleGenitive()}: " + Short(ex.Message));
                 return;
             }
+            if (gen != _connectGen) return;
 
+            _account = account;
             HideAuth();
-            var name = string.IsNullOrWhiteSpace(_account.DisplayName) ? _account.Login : _account.DisplayName;
+            var name = string.IsNullOrWhiteSpace(account.DisplayName) ? account.Login : account.DisplayName;
             AccountName.Text = name;
             AvatarLetter.Text = name.Length > 0 ? char.ToUpper(name[0]).ToString() : "?";
-            AccountSub.Text = _account.HasPlus ? "Яндекс Плюс" : "Без Плюса · только превью";
-            if (!_account.HasPlus)
-                ShowToast("Без подписки Плюс Яндекс отдаёт только 30-секундные фрагменты треков", 5);
+            if (service == MusicServiceKind.Yandex)
+            {
+                AccountSub.Text = account.HasPlus ? "Яндекс Плюс" : "Без Плюса · только превью";
+                if (!account.HasPlus)
+                    ShowToast("Без подписки Плюс Яндекс отдаёт только 30-секундные фрагменты треков", 5);
+            }
+            else
+            {
+                AccountSub.Text = "SoundCloud";
+            }
+            if (!_settings.AccountNames.TryGetValue(service.Id(), out var saved) || saved != name)
+            {
+                _settings.AccountNames[service.Id()] = name;
+                PersistSettings();
+            }
 
             LoadHistory();
             LoadStats();
@@ -176,51 +226,129 @@ namespace Undertone
 
         private async Task LoadAvatarAsync()
         {
-            if (_api == null) return;
-            var url = await _api.GetAvatarUrlAsync();
-            if (url != null) AvatarBrush.ImageSource = Covers.Load(url, 76);
+            var api = _api;
+            if (api == null) return;
+            var url = await api.GetAvatarUrlAsync();
+            if (url != null && api == _api) AvatarBrush.ImageSource = Covers.Load(url, 76);
         }
 
         private async void Retry_Click(object sender, RoutedEventArgs e)
         {
-            var token = _tokens.AccessToken;
-            if (token == null) ShowAuth();
-            else await ConnectAsync(token);
+            var token = TokensFor(_service).AccessToken;
+            if (token == null) ShowAuth(_service);
+            else await ConnectAsync(_service, token);
         }
 
-        private void Logout_Click(object sender, RoutedEventArgs e)
+        /// <summary>Переключение на другой сервис: если вход в него уже есть — сразу, иначе экран входа.</summary>
+        private async Task SwitchToAsync(MusicServiceKind service)
         {
-            var answer = MessageBox.Show(this, "Выйти из аккаунта? Токены будут удалены из .env.", "Выход",
-                MessageBoxButton.YesNo, MessageBoxImage.Question);
-            if (answer != MessageBoxResult.Yes) return;
+            if (service == _service && _api != null && _account != null) return;
+            if (TokensFor(service).AccessToken is not { Length: > 0 } token)
+            {
+                ShowAuth(service, cancelable: true);
+                return;
+            }
+            ResetSession(keepData: true);
+            await ConnectAsync(service, token);
+            if (_account != null && _service == service) ShowToast($"{service.Title()} · {AccountName.Text}");
+        }
 
+        /// <summary>
+        /// Отключает текущий аккаунт: очередь, списки, плейлисты, комната. keepData — переключение, а не выход:
+        /// история, статистика и «продолжить с места» сохраняются (они лежат по Uid аккаунта).
+        /// </summary>
+        private void ResetSession(bool keepData)
+        {
+            _connectGen++;
+            _collGen++;
+            _searchGen++;
+            if (keepData && _account != null)
+            {
+                SaveSession();
+                _ = HistoryStore.SaveAsync(_account.Uid, _history);
+                _ = _stats.SaveAsync(_account.Uid);
+            }
+            FlushPlayReport();
             LeaveTogether(announce: false);
             StopPlayback();
             _queue.Clear();
             _waveSession = null;
-            _tokens.Clear();
-            LibraryCache.Delete(_account?.Uid);
-            HistoryStore.Delete(_account?.Uid);
-            _history.Clear();
-            _historyDirty = true;
-            SessionStore.Clear();
+            _waveKey = "";
             _api?.Dispose();
             _api = null;
             _account = null;
             ApplyFriends(); // без аккаунта лента не работает — отключаемся
+            _history.Clear();
+            _historyDirty = true;
             _likedTracks.Clear();
             _likedIds.Clear();
             _likedItems.Clear();
             _likedRevision = 0;
             UpdateLikedHeader();
+            LikedEmpty.Visibility = Visibility.Collapsed;
+            LikedLoading.Visibility = Visibility.Collapsed;
             _searchItems.Clear();
+            _lastQuery = "";
             _playlists.Clear();
+            UpdateUpNext();
             AvatarBrush.ImageSource = null;
             ShowEmptyNowPlaying();
             AccountName.Text = "Не выполнен вход";
             AccountSub.Text = "";
             AvatarLetter.Text = "?";
-            ShowAuth();
+            RetryBtn.Visibility = Visibility.Collapsed;
+            if (PageCollection.Visibility == Visibility.Visible) GoTo(NavNow);
+        }
+
+        /// <summary>Кнопки и подписи под возможности сервиса: у SoundCloud нет Моей волны, дизлайков и lossless.</summary>
+        private void ApplyServiceUi()
+        {
+            var wave = _api?.SupportsWave ?? _service == MusicServiceKind.Yandex;
+            var dislike = _api?.SupportsDislike ?? _service == MusicServiceKind.Yandex;
+            WaveCard.Visibility = wave ? Visibility.Visible : Visibility.Collapsed;
+            NowDislike.Visibility = dislike ? Visibility.Visible : Visibility.Collapsed;
+            EmptyTitle.Text = wave ? "Моя волна" : "SoundCloud";
+            EmptySub.Text = wave
+                ? "Бесконечный поток музыки под ваш вкус"
+                : "Включите любимые треки или найдите что-нибудь в поиске";
+            EmptyPlay.ToolTip = wave ? "Запустить Мою волну" : "Слушать «Мне нравится»";
+            if (_queue.Current == null) BarArtist.Text = EmptyBarHint;
+            if (_searchItems.Count == 0) SearchEmptyText.Text = $"Найдите что угодно в каталоге {_service.TitleGenitive()}";
+            UpdateVersionText();
+        }
+
+        private string EmptyBarHint =>
+            _api?.SupportsWave ?? _service == MusicServiceKind.Yandex ? "Включите Мою волну" : "Выберите трек";
+
+        private void Logout_Click(object sender, RoutedEventArgs e) => Logout();
+
+        /// <summary>Выход из текущего сервиса: его токены и локальные данные удаляются. Есть вход во второй — переключаемся.</summary>
+        private void Logout()
+        {
+            var service = _service;
+            var answer = MessageBox.Show(this,
+                $"Выйти из {service.TitleGenitive()}? Токены этого аккаунта будут удалены из .env.", "Выход",
+                MessageBoxButton.YesNo, MessageBoxImage.Question);
+            if (answer != MessageBoxResult.Yes) return;
+
+            var uid = _account?.Uid;
+            ResetSession(keepData: false);
+            TokensFor(service).Clear();
+            LibraryCache.Delete(uid);
+            HistoryStore.Delete(uid);
+            if (uid != null && SessionStore.Load(uid.Value) != null) SessionStore.Clear();
+            if (_settings.AccountNames.Remove(service.Id())) PersistSettings();
+
+            var other = service.Other();
+            if (TokensFor(other).AccessToken is { Length: > 0 } token)
+            {
+                ShowToast($"Вы вышли из {service.TitleGenitive()} · переключаюсь на {other.Title()}");
+                _ = ConnectAsync(other, token);
+            }
+            else
+            {
+                ShowAuth();
+            }
         }
 
         // ────────── навигация ──────────
@@ -695,7 +823,11 @@ namespace Undertone
                 case Key.MediaPreviousTrack: e.Handled = true; await PrevAsync(); return;
             }
 
-            if (AuthOverlay.Visibility == Visibility.Visible) return;
+            if (AuthOverlay.Visibility == Visibility.Visible)
+            {
+                if (e.Key == Key.Escape && _authCancelable) { e.Handled = true; HideAuth(); }
+                return;
+            }
 
             if (DialogOverlay.Visibility == Visibility.Visible)
             {

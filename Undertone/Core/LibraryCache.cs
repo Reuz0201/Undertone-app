@@ -77,7 +77,7 @@ namespace Undertone.Core
         /// <summary>
         /// Собирает свежий список: порядок — как в ids с сервера, данные — из кэша, недостающие — догружаются.
         /// </summary>
-        public static async Task<List<YaTrack>> MergeAsync(YaApi api, IReadOnlyList<string> ids,
+        public static async Task<List<YaTrack>> MergeAsync(IMusicService api, IReadOnlyList<string> ids,
             IReadOnlyList<YaTrack> cached, CancellationToken ct = default)
         {
             var known = new Dictionary<string, YaTrack>();

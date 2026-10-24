@@ -26,16 +26,18 @@ namespace Undertone
         private readonly Dictionary<string, double> _loudness = new();
 
         private AudioQuality EffectiveQuality =>
-            _settings.Quality == AudioQuality.Lossless && (_losslessFailures >= 2 || _account is { HasPlus: false })
+            _settings.Quality == AudioQuality.Lossless &&
+            (_losslessFailures >= 2 || _api is { SupportsLossless: false } || _account is { HasPlus: false })
                 ? AudioQuality.High
                 : _settings.Quality;
 
         private string Mp3Ext => EffectiveQuality == AudioQuality.Economy ? "lq.mp3" : "mp3";
 
-        private Func<Task<string>> Mp3Resolver(YaApi api, YaTrack track)
+        /// <summary>Источник MP3: у Яндекса — ссылка, у SoundCloud — сегменты HLS (их склеивает кэш).</summary>
+        private Func<Task<CacheSource>> Mp3Resolver(IMusicService api, YaTrack track)
         {
             var lowest = EffectiveQuality == AudioQuality.Economy;
-            return () => api.GetDirectUrlAsync(track.Id, lowest);
+            return () => api.ResolveAudioAsync(track, lowest);
         }
 
         /// <summary>Готовый файл трека в кэше для текущего качества. В «Экономии» годится и обычный MP3 — он лучше.</summary>
@@ -73,8 +75,9 @@ namespace Undertone
         }
 
         /// <summary>Скачивает трек без потерь целиком. null — не получилось, играем MP3.</summary>
-        private async Task<string?> DownloadLosslessAsync(YaApi api, YaTrack track, CancellationToken ct)
+        private async Task<string?> DownloadLosslessAsync(IMusicService api, YaTrack track, CancellationToken ct)
         {
+            if (!api.SupportsLossless) return null;
             try
             {
                 var first = await api.GetFileInfoAsync(track.Id, "lossless", ct);

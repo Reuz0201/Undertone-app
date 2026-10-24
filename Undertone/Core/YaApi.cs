@@ -39,10 +39,22 @@ namespace Undertone.Core
         [JsonIgnore] public string LikeId => string.IsNullOrEmpty(AlbumId) ? Id : $"{Id}:{AlbumId}";
         [JsonIgnore] public TimeSpan Duration => TimeSpan.FromMilliseconds(DurationMs);
 
-        public string? CoverUrl(int size) =>
-            string.IsNullOrEmpty(CoverUri) ? null
-            : CoverUri.StartsWith("file:", StringComparison.Ordinal) ? CoverUri // обложка своего файла
-            : "https://" + CoverUri.Replace("%%", $"{size}x{size}");
+        /// <summary>Яндекс: шаблон с «%%»; SoundCloud: полный URL; свой файл: file:… (см. <see cref="CoverUris"/>).</summary>
+        public string? CoverUrl(int size) => CoverUris.Resolve(CoverUri, size);
+
+        /// <summary>Сервис отдаёт только короткий фрагмент (SoundCloud: access = preview).</summary>
+        public bool IsPreview { get; init; }
+
+        /// <summary>Страница трека на сайте сервиса, если он её сообщил (SoundCloud: permalink_url).</summary>
+        public string? Permalink { get; init; }
+
+        /// <summary>Ссылка «Поделиться»: страница трека в его сервисе. null — у своего файла ссылки нет.</summary>
+        [JsonIgnore]
+        public string? WebUrl =>
+            !string.IsNullOrEmpty(Permalink) ? Permalink
+            : Id.StartsWith(LocalLibrary.IdPrefix, StringComparison.Ordinal) || ScApi.IsScId(Id) ? null
+            : AlbumId.Length > 0 ? $"https://music.yandex.ru/album/{AlbumId}/track/{Id}"
+            : $"https://music.yandex.ru/track/{Id}";
 
         public override string ToString() => $"{ArtistsText} — {FullTitle}";
     }
@@ -58,7 +70,7 @@ namespace Undertone.Core
         public YaArtistRef[] Artists { get; init; } = Array.Empty<YaArtistRef>();
         public string ArtistsText => string.Join(", ", Artists.Select(a => a.Name));
         public string? CoverUrl(int size) =>
-            string.IsNullOrEmpty(CoverUri) ? null : "https://" + CoverUri.Replace("%%", $"{size}x{size}");
+            CoverUris.Resolve(CoverUri, size);
     }
 
     public sealed class YaArtist
@@ -69,7 +81,7 @@ namespace Undertone.Core
         public string[] Genres { get; init; } = Array.Empty<string>();
         public long LikesCount { get; init; }
         public string? CoverUrl(int size) =>
-            string.IsNullOrEmpty(CoverUri) ? null : "https://" + CoverUri.Replace("%%", $"{size}x{size}");
+            CoverUris.Resolve(CoverUri, size);
     }
 
     public sealed class YaArtistPage
@@ -90,7 +102,7 @@ namespace Undertone.Core
         public string? CoverUri { get; init; }
         public long DurationMs { get; init; }
         public string? CoverUrl(int size) =>
-            string.IsNullOrEmpty(CoverUri) ? null : "https://" + CoverUri.Replace("%%", $"{size}x{size}");
+            CoverUris.Resolve(CoverUri, size);
     }
 
     public sealed class YaAccount
@@ -140,7 +152,7 @@ namespace Undertone.Core
     }
 
     /// <summary>Клиент api.music.yandex.net (те же эндпоинты, что у библиотеки yandex-music).</summary>
-    public sealed class YaApi : IDisposable
+    public sealed class YaApi : IMusicService
     {
         private const string Base = "https://api.music.yandex.net";
         private const string SignSalt = "XGRlBW9FXlekgbPrRHuSiA";
@@ -149,6 +161,17 @@ namespace Undertone.Core
         private readonly HttpClient _http;
 
         public long Uid { get; private set; }
+
+        public MusicServiceKind Kind => MusicServiceKind.Yandex;
+        public bool SupportsWave => true;
+        public bool SupportsDislike => true;
+        public bool SupportsLossless => true;
+        public bool SupportsLyrics => true;
+        public bool SupportsAlbums => true;
+
+        /// <summary>Чужие id (sc-…, local-…) Яндексу не отправляем: он ответил бы ошибкой на всю пачку.</summary>
+        internal static bool IsYandexId(string id) => id.Length > 0 && !ScApi.IsScId(id) &&
+                                                      !id.StartsWith(LocalLibrary.IdPrefix, StringComparison.Ordinal);
 
         /// <param name="refresh">Вызывается при 401: получает старый токен, возвращает новый или null.</param>
         public YaApi(string token, Func<string, CancellationToken, Task<string?>>? refresh = null)
@@ -278,6 +301,7 @@ namespace Undertone.Core
         /// <summary>Полная информация о треках. Порядок сохраняется. Пачки по 250 идут параллельно, по 4 запроса.</summary>
         public async Task<List<YaTrack>> GetTracksAsync(IReadOnlyList<string> ids, CancellationToken ct = default)
         {
+            ids = ids.Where(IsYandexId).ToList();
             var byId = new ConcurrentDictionary<string, YaTrack>();
             var chunks = new List<List<string>>();
             for (int i = 0; i < ids.Count; i += TracksChunk)
@@ -377,6 +401,9 @@ namespace Undertone.Core
         public Task DislikeAsync(YaTrack track, CancellationToken ct = default) =>
             PostFormAsync($"/users/{Uid}/dislikes/tracks/add-multiple",
                 new Dictionary<string, string> { ["track-ids"] = track.LikeId }, ct);
+
+        public async Task<CacheSource> ResolveAudioAsync(YaTrack track, bool lowest, CancellationToken ct = default) =>
+            new(await GetDirectUrlAsync(track.Id, lowest, ct), null);
 
         /// <summary>Прямая ссылка на mp3. lowest=true — самый экономный битрейт (для медленного интернета).</summary>
         public async Task<string> GetDirectUrlAsync(string trackId, CancellationToken ct = default) =>

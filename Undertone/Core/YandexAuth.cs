@@ -128,28 +128,48 @@ namespace Undertone.Core
     /// Токены из .env + сохранение обновлённых обратно в .env.
     /// В файле они зашифрованы DPAPI (<see cref="SecretProtector"/>); старые открытые значения
     /// шифруются при первом запуске новой версии.
+    /// У SoundCloud свои ключи с префиксом soundcloud_ (<see cref="ForSoundCloud"/>) — в том же .env.
     /// </summary>
     public sealed class TokenStore
     {
+        public const string SoundCloudPrefix = "soundcloud_";
+
         private readonly EnvFile _env;
         private readonly SemaphoreSlim _refreshLock = new(1, 1);
+        private readonly string _prefix;
+        private readonly string _name;
+        private readonly Func<string, CancellationToken, Task<OAuthToken>> _refresh;
 
-        public TokenStore(EnvFile env)
+        /// <summary>Токены Яндекса: access_token / refresh_token / expires_in.</summary>
+        public TokenStore(EnvFile env) : this(env, "", "Яндекс", (rt, ct) => YandexAuth.RefreshAsync(rt, ct))
+        {
+        }
+
+        internal TokenStore(EnvFile env, string prefix, string name, Func<string, CancellationToken, Task<OAuthToken>> refresh)
         {
             _env = env;
+            _prefix = prefix;
+            _name = name;
+            _refresh = refresh;
             MigrateToEncrypted();
         }
 
+        /// <summary>Токены SoundCloud: soundcloud_access_token / soundcloud_refresh_token / soundcloud_expires_in.</summary>
+        public static TokenStore ForSoundCloud(EnvFile env, Func<string, CancellationToken, Task<OAuthToken>> refresh) =>
+            new(env, SoundCloudPrefix, "SoundCloud", refresh);
+
         public string EnvPath => _env.FilePath;
 
-        /// <summary>TOKEN из переменной окружения имеет приоритет (удобно для отладки).</summary>
+        private string K(string key) => _prefix + key;
+
+        /// <summary>TOKEN из переменной окружения имеет приоритет (удобно для отладки) — только для Яндекса.</summary>
         public string? AccessToken =>
-            Environment.GetEnvironmentVariable("TOKEN")?.Trim() is { Length: > 0 } t ? t : Read("access_token");
+            _prefix.Length == 0 && Environment.GetEnvironmentVariable("TOKEN")?.Trim() is { Length: > 0 } t ? t : Read("access_token");
 
         public string? RefreshToken => Read("refresh_token");
 
         private string? Read(string key) =>
-            SecretProtector.Unprotect(_env.Get(key)) is { Length: > 0 } v ? v : null;
+            SecretProtector.Unprotect(_env.Get(K(key))) is { Length: > 0 } v ? v : null;
 
         public void Save(OAuthToken token)
         {
@@ -157,9 +177,9 @@ namespace Undertone.Core
             var refresh = token.RefreshToken ?? RefreshToken ?? "";
             _env.Set(new Dictionary<string, string?>
             {
-                ["access_token"] = SecretProtector.Protect(token.AccessToken),
-                ["refresh_token"] = SecretProtector.Protect(refresh),
-                ["expires_in"] = token.ExpiresIn?.ToString() ?? "",
+                [K("access_token")] = SecretProtector.Protect(token.AccessToken),
+                [K("refresh_token")] = SecretProtector.Protect(refresh),
+                [K("expires_in")] = token.ExpiresIn?.ToString() ?? "",
             });
         }
 
@@ -167,26 +187,26 @@ namespace Undertone.Core
         public void Clear() =>
             _env.Set(new Dictionary<string, string?>
             {
-                ["access_token"] = "",
-                ["refresh_token"] = "",
-                ["expires_in"] = "",
+                [K("access_token")] = "",
+                [K("refresh_token")] = "",
+                [K("expires_in")] = "",
             });
 
         private void MigrateToEncrypted()
         {
             try
             {
-                var access = _env.Get("access_token");
-                var refresh = _env.Get("refresh_token");
+                var access = _env.Get(K("access_token"));
+                var refresh = _env.Get(K("refresh_token"));
                 var plainAccess = access != null && !SecretProtector.IsProtected(access);
                 var plainRefresh = refresh != null && !SecretProtector.IsProtected(refresh);
                 if (!plainAccess && !plainRefresh) return;
 
                 var values = new Dictionary<string, string?>();
-                if (plainAccess) values["access_token"] = SecretProtector.Protect(access!);
-                if (plainRefresh) values["refresh_token"] = SecretProtector.Protect(refresh!);
+                if (plainAccess) values[K("access_token")] = SecretProtector.Protect(access!);
+                if (plainRefresh) values[K("refresh_token")] = SecretProtector.Protect(refresh!);
                 _env.Set(values);
-                Log.Info("Токены в .env зашифрованы (DPAPI)");
+                Log.Info($"Токены {_name} в .env зашифрованы (DPAPI)");
             }
             catch (Exception ex)
             {
@@ -204,12 +224,14 @@ namespace Undertone.Core
                 // другой запрос уже обновил токен
                 if (AccessToken is { } current && current != failedToken) return current;
                 if (RefreshToken is not { } rt) return null;
-                var token = await YandexAuth.RefreshAsync(rt, ct);
+                // у SoundCloud refresh_token одноразовый: Save сохраняет новый из ответа
+                var token = await _refresh(rt, ct);
                 Save(token);
                 return token.AccessToken;
             }
-            catch (AuthException)
+            catch (AuthException ex)
             {
+                Log.Warn($"Токен {_name} не обновился: {ex.Error ?? ex.Message}");
                 return null;
             }
             finally

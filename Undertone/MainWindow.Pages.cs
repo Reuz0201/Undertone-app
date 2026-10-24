@@ -108,11 +108,12 @@ namespace Undertone
             CollCover.CornerRadius = radius;
             CollCoverBack.CornerRadius = radius;
             CollCoverGlyph.Text = kind switch { CollectionKind.Artist => "", CollectionKind.Album => "", _ => "" };
-            CollWave.Visibility = kind == CollectionKind.Artist ? Visibility.Visible : Visibility.Collapsed;
+            CollWave.Visibility = kind == CollectionKind.Artist && _api?.SupportsWave == true ? Visibility.Visible : Visibility.Collapsed;
             CollMore.Visibility = kind is CollectionKind.Playlist or CollectionKind.Smart ? Visibility.Visible : Visibility.Collapsed;
             CollAlbumsSection.Visibility = Visibility.Collapsed;
             CollAlbums.ItemsSource = null;
-            CollTracksHeader.Text = kind == CollectionKind.Artist ? "Популярные треки" : "Треки";
+            CollTracksHeader.Text = kind != CollectionKind.Artist ? "Треки"
+                : _service == MusicServiceKind.SoundCloud ? "Треки автора" : "Популярные треки";
             _collItems = new ObservableCollection<TrackItem>();
             CollList.ItemsSource = _collItems;
             CollEmpty.Visibility = Visibility.Collapsed;

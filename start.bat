@@ -68,8 +68,8 @@ if exist "%PROJECT_DIR%\.env" (
 if defined HASTOKEN (
     echo   [OK] Токен найден
 ) else (
-    echo   [..] Токена нет — при запуске покажу код для входа на ya.ru/device
-    echo        (токены сами запишутся в .env в этой папке)
+    echo   [..] Токена нет — при запуске предложу войти: Яндекс Музыка или SoundCloud
+    echo        ^(токены сами запишутся в .env в этой папке^)
 )
 
 REM ── 4. Сборка ───────────────────────────────────────────────
@@ -88,7 +88,7 @@ echo   [OK] Сборка успешна
 REM ── 5. Запуск ───────────────────────────────────────────────
 if not exist "%OUT_EXE%" (
     echo   [!] Не найден %OUT_EXE% после сборки.
-    echo       Проверь TargetFramework в .csproj (ожидается net10.0-windows10.0.19041.0).
+    echo       Проверь TargetFramework в .csproj ^(ожидается net10.0-windows10.0.19041.0^).
     pause
     exit /b 1
 )

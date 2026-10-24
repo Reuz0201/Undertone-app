@@ -21,13 +21,17 @@ namespace Undertone.Core
         private static readonly TimeSpan AttemptTimeout = TimeSpan.FromSeconds(20);
 
         private readonly Func<string, CancellationToken, Task<string?>>? _refresh;
+        private readonly string _serverName;
         private string _token;
 
-        public YaHttpHandler(string token, Func<string, CancellationToken, Task<string?>>? refresh, HttpMessageHandler inner)
+        /// <param name="serverName">Для сообщения «Сервер … не отвечает» (тот же транспорт у SoundCloud).</param>
+        public YaHttpHandler(string token, Func<string, CancellationToken, Task<string?>>? refresh, HttpMessageHandler inner,
+            string serverName = "Яндекс Музыки")
             : base(inner)
         {
             _token = token;
             _refresh = refresh;
+            _serverName = serverName;
         }
 
         public string Token => _token;
@@ -81,7 +85,7 @@ namespace Undertone.Core
                 }
                 catch (OperationCanceledException) when (!ct.IsCancellationRequested)
                 {
-                    throw new YaApiException("Сервер Яндекс Музыки не отвечает");
+                    throw new YaApiException($"Сервер {_serverName} не отвечает");
                 }
                 await Task.Delay(Backoff(attempt), ct).ConfigureAwait(false);
             }

@@ -15,10 +15,17 @@ namespace Undertone
         private bool _updating;
         private readonly DispatcherTimer _updateTimer = new() { Interval = TimeSpan.FromHours(6) };
 
+        /// <summary>Подпись под логотипом: версия и текущий сервис.</summary>
+        private void UpdateVersionText()
+        {
+            var version = Updater.AppVersion;
+            AppVersionText.Text = $"v{version.Major}.{version.Minor}.{version.Build} · {_service.Title()}";
+        }
+
         private void InitUpdater()
         {
             var version = Updater.AppVersion;
-            AppVersionText.Text = $"v{version.Major}.{version.Minor}.{version.Build} · для Яндекс Музыки";
+            UpdateVersionText();
 
             if (App.UpdatedFrom != null)
                 ShowToast($"Обновлено до версии {version.Major}.{version.Minor}.{version.Build}", 4);

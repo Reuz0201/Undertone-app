@@ -58,13 +58,13 @@ namespace Undertone.Core
                         ["large_text"] = Cut(string.IsNullOrEmpty(track.Album) ? track.FullTitle : track.Album),
                     },
                 };
-                if (track.AlbumId.Length > 0)
+                if (track.WebUrl is { } url && (track.AlbumId.Length > 0 || ScApi.IsScId(track.Id)))
                     activity["buttons"] = new[]
                     {
                         new Dictionary<string, string>
                         {
-                            ["label"] = "Слушать в Яндекс Музыке",
-                            ["url"] = $"https://music.yandex.ru/album/{track.AlbumId}/track/{track.Id}",
+                            ["label"] = ScApi.IsScId(track.Id) ? "Слушать в SoundCloud" : "Слушать в Яндекс Музыке",
+                            ["url"] = url,
                         },
                     };
             }

@@ -135,7 +135,7 @@ namespace Undertone
         {
             if (_api == null) return;
             var ok = await ShowDialogAsync("Удалить плейлист?",
-                $"«{item.Title}» будет удалён из Яндекс Музыки на всех устройствах.", null, "Удалить");
+                $"«{item.Title}» будет удалён из {_service.TitleGenitive()} на всех устройствах.", null, "Удалить");
             if (ok == null) return;
             try
             {

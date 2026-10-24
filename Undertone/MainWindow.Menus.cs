@@ -10,7 +10,7 @@ using Undertone.UI;
 
 namespace Undertone
 {
-    /// <summary>Контекстные меню: трек (правый клик / «⋯»), плейлист.</summary>
+    /// <summary>Контекстные меню: трек (правый клик / «⋯»), плейлист, аккаунты.</summary>
     public partial class MainWindow
     {
         private static readonly FontFamily IconFontFamily = (FontFamily)Application.Current.Resources["IconFont"];
@@ -32,6 +32,63 @@ namespace Undertone
             menu.Placement = atMouse ? PlacementMode.MousePoint : PlacementMode.Bottom;
             menu.IsOpen = true;
         }
+
+        // ────────── меню профиля: аккаунты ──────────
+
+        private void AccountMore_Click(object sender, RoutedEventArgs e) => OpenAccountMenu((FrameworkElement)sender);
+
+        /// <summary>Клик по карточке профиля (кнопки внутри обрабатывают клик сами).</summary>
+        private void AccountCard_MouseUp(object sender, MouseButtonEventArgs e)
+        {
+            if (e.ChangedButton != MouseButton.Left) return;
+            e.Handled = true;
+            OpenAccountMenu(AccountCard);
+        }
+
+        /// <summary>Аккаунты сервисов: текущий отмечен, остальные — переключиться или подключить; внизу — выход.</summary>
+        private void OpenAccountMenu(FrameworkElement target)
+        {
+            var menu = new ContextMenu();
+            menu.Items.Add(new MenuItem { Header = "АККАУНТЫ", IsEnabled = false, FontSize = 11 });
+
+            foreach (var service in MusicServices.All)
+            {
+                var kind = service;
+                var active = kind == _service && _api != null;
+                var connected = TokensFor(kind).AccessToken is { Length: > 0 };
+                var name = active && _account != null
+                    ? AccountName.Text
+                    : _settings.AccountNames.TryGetValue(kind.Id(), out var saved) ? saved : null;
+
+                MenuItem item;
+                if (active)
+                {
+                    item = Item(MenuText($"{kind.Title()} · {name ?? "подключение…"}"), "\uE73E");
+                    item.FontWeight = FontWeights.SemiBold;
+                    item.ToolTip = "Текущий аккаунт";
+                }
+                else if (connected)
+                {
+                    item = Item(MenuText($"{kind.Title()} · {name ?? "вход выполнен"}"), "\uE8AB", () => _ = SwitchToAsync(kind));
+                    item.ToolTip = "Переключиться на этот аккаунт";
+                }
+                else
+                {
+                    item = Item($"Подключить {kind.Title()}…", "\uE710", () => ShowAuth(kind, cancelable: true));
+                }
+                menu.Items.Add(item);
+            }
+
+            if (TokensFor(_service).AccessToken != null)
+            {
+                menu.Items.Add(new Separator());
+                menu.Items.Add(Item($"Выйти из {_service.TitleGenitive()}", "\uE7E8", Logout));
+            }
+            OpenMenu(menu, target);
+        }
+
+        /// <summary>В заголовке MenuItem «_» — клавиша доступа; в именах (часто у SoundCloud) её надо удвоить.</summary>
+        private static string MenuText(string text) => text.Replace("_", "__");
 
         private ContextMenu BuildTrackMenu(YaTrack track, TrackItem? row, ItemsControl? list)
         {
@@ -94,13 +151,15 @@ namespace Undertone
             return menu;
         }
 
-        /// <summary>Ссылка на трек в Яндекс Музыке — в буфер обмена, чтобы кинуть в мессенджер.</summary>
+        /// <summary>Ссылка на трек в его сервисе (Яндекс Музыка / SoundCloud) — в буфер обмена, чтобы кинуть в мессенджер.</summary>
         private void ShareTrack(YaTrack track)
         {
             if (LocalUnsupported(track, "Это твой файл — ссылки на него нет")) return;
-            var url = track.AlbumId.Length > 0
-                ? $"https://music.yandex.ru/album/{track.AlbumId}/track/{track.Id}"
-                : $"https://music.yandex.ru/track/{track.Id}";
+            if (track.WebUrl is not { } url)
+            {
+                ShowToast("У этого трека нет ссылки");
+                return;
+            }
             try
             {
                 Clipboard.SetText(url);

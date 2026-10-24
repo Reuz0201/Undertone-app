@@ -137,6 +137,18 @@ namespace Undertone.Core
             return new CacheEntry(null, Start(trackId, ext, async () => new CacheSource(await resolveUrl().ConfigureAwait(false), null)));
         }
 
+        /// <summary>То же, но источник может быть HLS — списком сегментов (SoundCloud).</summary>
+        public CacheEntry Open(string trackId, Func<Task<CacheSource>> resolve, string ext = "mp3")
+        {
+            var path = PathFor(trackId, ext);
+            if (File.Exists(path))
+            {
+                Touch(path);
+                return new CacheEntry(path, null);
+            }
+            return new CacheEntry(null, Start(trackId, ext, resolve));
+        }
+
         private CacheDownload Start(string trackId, string ext, Func<Task<CacheSource>> resolveUrl)
         {
             var key = Key(trackId, ext);
@@ -156,6 +168,8 @@ namespace Undertone.Core
             // уходим с вызывающего потока: разбор заголовков и запись — в фоне
             await Task.Yield();
             Exception? last = null;
+            // сколько сегментов HLS уже записано: при повторе докачиваем со следующего
+            var segmentsDone = new SegmentProgress();
             try
             {
                 await using var dst = new FileStream(d.PartPath, FileMode.Create, FileAccess.Write,
@@ -169,7 +183,10 @@ namespace Undertone.Core
                         var source = await resolveUrl().ConfigureAwait(false);
                         // ключ привязан к ссылке: при докачке со свежей ссылкой он тот же, но берём последний
                         aesKey = source.Key;
-                        await CopyAsync(source.Url, d, dst).ConfigureAwait(false);
+                        if (source.Segments is { Count: > 0 } segments)
+                            await CopySegmentsAsync(segments, d, dst, segmentsDone).ConfigureAwait(false);
+                        else
+                            await CopyAsync(source.Url, d, dst).ConfigureAwait(false);
                         last = null;
                         break;
                     }
@@ -274,6 +291,58 @@ namespace Undertone.Core
 
             if (d.TotalBytes > 0 && d.Written < d.TotalBytes)
                 throw new IOException($"Связь оборвалась: получено {d.Written} из {d.TotalBytes} байт");
+        }
+
+        private sealed class SegmentProgress
+        {
+            public int Done;
+        }
+
+        /// <summary>
+        /// HLS: сегменты по порядку, каждый целиком в память и только потом в файл — так при обрыве в .part
+        /// не остаётся половины сегмента, а читатель потока видит только целые куски. ID3-теги в начале
+        /// сегментов вырезаются: посреди склеенного MP3 они мешают декодеру.
+        /// </summary>
+        private static async Task CopySegmentsAsync(IReadOnlyList<string> segments, CacheDownload d, FileStream dst,
+            SegmentProgress progress)
+        {
+            for (var i = progress.Done; i < segments.Count; i++)
+            {
+                using var idle = new CancellationTokenSource(IdleTimeout);
+                byte[] data;
+                try
+                {
+                    using var resp = await Http.GetAsync(segments[i], idle.Token).ConfigureAwait(false);
+                    resp.EnsureSuccessStatusCode();
+                    data = await resp.Content.ReadAsByteArrayAsync(idle.Token).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) when (idle.IsCancellationRequested)
+                {
+                    throw new TimeoutException($"Сегмент {i + 1} из {segments.Count} не загрузился за {IdleTimeout.TotalSeconds:0} с");
+                }
+
+                var (offset, count) = StripId3(data);
+                await dst.WriteAsync(data.AsMemory(offset, count)).ConfigureAwait(false);
+                await dst.FlushAsync().ConfigureAwait(false);
+                d.AddWritten(count);
+                progress.Done = i + 1;
+            }
+        }
+
+        /// <summary>Границы звука в сегменте без ведущих ID3v2-тегов (размер тега — syncsafe, по 7 бит в байте).</summary>
+        internal static (int Offset, int Count) StripId3(byte[] data)
+        {
+            var offset = 0;
+            while (data.Length - offset >= 10 && data[offset] == 'I' && data[offset + 1] == 'D' && data[offset + 2] == '3')
+            {
+                var size = (data[offset + 6] & 0x7F) << 21 | (data[offset + 7] & 0x7F) << 14 |
+                           (data[offset + 8] & 0x7F) << 7 | (data[offset + 9] & 0x7F);
+                var footer = (data[offset + 5] & 0x10) != 0 ? 10 : 0;
+                var next = offset + 10 + size + footer;
+                if (next > data.Length) break;
+                offset = next;
+            }
+            return (offset, data.Length - offset);
         }
 
         // ────────── размер, очистка ──────────
@@ -412,8 +481,11 @@ namespace Undertone.Core
         }
     }
 
-    /// <summary>Откуда качать: ссылка и, для зашифрованных файлов, ключ AES (hex).</summary>
-    public readonly record struct CacheSource(string Url, string? Key);
+    /// <summary>
+    /// Откуда качать: ссылка и, для зашифрованных файлов, ключ AES (hex).
+    /// Segments — HLS (SoundCloud): сегменты качаются по порядку и склеиваются в один файл, Url тогда — сам плейлист.
+    /// </summary>
+    public readonly record struct CacheSource(string Url, string? Key, IReadOnlyList<string>? Segments = null);
 
     /// <summary>Результат <see cref="AudioCache.Open"/>: готовый файл или идущая закачка.</summary>
     public readonly record struct CacheEntry(string? CompletedPath, CacheDownload? Download);

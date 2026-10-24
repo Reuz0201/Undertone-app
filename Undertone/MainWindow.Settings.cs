@@ -31,7 +31,9 @@ namespace Undertone
                 ResumeToggle.IsChecked = _settings.ResumeSession;
                 FillOutputDevices();
                 SelectPill(QualityPanel, (int)_settings.Quality);
-                QualityHint.Text = _account is { HasPlus: false }
+                QualityHint.Text = _api is { SupportsLossless: false }
+                    ? $"У {_service.TitleGenitive()} только MP3 128 кбит/с — качество влияет на треки Яндекса."
+                    : _account is { HasPlus: false }
                     ? "«Без потерь» доступно только с Яндекс Плюсом — сейчас будет играть MP3."
                     : "«Без потерь» — FLAC для подписчиков Плюса; трек скачивается целиком перед стартом.";
                 SelectPill(CrossfadePanel, _settings.CrossfadeSeconds);
@@ -231,7 +233,9 @@ namespace Undertone
             _losslessWarned = false;
             PersistSettings();
             InvalidatePreparedNext();
-            ShowToast(_settings.Quality == AudioQuality.Lossless && _account is { HasPlus: false }
+            ShowToast(_settings.Quality != AudioQuality.High && _api is { SupportsLossless: false }
+                ? $"{_service.Title()} отдаёт только MP3 — настройка сработает для Яндекса"
+                : _settings.Quality == AudioQuality.Lossless && _account is { HasPlus: false }
                 ? "«Без потерь» нужен Яндекс Плюс — пока будет MP3"
                 : "Качество применится со следующего трека");
         }
