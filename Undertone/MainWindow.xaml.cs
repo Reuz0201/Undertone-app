@@ -163,6 +163,7 @@ namespace Undertone
                 ShowToast("Без подписки Плюс Яндекс отдаёт только 30-секундные фрагменты треков", 5);
 
             LoadHistory();
+            LoadStats();
             LoadOffline();
             InitLocal();
             ApplyFriends();
@@ -233,12 +234,14 @@ namespace Undertone
             PageHistory.Visibility = NavHistory.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
             PageFriends.Visibility = NavFriends.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
             PageLocal.Visibility = NavLocal.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+            PageSmart.Visibility = NavSmart.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
             PageCollection.Visibility = Visibility.Collapsed;
             ClearPlaylistSelection();
             if (NavSettings.IsChecked == true) ShowSettings();
             if (NavHistory.IsChecked == true) ShowHistory();
             if (NavFriends.IsChecked == true) RebuildFriends();
             if (NavLocal.IsChecked == true) ShowLocal();
+            if (NavSmart.IsChecked == true) RebuildSmart();
 
             if (NavSearch.IsChecked == true)
                 Dispatcher.InvokeAsync(() =>
@@ -709,6 +712,11 @@ namespace Undertone
             {
                 e.Handled = true;
                 OpenQuickSearch();
+                return;
+            }
+            if (SmartEditor.Visibility == Visibility.Visible)
+            {
+                if (e.Key == Key.Escape) { e.Handled = true; CloseSmartEditor(); }
                 return;
             }
             // быстрый поиск открыт — клавиши его (стрелки, Enter, Esc обрабатывает само окно поиска)

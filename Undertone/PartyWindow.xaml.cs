@@ -58,7 +58,7 @@ namespace Undertone
         public void SetLyrics(IReadOnlyList<LyricLine> lines)
         {
             _lyrics = lines;
-            _activeLine = -2;
+            _activeLine = -2; // перерисуем строки на следующем тике — в том числе с переводом
             var synced = lines.Count > 0 && !lines[0].IsPlain;
             Karaoke.Visibility = synced ? Visibility.Visible : Visibility.Collapsed;
         }
@@ -81,6 +81,7 @@ namespace Undertone
             string Line(int k) => k >= 0 && k < _lyrics.Count ? _lyrics[k].Text : "";
             LinePrev.Text = Line(i - 1);
             LineNow.Text = i < 0 ? "♪" : Line(i);
+            LineNowTr.Text = i >= 0 && i < _lyrics.Count ? _lyrics[i].Translation : "";
             LineNext.Text = Line(i + 1);
             LineNext2.Text = Line(i + 2);
             // новая строка чуть «вплывает»

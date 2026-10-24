@@ -36,6 +36,17 @@ namespace Undertone.UI
             set { if (_isPast != value) { _isPast = value; OnChanged(); } }
         }
 
+        private string _translation = "";
+
+        /// <summary>Перевод строки (пусто — не переводили или переводить нечего).</summary>
+        public string Translation
+        {
+            get => _translation;
+            set { if (_translation != value) { _translation = value; OnChanged(); OnChanged(nameof(HasTranslation)); } }
+        }
+
+        public bool HasTranslation => _translation.Length > 0;
+
         public event PropertyChangedEventHandler? PropertyChanged;
         private void OnChanged([CallerMemberName] string? name = null) =>
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));

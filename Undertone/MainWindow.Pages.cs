@@ -15,7 +15,7 @@ namespace Undertone
     public partial class MainWindow
     {
         /// <summary>Playlist — свой (можно править), PublicPlaylist — чужой (из поиска).</summary>
-        private enum CollectionKind { None, Artist, Album, Playlist, PublicPlaylist, Mix }
+        private enum CollectionKind { None, Artist, Album, Playlist, PublicPlaylist, Mix, Smart }
 
         private ObservableCollection<TrackItem> _collItems = new();
         private CollectionKind _collKind;
@@ -51,6 +51,7 @@ namespace Undertone
                     : NavHistory.IsChecked == true ? NavHistory
                     : NavFriends.IsChecked == true ? NavFriends
                     : NavLocal.IsChecked == true ? NavLocal
+                    : NavSmart.IsChecked == true ? NavSmart
                     : NavSettings.IsChecked == true ? NavSettings
                     : null;
             }
@@ -63,9 +64,9 @@ namespace Undertone
 
         private void ShowCollectionPage()
         {
-            PageNow.Visibility = PageLiked.Visibility = PageSearch.Visibility = PageSettings.Visibility = PageHistory.Visibility = PageFriends.Visibility = PageLocal.Visibility = Visibility.Collapsed;
+            PageNow.Visibility = PageLiked.Visibility = PageSearch.Visibility = PageSettings.Visibility = PageHistory.Visibility = PageFriends.Visibility = PageLocal.Visibility = PageSmart.Visibility = Visibility.Collapsed;
             PageCollection.Visibility = Visibility.Visible;
-            NavNow.IsChecked = NavLiked.IsChecked = NavSearch.IsChecked = NavSettings.IsChecked = NavHistory.IsChecked = NavFriends.IsChecked = NavLocal.IsChecked = false;
+            NavNow.IsChecked = NavLiked.IsChecked = NavSearch.IsChecked = NavSettings.IsChecked = NavHistory.IsChecked = NavFriends.IsChecked = NavLocal.IsChecked = NavSmart.IsChecked = false;
             CollBack.Visibility = _collHistory.Count > 0 || _collReturnTo != null ? Visibility.Visible : Visibility.Collapsed;
         }
 
@@ -96,6 +97,7 @@ namespace Undertone
             _collKind = kind;
             _collArtist = null;
             _collPlaylist = null;
+            _collSmart = null;
             CollKind.Text = kindText;
             CollTitle.Text = title;
             CollSub.Text = "";
@@ -107,7 +109,7 @@ namespace Undertone
             CollCoverBack.CornerRadius = radius;
             CollCoverGlyph.Text = kind switch { CollectionKind.Artist => "", CollectionKind.Album => "", _ => "" };
             CollWave.Visibility = kind == CollectionKind.Artist ? Visibility.Visible : Visibility.Collapsed;
-            CollMore.Visibility = kind == CollectionKind.Playlist ? Visibility.Visible : Visibility.Collapsed;
+            CollMore.Visibility = kind is CollectionKind.Playlist or CollectionKind.Smart ? Visibility.Visible : Visibility.Collapsed;
             CollAlbumsSection.Visibility = Visibility.Collapsed;
             CollAlbums.ItemsSource = null;
             CollTracksHeader.Text = kind == CollectionKind.Artist ? "Популярные треки" : "Треки";
@@ -318,7 +320,8 @@ namespace Undertone
 
         private void CollMore_Click(object sender, RoutedEventArgs e)
         {
-            if (_collPlaylist != null) OpenMenu(BuildPlaylistMenu(_collPlaylist), (FrameworkElement)sender);
+            if (_collKind == CollectionKind.Smart && _collSmart != null) OpenMenu(BuildSmartMenu(_collSmart), (FrameworkElement)sender);
+            else if (_collPlaylist != null) OpenMenu(BuildPlaylistMenu(_collPlaylist), (FrameworkElement)sender);
         }
 
         // ────────── ссылки ──────────

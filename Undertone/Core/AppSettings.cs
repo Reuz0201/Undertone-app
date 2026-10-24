@@ -23,6 +23,8 @@ namespace Undertone.Core
         public int VisualizerMode { get; set; }
         /// <summary>Живой фон из цветов обложки на экране «Сейчас играет».</summary>
         public bool LiveBackground { get; set; } = true;
+        /// <summary>Показывать перевод текста песен на русский.</summary>
+        public bool TranslateLyrics { get; set; }
 
         // ── страница «Настройки» ──
         /// <summary>Лимит кэша аудио в мегабайтах.</summary>
@@ -73,6 +75,9 @@ namespace Undertone.Core
         public string FriendsName { get; set; } = "";
         /// <summary>Случайный id этой установки — чтобы отличать себя от друзей.</summary>
         public string FriendsMemberId { get; set; } = "";
+
+        // ── умные плейлисты (null — ещё не создавали, покажем готовые) ──
+        public List<SmartPlaylist>? SmartPlaylists { get; set; }
 
         // ── свои файлы ──
         public List<string> LocalFolders { get; set; } = new();

@@ -42,7 +42,11 @@ namespace Undertone
                 _historySaveTimer.Tick += (_, _) =>
                 {
                     _historySaveTimer.Stop();
-                    if (_account != null) _ = HistoryStore.SaveAsync(_account.Uid, _history);
+                    if (_account != null)
+                    {
+                        _ = HistoryStore.SaveAsync(_account.Uid, _history);
+                        _ = _stats.SaveAsync(_account.Uid);
+                    }
                 };
             }
             _historySaveTimer.Stop();

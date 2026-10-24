@@ -366,6 +366,8 @@
                                      Checked="Nav_Checked"/>
                         <RadioButton x:Name="NavSearch" Style="{StaticResource NavButton}" Tag="&#xE721;" Content="Поиск"
                                      Checked="Nav_Checked"/>
+                        <RadioButton x:Name="NavSmart" Style="{StaticResource NavButton}" Tag="&#xE71C;" Content="Подборки"
+                                     Checked="Nav_Checked"/>
                         <RadioButton x:Name="NavLocal" Style="{StaticResource NavButton}" Tag="&#xE8B7;" Content="Мои файлы"
                                      Checked="Nav_Checked"/>
                         <RadioButton x:Name="NavHistory" Style="{StaticResource NavButton}" Tag="&#xE81C;" Content="История"
@@ -776,15 +778,22 @@
                                         </ListBox.ItemContainerStyle>
                                         <ListBox.ItemTemplate>
                                             <DataTemplate DataType="{x:Type ui:LyricLine}">
-                                                <TextBlock x:Name="Line" Text="{Binding Text}" FontSize="24" FontWeight="SemiBold"
-                                                           TextWrapping="Wrap" Foreground="#4C4F5A"
-                                                           FontFamily="Segoe UI Variable Display, Segoe UI"/>
+                                                <StackPanel>
+                                                    <TextBlock x:Name="Line" Text="{Binding Text}" FontSize="24" FontWeight="SemiBold"
+                                                               TextWrapping="Wrap" Foreground="#4C4F5A"
+                                                               FontFamily="Segoe UI Variable Display, Segoe UI"/>
+                                                    <!-- перевод строки — мельче и спокойнее, под оригиналом -->
+                                                    <TextBlock x:Name="Tr" Text="{Binding Translation}" FontSize="15" TextWrapping="Wrap"
+                                                               Foreground="#5E616C" Margin="0,3,0,0"
+                                                               Visibility="{Binding HasTranslation, Converter={StaticResource BoolToVis}}"/>
+                                                </StackPanel>
                                                 <DataTemplate.Triggers>
                                                     <DataTrigger Binding="{Binding IsPast}" Value="True">
                                                         <Setter TargetName="Line" Property="Foreground" Value="#80838F"/>
                                                     </DataTrigger>
                                                     <DataTrigger Binding="{Binding IsActive}" Value="True">
                                                         <Setter TargetName="Line" Property="Foreground" Value="{DynamicResource LiveAccent}"/>
+                                                        <Setter TargetName="Tr" Property="Foreground" Value="#B8BBC6"/>
                                                     </DataTrigger>
                                                     <DataTrigger Binding="{Binding IsPlain}" Value="True">
                                                         <Setter TargetName="Line" Property="Foreground" Value="#C8CAD2"/>
@@ -800,6 +809,16 @@
                                         <TextBlock x:Name="LyricsStatusText" Text="Загружаю текст…" Foreground="{StaticResource TextDimBrush}"
                                                    TextAlignment="Center" TextWrapping="Wrap" MaxWidth="360" Margin="0,12,0,0"/>
                                     </StackPanel>
+                                    <!-- перевод: справа сверху над текстом -->
+                                    <Button x:Name="TranslateBtn" Style="{StaticResource PillSecondary}" HorizontalAlignment="Right"
+                                            VerticalAlignment="Top" Margin="0,0,14,0" Padding="12,6" FontSize="12.5" Visibility="Collapsed"
+                                            Click="Translate_Click" ToolTip="Перевести текст на русский">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock x:Name="TranslateGlyph" Text="&#xE8C1;" FontFamily="{StaticResource IconFont}" FontSize="13"
+                                                       VerticalAlignment="Center" Margin="0,0,7,0"/>
+                                            <TextBlock x:Name="TranslateText" Text="Перевод" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </Button>
                                     <TextBlock x:Name="LyricsCredits" VerticalAlignment="Bottom" HorizontalAlignment="Left"
                                                FontSize="11" Foreground="{StaticResource TextFaintBrush}" Margin="10,0,0,6"
                                                TextTrimming="CharacterEllipsis"/>
@@ -1127,6 +1146,62 @@
                                    HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{StaticResource TextDimBrush}"
                                    TextAlignment="Center" TextWrapping="Wrap" MaxWidth="420"/>
                     </Grid>
+                </DockPanel>
+
+                <!-- ── Подборки (умные плейлисты) ── -->
+                <DockPanel x:Name="PageSmart" Visibility="Collapsed" Margin="32,30,16,0">
+                    <StackPanel DockPanel.Dock="Top" Margin="0,0,16,22">
+                        <TextBlock Text="СОБИРАЮТСЯ САМИ" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource TextDimBrush}"/>
+                        <TextBlock Text="Подборки" FontSize="42" FontWeight="SemiBold" FontFamily="Segoe UI Variable Display, Segoe UI"/>
+                        <TextBlock Text="Плейлисты по правилам: что давно не играло, что на повторе, что слушаешь ночью. Обновляются при каждом открытии."
+                                   FontSize="13" Foreground="{StaticResource TextDimBrush}" TextWrapping="Wrap" MaxWidth="620" Margin="0,2,0,0"/>
+                    </StackPanel>
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
+                        <StackPanel Margin="0,0,16,24">
+                            <ItemsControl x:Name="SmartList">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type ui:SmartItem}">
+                                        <Border Width="184" Margin="0,0,18,22" Background="Transparent" Cursor="Hand"
+                                                MouseLeftButtonUp="SmartCard_Click" MouseRightButtonUp="SmartCard_RightClick">
+                                            <StackPanel>
+                                                <Grid Width="184" Height="184">
+                                                    <Border x:Name="Tile" CornerRadius="16" Background="{Binding Background}" RenderTransformOrigin="0.5,0.5">
+                                                        <Border.RenderTransform><ScaleTransform/></Border.RenderTransform>
+                                                        <Grid>
+                                                            <TextBlock Text="{Binding Glyph}" FontFamily="{StaticResource IconFont}" FontSize="54"
+                                                                       Foreground="#E6FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                            <TextBlock Text="{Binding Title}" FontSize="15" FontWeight="SemiBold" Foreground="White"
+                                                                       Margin="14,0,14,12" VerticalAlignment="Bottom" TextTrimming="CharacterEllipsis"/>
+                                                        </Grid>
+                                                    </Border>
+                                                </Grid>
+                                                <TextBlock Text="{Binding Title}" FontSize="13.5" FontWeight="SemiBold" Margin="0,10,0,0"
+                                                           TextTrimming="CharacterEllipsis"/>
+                                                <TextBlock Text="{Binding Sub}" FontSize="12" Foreground="{StaticResource TextDimBrush}"
+                                                           TextWrapping="Wrap" MaxHeight="34" TextTrimming="CharacterEllipsis"/>
+                                            </StackPanel>
+                                        </Border>
+                                        <DataTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="Tile" Property="RenderTransform">
+                                                    <Setter.Value><ScaleTransform ScaleX="1.03" ScaleY="1.03"/></Setter.Value>
+                                                </Setter>
+                                            </Trigger>
+                                        </DataTemplate.Triggers>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <Button Style="{StaticResource PillSecondary}" HorizontalAlignment="Left" Click="SmartNew_Click">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="&#xE710;" FontFamily="{StaticResource IconFont}" FontSize="13" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                    <TextBlock Text="Новая подборка" VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </Button>
+                        </StackPanel>
+                    </ScrollViewer>
                 </DockPanel>
 
                 <!-- ── Мои файлы ── -->
@@ -1928,9 +2003,53 @@
             </Border>
         </Grid>
 
+        <!-- ═══════════ Редактор подборки ═══════════ -->
+        <Grid x:Name="SmartEditor" Grid.RowSpan="2" Background="#B3000000" Visibility="Collapsed" Panel.ZIndex="40">
+            <Border Width="560" Background="#17181D" CornerRadius="18" Padding="28,24" BorderBrush="#26282E" BorderThickness="1"
+                    HorizontalAlignment="Center" VerticalAlignment="Center" MaxHeight="760">
+                <Border.Effect>
+                    <DropShadowEffect BlurRadius="50" ShadowDepth="0" Opacity="0.6" Color="Black"/>
+                </Border.Effect>
+                <DockPanel>
+                    <Grid DockPanel.Dock="Bottom" Margin="0,22,0,0">
+                        <Button x:Name="SmartDeleteBtn" Style="{StaticResource PillSecondary}" Content="Удалить" Click="SmartDelete_Click"
+                                HorizontalAlignment="Left"/>
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                            <Button Style="{StaticResource PillSecondary}" Content="Отмена" Margin="0,0,10,0" Click="SmartCancel_Click"/>
+                            <Button Style="{StaticResource PillButton}" Content="Сохранить" Click="SmartSave_Click"/>
+                        </StackPanel>
+                    </Grid>
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" Focusable="False">
+                    <StackPanel>
+                        <TextBlock Text="Подборка" FontSize="20" FontWeight="SemiBold"/>
+                        <TextBox x:Name="SmartName" Style="{StaticResource PlainBox}" Margin="0,14,0,0" Tag="Название"/>
+                        <TextBlock Text="ОТКУДА БРАТЬ" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource TextFaintBrush}" Margin="0,14,0,6"/>
+                        <WrapPanel x:Name="SmartSourcePills"/>
+                        <TextBlock Text="НЕ ИГРАЛИ" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource TextFaintBrush}" Margin="0,14,0,6"/>
+                        <WrapPanel x:Name="SmartNotPlayedPills"/>
+                        <TextBlock Text="ИГРАЛИ ЗА ПОСЛЕДНИЕ" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource TextFaintBrush}" Margin="0,14,0,6"/>
+                        <WrapPanel x:Name="SmartWithinPills"/>
+                        <TextBlock Text="СКОЛЬКО РАЗ ИГРАЛИ" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource TextFaintBrush}" Margin="0,14,0,6"/>
+                        <WrapPanel x:Name="SmartPlaysPills"/>
+                        <TextBlock Text="КОГДА ЧАЩЕ СЛУШАЮ" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource TextFaintBrush}" Margin="0,14,0,6"/>
+                        <WrapPanel x:Name="SmartPartPills"/>
+                        <TextBlock Text="АРТИСТ (НЕОБЯЗАТЕЛЬНО)" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource TextFaintBrush}" Margin="0,14,0,6"/>
+                        <TextBox x:Name="SmartArtist" Style="{StaticResource PlainBox}" Tag="Часть имени, например «kizaru»"
+                                 TextChanged="SmartArtist_TextChanged"/>
+                        <TextBlock Text="ПОРЯДОК" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource TextFaintBrush}" Margin="0,14,0,6"/>
+                        <WrapPanel x:Name="SmartSortPills"/>
+                        <TextBlock Text="СКОЛЬКО ТРЕКОВ" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource TextFaintBrush}" Margin="0,14,0,6"/>
+                        <WrapPanel x:Name="SmartLimitPills"/>
+                        <TextBlock x:Name="SmartPreview" FontSize="12.5" Foreground="{DynamicResource LiveAccent}" Margin="0,16,0,0" TextWrapping="Wrap"/>
+                    </StackPanel>
+                    </ScrollViewer>
+                </DockPanel>
+            </Border>
+        </Grid>
+
         <!-- ═══════════ Диалог (создать / переименовать / подтвердить) ═══════════ -->
         <Grid x:Name="DialogOverlay" Grid.RowSpan="2" Background="#B3000000" Visibility="Collapsed">
-            <Border Width="420" Background="#1B1E28" CornerRadius="18" Padding="28,24" BorderBrush="#2E3342" BorderThickness="1"
+            <Border Width="420" Background="#17181D" CornerRadius="18" Padding="28,24" BorderBrush="#26282E" BorderThickness="1"
                     HorizontalAlignment="Center" VerticalAlignment="Center">
                 <Border.Effect>
                     <DropShadowEffect BlurRadius="50" ShadowDepth="0" Opacity="0.6" Color="Black"/>

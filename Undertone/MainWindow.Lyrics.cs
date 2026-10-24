@@ -101,14 +101,75 @@ namespace Undertone
             _lyrics = lyrics.Synced ? LyricsParser.ParseLrc(lyrics.Text) : LyricsParser.ParsePlain(lyrics.Text);
             if (_lyrics.Count == 0) _lyrics = LyricsParser.ParsePlain(lyrics.Text);
             LyricsList.ItemsSource = new ObservableCollection<LyricLine>(_lyrics);
+            TranslateBtn.Visibility = Visibility.Visible;
+            UpdateTranslateButton();
+            if (_settings.TranslateLyrics) _ = TranslateLyricsAsync(track.Id, _lyrics, quiet: true);
             _party?.SetLyrics(_lyrics);
             LyricsStatus.Visibility = Visibility.Collapsed;
             LyricsList.Visibility = Visibility.Visible;
             UpdateLyricsPosition(scroll: true);
         }
 
+        // ────────── перевод ──────────
+
+        private readonly Dictionary<string, Translator.Result?> _translations = new();
+
+        private async void Translate_Click(object sender, RoutedEventArgs e)
+        {
+            _settings.TranslateLyrics = !_settings.TranslateLyrics;
+            PersistSettings();
+            UpdateTranslateButton();
+            if (_settings.TranslateLyrics && _queue.Current is { } t && _lyrics.Count > 0)
+                await TranslateLyricsAsync(t.Id, _lyrics, quiet: false);
+            else
+                foreach (var l in _lyrics) l.Translation = "";
+            _party?.SetLyrics(_lyrics);
+        }
+
+        private void UpdateTranslateButton()
+        {
+            TranslateText.Text = _settings.TranslateLyrics ? "Перевод вкл." : "Перевод";
+            if (_settings.TranslateLyrics) TranslateGlyph.SetResourceReference(TextBlock.ForegroundProperty, "LiveAccent");
+            else TranslateGlyph.ClearValue(TextBlock.ForegroundProperty);
+        }
+
+        /// <summary>Переводит строки (кроме «♪» и пустых) и подписывает их под оригиналом. Русский текст не трогаем.</summary>
+        private async Task TranslateLyricsAsync(string trackId, List<LyricLine> lines, bool quiet)
+        {
+            var source = lines.Select(l => l.Text == "♪" ? "" : l.Text).ToList();
+            if (source.All(s => s.Length == 0)) return;
+            if (!_translations.TryGetValue(trackId, out var result))
+            {
+                try
+                {
+                    result = await Translator.TranslateAsync(source, "ru");
+                }
+                catch (Exception ex)
+                {
+                    Log.Warn($"Перевод текста {trackId} не удался", ex);
+                    if (!quiet) ShowToast("Переводчик не ответил — проверь интернет или VPN");
+                    return;
+                }
+                _translations[trackId] = result;
+            }
+            if (result == null || _lyrics != lines || !_settings.TranslateLyrics) return;
+            if (result.SourceLanguage.StartsWith("ru", StringComparison.OrdinalIgnoreCase))
+            {
+                if (!quiet) ShowToast("Песня и так на русском");
+                return;
+            }
+            for (int i = 0; i < lines.Count; i++)
+            {
+                var tr = result.Lines[i];
+                // перевод, совпадающий с оригиналом (имена, «yeah»), не дублируем
+                lines[i].Translation = source[i].Length == 0 || string.Equals(tr, source[i], StringComparison.OrdinalIgnoreCase) ? "" : tr;
+            }
+            _party?.SetLyrics(lines);
+        }
+
         private void ShowLyricsStatus(string text, bool spinner)
         {
+            TranslateBtn.Visibility = Visibility.Collapsed;
             LyricsList.Visibility = Visibility.Collapsed;
             LyricsStatus.Visibility = Visibility.Visible;
             LyricsSpinner.Visibility = spinner ? Visibility.Visible : Visibility.Collapsed;

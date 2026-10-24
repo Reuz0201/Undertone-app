@@ -128,6 +128,7 @@ namespace Undertone
             _reportTrack = track;
             _reportPlayId = Guid.NewGuid().ToString();
             AddToHistory(track);
+            _stats.Count(track, DateTime.Now);
         }
 
         /// <summary>Трек закончился или его переключили — сообщаем Яндексу, сколько прослушано.</summary>
