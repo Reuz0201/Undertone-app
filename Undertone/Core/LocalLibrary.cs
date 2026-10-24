@@ -143,7 +143,7 @@ namespace Undertone.Core
             {
                 files = Directory.EnumerateFiles(folder, "*.*", new EnumerationOptions
                 {
-                    RecurseSubdirectories = true, IgnoreInaccessible = true, AttributesToSkip = FileAttributes.Hidden | FileAttributes.System,
+                    RecurseSubdirectories = true, IgnoreInaccessible = true, AttributesToSkip = System.IO.FileAttributes.Hidden | System.IO.FileAttributes.System,
                 });
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
