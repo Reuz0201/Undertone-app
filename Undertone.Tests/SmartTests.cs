@@ -59,3 +59,15 @@ public class SmartTests
         Assert.Equal(new[] { "Привет", "мир", "" }, r.Lines);
     }
 }
+
+public class RemoteTests
+{
+    [Fact]
+    public void SplitTarget_ParsesPathAndQuery()
+    {
+        var (path, q) = Undertone.Remote.RemoteServer.SplitTarget("/api/search?q=big+baby%20tape&t=abc");
+        Assert.Equal("/api/search", path);
+        Assert.Equal("big baby tape", q["q"]);
+        Assert.Equal("abc", q["T"]);
+    }
+}

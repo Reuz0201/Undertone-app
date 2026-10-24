@@ -101,8 +101,8 @@
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Bottom">
                         <StackPanel VerticalAlignment="Center" Margin="0,0,18,0">
-                            <TextBlock Text="Что за трек?" FontSize="22" FontWeight="SemiBold" HorizontalAlignment="Right"/>
-                            <TextBlock Text="Наведи камеру телефона" FontSize="16" Foreground="{StaticResource TextDimBrush}"
+                            <TextBlock x:Name="QrTitle" Text="Что за трек?" FontSize="22" FontWeight="SemiBold" HorizontalAlignment="Right"/>
+                            <TextBlock x:Name="QrHint" Text="Наведи камеру телефона" FontSize="16" Foreground="{StaticResource TextDimBrush}"
                                        HorizontalAlignment="Right" Margin="0,4,0,0"/>
                         </StackPanel>
                         <Border Background="White" CornerRadius="16" Padding="10">

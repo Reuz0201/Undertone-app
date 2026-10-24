@@ -59,6 +59,7 @@ namespace Undertone
         {
             var party = _party;
             if (party == null) return;
+            if (full) party.SetGuestLink(RemoteUrl(guest: true));
             if (full && _queue.Current is { } t)
             {
                 party.SetTrack(t, string.IsNullOrEmpty(_queueLabel) ? "СЕЙЧАС ИГРАЕТ" : _queueLabel);

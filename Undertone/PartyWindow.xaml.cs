@@ -43,9 +43,12 @@ namespace Undertone
             SourceText.Text = string.IsNullOrEmpty(source) ? "СЕЙЧАС ИГРАЕТ" : source;
             CoverBrush.ImageSource = Covers.Load(track.CoverUrl(1000), 1000);
             Backdrop.Source = Covers.Load(track.CoverUrl(200), 200);
-            SetQr(track.AlbumId.Length > 0
-                ? $"https://music.yandex.ru/album/{track.AlbumId}/track/{track.Id}"
-                : $"https://music.yandex.ru/track/{track.Id}");
+            // включён пульт — QR для гостей «предложи трек», иначе ссылка на сам трек
+            if (_guestLink != null) SetQr(_guestLink);
+            else if (!LocalLibrary.IsLocal(track))
+                SetQr(track.AlbumId.Length > 0
+                    ? $"https://music.yandex.ru/album/{track.AlbumId}/track/{track.Id}"
+                    : $"https://music.yandex.ru/track/{track.Id}");
             SetLyrics(Array.Empty<LyricLine>());
         }
 
@@ -94,22 +97,24 @@ namespace Undertone
 
         public void SetRoom(string text) => RoomText.Text = text;
 
+        private string? _guestLink;
+
+        /// <summary>Гостевая ссылка пульта: на экране вечеринки QR зовёт предлагать треки.</summary>
+        public void SetGuestLink(string? url)
+        {
+            _guestLink = url;
+            QrTitle.Text = url != null ? "Хочешь свой трек?" : "Что за трек?";
+            QrHint.Text = url != null ? "Сканируй и предложи — с телефона" : "Наведи камеру телефона";
+            if (url != null) SetQr(url);
+        }
+
         private void SetQr(string url)
         {
             if (url == _qrFor) return;
             _qrFor = url;
             try
             {
-                using var gen = new QRCodeGenerator();
-                using var data = gen.CreateQrCode(url, QRCodeGenerator.ECCLevel.M);
-                var png = new PngByteQRCode(data).GetGraphic(8);
-                var img = new BitmapImage();
-                img.BeginInit();
-                img.StreamSource = new MemoryStream(png);
-                img.CacheOption = BitmapCacheOption.OnLoad;
-                img.EndInit();
-                img.Freeze();
-                QrImage.Source = img;
+                QrImage.Source = Qr.Make(url);
             }
             catch (Exception ex)
             {

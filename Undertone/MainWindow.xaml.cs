@@ -164,6 +164,7 @@ namespace Undertone
 
             LoadHistory();
             LoadStats();
+            ApplyRemote();
             LoadOffline();
             InitLocal();
             ApplyFriends();
@@ -859,6 +860,7 @@ namespace Undertone
             _authCts?.Cancel();
             _updateTimer.Stop();
             _party?.Close();
+            _remote?.Dispose();
             LeaveTogether(announce: false);
             _friendsFeed?.Dispose();
             _player.Dispose();

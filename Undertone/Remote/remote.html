@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0D0E12">
+<title>Undertone</title>
+<style>
+:root{--bg:#0D0E12;--card:#17181D;--line:#ffffff14;--text:#EEEFF2;--dim:#9295A1;--faint:#5E616C;--acc:#BFC3D0;--ink:#0D0E12}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{background:var(--bg);color:var(--text);font:15px/1.35 -apple-system,"Segoe UI",Roboto,system-ui,sans-serif}
+body{min-height:100vh;padding:env(safe-area-inset-top) 0 calc(env(safe-area-inset-bottom) + 76px)}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+input{font:inherit;color:inherit}
+.glow{position:fixed;inset:-30vh -30vw auto;height:90vh;background:radial-gradient(closest-side,var(--accsoft,#ffffff10),transparent);pointer-events:none;z-index:-1;transition:background .8s}
+header{display:flex;align-items:center;justify-content:space-between;padding:14px 18px 4px}
+header b{font-size:17px;letter-spacing:.01em}
+header small{color:var(--faint);font-size:12px}
+.tab{display:none;padding:0 16px}
+.tab.on{display:block}
+/* сейчас играет */
+.cover{width:min(78vw,360px);aspect-ratio:1;margin:18px auto 0;border-radius:18px;background:var(--card) center/cover;box-shadow:0 18px 50px #0008,0 30px 80px -20px var(--accsoft,#0000)}
+.meta{text-align:center;margin:20px 6px 0}
+.chip{display:inline-block;font-size:11px;font-weight:600;letter-spacing:.05em;color:var(--acc);background:var(--accsoft,#ffffff12);padding:4px 11px;border-radius:99px;margin-bottom:10px}
+.title{font-size:24px;font-weight:650;line-height:1.2}
+.artists{color:var(--dim);margin-top:4px;font-size:16px}
+.bar{height:28px;display:flex;align-items:center;margin:18px 4px 0;touch-action:none}
+.bar div{flex:1;height:5px;border-radius:3px;background:#ffffff24;position:relative}
+.bar i{position:absolute;left:0;top:0;bottom:0;border-radius:3px;background:var(--acc)}
+.bar b{position:absolute;top:50%;width:13px;height:13px;margin:-6.5px 0 0 -6.5px;border-radius:50%;background:#fff;box-shadow:0 0 8px #0008}
+.times{display:flex;justify-content:space-between;color:var(--dim);font-size:12px;margin:0 4px}
+.ctl{display:flex;align-items:center;justify-content:center;gap:26px;margin-top:10px}
+.ctl button{width:54px;height:54px;display:grid;place-items:center;border-radius:50%}
+.ctl button:active{background:#ffffff12}
+.ctl .play{width:76px;height:76px;background:var(--acc);color:var(--ink);box-shadow:0 10px 30px -6px var(--accsoft,#0000)}
+.ctl .play:active{transform:scale(.96);background:var(--acc)}
+.row{display:flex;align-items:center;gap:14px;margin:22px 8px 0}
+.row input[type=range]{flex:1;accent-color:var(--acc)}
+.like{width:44px;height:44px;display:grid;place-items:center;border-radius:50%}
+.like.on svg{fill:#F0566A;stroke:#F0566A}
+svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.play svg{width:30px;height:30px;fill:currentColor;stroke:none}
+.room{color:var(--dim);font-size:13px;text-align:center;margin-top:14px}
+/* списки */
+h2{font-size:20px;font-weight:650;margin:18px 2px 10px}
+.list{display:flex;flex-direction:column}
+.item{display:flex;align-items:center;gap:12px;padding:8px 6px;border-radius:12px}
+.item:active{background:#ffffff0c}
+.item .c{width:46px;height:46px;border-radius:8px;background:var(--card) center/cover;flex:none}
+.item .t{flex:1;min-width:0}
+.item .t b{display:block;font-size:14.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.item .t span{display:block;color:var(--dim);font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.item .a{display:flex;gap:4px}
+.item .a button{width:38px;height:38px;display:grid;place-items:center;border-radius:50%;color:var(--dim)}
+.item .a button:active{background:#ffffff14;color:var(--text)}
+.item .a svg{width:20px;height:20px}
+.empty{color:var(--dim);text-align:center;padding:40px 20px}
+.search{position:sticky;top:0;background:var(--bg);padding:12px 0 8px;z-index:2}
+.search input{width:100%;height:46px;border-radius:14px;border:1px solid var(--line);background:var(--card);padding:0 16px;outline:none}
+.search input:focus{border-color:var(--acc)}
+/* нижние вкладки */
+nav{position:fixed;left:0;right:0;bottom:0;display:flex;background:#0D0E12EE;backdrop-filter:blur(14px);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom)}
+nav button{flex:1;height:62px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:var(--faint);font-size:11px}
+nav button.on{color:var(--acc)}
+nav svg{width:22px;height:22px}
+.toast{position:fixed;left:50%;bottom:calc(88px + env(safe-area-inset-bottom));transform:translateX(-50%) translateY(20px);background:#232530;border:1px solid #ffffff22;padding:10px 18px;border-radius:99px;font-size:13.5px;opacity:0;transition:.25s;pointer-events:none;white-space:nowrap;max-width:92vw;overflow:hidden;text-overflow:ellipsis}
+.toast.on{opacity:1;transform:translateX(-50%)}
+.guest .owner{display:none!important}
+.off{opacity:.35;pointer-events:none}
+</style>
+</head>
+<body>
+<div class="glow"></div>
+<header><b>Undertone</b><small id="who">пульт</small></header>
+
+<section class="tab on" id="tab-now">
+  <div class="cover" id="cover"></div>
+  <div class="meta">
+    <span class="chip" id="source">СЕЙЧАС ИГРАЕТ</span>
+    <div class="title" id="title">Ничего не играет</div>
+    <div class="artists" id="artists"></div>
+  </div>
+  <div class="owner">
+    <div class="bar" id="bar"><div><i id="fill"></i><b id="knob"></b></div></div>
+    <div class="times"><span id="pos">0:00</span><span id="left">0:00</span></div>
+    <div class="ctl">
+      <button onclick="cmd('prev')" aria-label="Назад"><svg viewBox="0 0 24 24"><path d="M19 20 9 12l10-8v16ZM5 19V5"/></svg></button>
+      <button class="play" id="play" onclick="cmd('toggle')" aria-label="Играть"></button>
+      <button onclick="cmd('next')" aria-label="Дальше"><svg viewBox="0 0 24 24"><path d="m5 4 10 8-10 8V4ZM19 5v14"/></svg></button>
+    </div>
+    <div class="row">
+      <svg viewBox="0 0 24 24" style="color:var(--dim)"><path d="M11 5 6 9H2v6h4l5 4V5Z"/></svg>
+      <input type="range" id="vol" min="0" max="100" step="1">
+      <button class="like" id="like" onclick="cmd('like')" aria-label="Нравится"><svg viewBox="0 0 24 24"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1.1L12 21l7.8-7.5 1-1.1a5.5 5.5 0 0 0 0-7.8Z"/></svg></button>
+    </div>
+  </div>
+  <div class="room" id="room"></div>
+</section>
+
+<section class="tab" id="tab-queue">
+  <h2>Далее</h2>
+  <div class="list" id="queue"></div>
+</section>
+
+<section class="tab" id="tab-search">
+  <div class="search"><input id="q" type="search" placeholder="Трек, артист…" autocomplete="off" enterkeyhint="search"></div>
+  <div class="list" id="results"><div class="empty">Найди трек — его можно включить, поставить следующим или в конец очереди.</div></div>
+</section>
+
+<nav>
+  <button class="on" data-tab="now"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2.5"/></svg>Сейчас</button>
+  <button data-tab="queue"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg>Очередь</button>
+  <button data-tab="search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>Поиск</button>
+</nav>
+<div class="toast" id="toast"></div>
+
+<script>
+const T = new URLSearchParams(location.search).get('t') || '';
+const $ = id => document.getElementById(id);
+let state = null, owner = false, seeking = false, volTouch = 0, lastQueue = '';
+const PLAY = '<svg viewBox="0 0 24 24"><path d="M7 4v16l13-8Z"/></svg>';
+const PAUSE = '<svg viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>';
+const ic = {
+  now: '<svg viewBox="0 0 24 24"><path d="M7 4v16l13-8Z"/></svg>',
+  next: '<svg viewBox="0 0 24 24"><path d="M4 7h11M4 12h11M4 17h7M17 14v6M14 17h6"/></svg>',
+  end: '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
+  x: '<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg>',
+  suggest: '<svg viewBox="0 0 24 24"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4Z"/></svg>',
+};
+const api = (path, body) => fetch(path + (path.includes('?') ? '&' : '?') + 't=' + encodeURIComponent(T),
+  body ? { method: 'POST', body: JSON.stringify(body) } : {}).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); });
+const fmt = s => { s = Math.max(0, Math.floor(s)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
+const esc = s => (s || '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+function toast(text) { const t = $('toast'); t.textContent = text; t.classList.add('on'); clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.remove('on'), 2200); }
+
+document.querySelectorAll('nav button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('nav button').forEach(x => x.classList.toggle('on', x === b));
+  document.querySelectorAll('.tab').forEach(x => x.classList.toggle('on', x.id === 'tab-' + b.dataset.tab));
+  if (b.dataset.tab === 'search') setTimeout(() => $('q').focus(), 50);
+});
+
+async function cmd(a, v) {
+  try { await api('/api/cmd', { a, v }); poll(); } catch { toast('Компьютер не ответил'); }
+}
+
+function render(s) {
+  state = s; owner = s.owner;
+  document.body.classList.toggle('guest', !owner);
+  $('who').textContent = owner ? 'пульт' : 'гость · можно предлагать треки';
+  if (s.accent) {
+    document.documentElement.style.setProperty('--acc', s.accent);
+    document.documentElement.style.setProperty('--accsoft', s.accent + '33');
+  }
+  $('cover').style.backgroundImage = s.cover ? `url("${s.cover}")` : '';
+  $('title').textContent = s.title || 'Ничего не играет';
+  $('artists').textContent = s.artists || '';
+  $('source').textContent = s.source || 'СЕЙЧАС ИГРАЕТ';
+  $('play').innerHTML = s.playing ? PAUSE : PLAY;
+  $('like').classList.toggle('on', !!s.liked);
+  $('room').textContent = s.room || '';
+  if (!seeking) setBar(s.position, s.duration);
+  if (Date.now() - volTouch > 1500) $('vol').value = Math.round(s.volume * 100);
+  const key = JSON.stringify(s.queue.map(q => q.title + q.i));
+  if (key !== lastQueue) { lastQueue = key; renderQueue(s.queue); }
+}
+
+function setBar(pos, dur) {
+  const f = dur > 0 ? Math.min(1, pos / dur) : 0;
+  $('fill').style.width = (f * 100) + '%'; $('knob').style.left = (f * 100) + '%';
+  $('pos').textContent = fmt(pos); $('left').textContent = '−' + fmt(dur - pos);
+}
+
+function renderQueue(q) {
+  $('queue').innerHTML = q.length ? q.map(t => `
+    <div class="item" onclick="${owner ? `cmd('jump',${t.i})` : ''}">
+      <div class="c" style="background-image:url('${esc(t.cover)}')"></div>
+      <div class="t"><b>${esc(t.title)}</b><span>${esc(t.artists)}${t.added ? ' · ' + esc(t.added) : ''}</span></div>
+      <div class="a owner"><button onclick="event.stopPropagation();cmd('remove',${t.i})" aria-label="Убрать">${ic.x}</button></div>
+    </div>`).join('') : '<div class="empty">Очередь пуста</div>';
+}
+
+// перемотка пальцем по полосе
+const bar = $('bar');
+function seekAt(e) {
+  const r = bar.firstElementChild.getBoundingClientRect();
+  const f = Math.min(1, Math.max(0, ((e.touches ? e.touches[0].clientX : e.clientX) - r.left) / r.width));
+  setBar(f * (state?.duration || 0), state?.duration || 0); return f;
+}
+let seekF = 0;
+bar.addEventListener('pointerdown', e => { seeking = true; bar.setPointerCapture(e.pointerId); seekF = seekAt(e); });
+bar.addEventListener('pointermove', e => { if (seeking) seekF = seekAt(e); });
+bar.addEventListener('pointerup', () => { if (!seeking) return; seeking = false; cmd('seek', seekF * (state?.duration || 0)); });
+$('vol').addEventListener('input', e => { volTouch = Date.now(); clearTimeout(volTouch.h); const v = e.target.value / 100; volTouch.h = setTimeout(() => cmd('volume', v), 120); });
+
+// поиск
+let qTimer;
+$('q').addEventListener('input', () => { clearTimeout(qTimer); qTimer = setTimeout(search, 300); });
+async function search() {
+  const q = $('q').value.trim();
+  if (!q) return;
+  try {
+    const r = await api('/api/search?q=' + encodeURIComponent(q));
+    $('results').innerHTML = r.tracks.length ? r.tracks.map((t, i) => `
+      <div class="item">
+        <div class="c" style="background-image:url('${esc(t.cover)}')"></div>
+        <div class="t"><b>${esc(t.title)}</b><span>${esc(t.artists)} · ${fmt(t.duration)}</span></div>
+        <div class="a">${owner
+          ? `<button onclick="add(${i},'now')" aria-label="Включить">${ic.now}</button><button onclick="add(${i},'next')" aria-label="Следующим">${ic.next}</button><button onclick="add(${i},'end')" aria-label="В конец">${ic.end}</button>`
+          : `<button onclick="suggest(${i})" aria-label="Предложить">${ic.suggest}</button>`}</div>
+      </div>`).join('') : '<div class="empty">Ничего не нашлось</div>';
+    search.last = r.tracks;
+  } catch { toast('Поиск не удался'); }
+}
+async function add(i, mode) {
+  const t = search.last[i];
+  try { await api('/api/add', { id: t.id, albumId: t.albumId, mode }); toast(mode === 'now' ? 'Включаю' : mode === 'next' ? 'Сыграет следующим' : 'Добавлен в конец'); poll(); }
+  catch { toast('Не получилось'); }
+}
+async function suggest(i) {
+  const t = search.last[i];
+  let name = localStorage.getItem('ut-name');
+  if (!name) { name = (prompt('Как тебя подписать?') || '').trim().slice(0, 24) || 'Гость'; try { localStorage.setItem('ut-name', name); } catch {} }
+  try { await api('/api/suggest', { id: t.id, albumId: t.albumId, name }); toast('Предложено — хозяин увидит на компьютере'); }
+  catch { toast('Не получилось'); }
+}
+
+async function poll() {
+  try { render(await api('/api/state')); document.body.classList.remove('off'); }
+  catch { document.body.classList.add('off'); }
+}
+poll(); setInterval(() => { if (!document.hidden) poll(); }, 1000);
+</script>
+</body>
+</html>

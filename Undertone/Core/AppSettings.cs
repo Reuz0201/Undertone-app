@@ -79,6 +79,13 @@ namespace Undertone.Core
         // ── умные плейлисты (null — ещё не создавали, покажем готовые) ──
         public List<SmartPlaylist>? SmartPlaylists { get; set; }
 
+        // ── пульт с телефона ──
+        public bool RemoteEnabled { get; set; }
+        /// <summary>Секрет в ссылке хозяина (полное управление).</summary>
+        public string RemoteToken { get; set; } = "";
+        /// <summary>Секрет в гостевой ссылке (только поиск и «предложить»).</summary>
+        public string RemoteGuestToken { get; set; } = "";
+
         // ── свои файлы ──
         public List<string> LocalFolders { get; set; } = new();
 

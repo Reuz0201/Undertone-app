@@ -1589,6 +1589,48 @@
                             </StackPanel>
                         </Border>
 
+                        <!-- пульт с телефона -->
+                        <TextBlock Text="ПУЛЬТ С ТЕЛЕФОНА" Style="{StaticResource SettingsHeader}"/>
+                        <Border Style="{StaticResource SettingsCard}">
+                            <StackPanel>
+                                <CheckBox x:Name="RemoteToggle" Style="{StaticResource ToggleSwitch}"
+                                          Checked="RemoteToggle_Changed" Unchecked="RemoteToggle_Changed">
+                                    <StackPanel>
+                                        <TextBlock Text="Управлять с телефона"/>
+                                        <TextBlock Style="{StaticResource SettingsHint}"
+                                                   Text="Пауза, громкость, очередь и поиск со смартфона в той же Wi-Fi сети — без приложений, прямо в браузере."/>
+                                    </StackPanel>
+                                </CheckBox>
+                                <TextBlock x:Name="RemoteStatus" Style="{StaticResource SettingsHint}" Margin="0,10,0,0"/>
+                                <Grid x:Name="RemoteDetails" Visibility="Collapsed" Margin="0,14,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel>
+                                        <Border Background="White" CornerRadius="12" Padding="8">
+                                            <Image x:Name="RemoteQr" Width="140" Height="140" RenderOptions.BitmapScalingMode="NearestNeighbor"/>
+                                        </Border>
+                                        <TextBlock Text="Твой пульт" FontSize="12.5" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,8,0,0"/>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Margin="18,0,0,0">
+                                        <Border Background="White" CornerRadius="12" Padding="8">
+                                            <Image x:Name="RemoteGuestQr" Width="140" Height="140" RenderOptions.BitmapScalingMode="NearestNeighbor"/>
+                                        </Border>
+                                        <TextBlock Text="Для гостей" FontSize="12.5" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,8,0,0"/>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2" Margin="22,4,0,0">
+                                        <TextBlock x:Name="RemoteUrlText" FontSize="13" FontFamily="Consolas" Foreground="{StaticResource TextBrush}"/>
+                                        <TextBlock Style="{StaticResource SettingsHint}" Margin="0,8,0,0"
+                                                   Text="Гости только ищут и предлагают треки — ты одобряешь их на компьютере. Гостевой QR показывается и в режиме вечеринки."/>
+                                        <Button Style="{StaticResource PillSecondary}" Content="Сменить ссылки" HorizontalAlignment="Left"
+                                                Margin="0,12,0,0" Click="RemoteReset_Click"/>
+                                    </StackPanel>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
                         <!-- приложение -->
                         <TextBlock Text="ПРИЛОЖЕНИЕ" Style="{StaticResource SettingsHeader}"/>
                         <Border Style="{StaticResource SettingsCard}">
@@ -1867,6 +1909,36 @@
                 <DropShadowEffect BlurRadius="24" ShadowDepth="4" Opacity="0.5" Color="Black"/>
             </Border.Effect>
             <TextBlock x:Name="ToastText" FontSize="13.5" TextWrapping="Wrap" MaxWidth="560" TextAlignment="Center"/>
+        </Border>
+
+        <!-- ═══════════ Предложение гостя (пульт с телефона) ═══════════ -->
+        <Border x:Name="GuestCard" Grid.Row="0" VerticalAlignment="Bottom" HorizontalAlignment="Right" Margin="0,0,24,22"
+                Width="380" Background="#F2151619" BorderBrush="#26FFFFFF" BorderThickness="1" CornerRadius="16" Padding="12"
+                Visibility="Collapsed" Panel.ZIndex="30">
+            <Border.Effect>
+                <DropShadowEffect BlurRadius="30" ShadowDepth="6" Opacity="0.55" Color="Black"/>
+            </Border.Effect>
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <Border Width="54" Height="54" CornerRadius="9" Background="{StaticResource CardBrush}">
+                    <Border CornerRadius="9">
+                        <Border.Background><ImageBrush x:Name="GuestCardCover" Stretch="UniformToFill"/></Border.Background>
+                    </Border>
+                </Border>
+                <StackPanel Grid.Column="1" Margin="12,0,0,0">
+                    <TextBlock Text="ГОСТЬ ПРЕДЛАГАЕТ" FontSize="10.5" FontWeight="SemiBold" Foreground="{DynamicResource LiveAccent}"/>
+                    <TextBlock x:Name="GuestCardTitle" FontSize="14" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" Margin="0,2,0,0"/>
+                    <TextBlock x:Name="GuestCardSub" FontSize="12" Foreground="{StaticResource TextDimBrush}" TextTrimming="CharacterEllipsis"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                        <Button Style="{StaticResource PillButton}" Content="В очередь" Padding="14,6" FontSize="12.5" Margin="0,0,8,0"
+                                Click="GuestAccept_Click"/>
+                        <Button Style="{StaticResource PillSecondary}" Content="Нет" Padding="14,6" FontSize="12.5" Click="GuestDecline_Click"/>
+                    </StackPanel>
+                </StackPanel>
+            </Grid>
         </Border>
 
         <!-- ═══════════ Быстрый поиск (Ctrl+K) ═══════════ -->

@@ -37,6 +37,7 @@ namespace Undertone
                 SelectPill(CrossfadePanel, _settings.CrossfadeSeconds);
                 NormalizeToggle.IsChecked = _settings.Normalize;
                 LiveBgToggle.IsChecked = _settings.LiveBackground;
+                FillRemoteSettings();
                 EqToggle.IsChecked = _settings.EqEnabled;
                 BuildEqualizer();
                 SelectTagPill(WaveDiversityPanel, _settings.WaveDiversity);
