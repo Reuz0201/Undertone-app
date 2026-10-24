@@ -59,6 +59,7 @@ namespace Undertone
             SimilarList.ItemsSource = _similarItems;
             RecentList.ItemsSource = _recentItems;
             UpdateHeroTime();
+            ApplyLiveBackground();
         }
 
         private void UpdateHeroTime()
@@ -91,11 +92,30 @@ namespace Undertone
             }
             if (image is BitmapImage { IsDownloading: true } downloading)
             {
-                downloading.DownloadCompleted += (_, _) => { if (_accentFor == url) AnimateAccent(CoverPalette.FromImage(downloading) ?? CoverPalette.Neutral); };
+                downloading.DownloadCompleted += (_, _) => { if (_accentFor == url) ApplyCoverColors(downloading); };
                 downloading.DownloadFailed += (_, _) => { if (_accentFor == url) AnimateAccent(CoverPalette.Neutral); };
                 return;
             }
+            ApplyCoverColors(image);
+        }
+
+        private Color[] _livePalette = { Color.FromRgb(0x3A, 0x3F, 0x55) };
+
+        private void ApplyCoverColors(BitmapSource image)
+        {
             AnimateAccent(CoverPalette.FromImage(image) ?? CoverPalette.Neutral);
+            _livePalette = CoverPalette.PaletteFromImage(image);
+            LiveBg.SetColors(_livePalette);
+            _party?.SetPalette(_livePalette, _accentShown);
+        }
+
+        private void ApplyLiveBackground()
+        {
+            var on = _settings.LiveBackground;
+            LiveBg.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
+            // с живым фоном размытая обложка — только подложка
+            BackdropImage.Opacity = on ? 0.32 : 0.5;
+            if (on) LiveBg.SetColors(_livePalette);
         }
 
         private void AnimateAccent(Color color)

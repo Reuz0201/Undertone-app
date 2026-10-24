@@ -15,7 +15,7 @@ namespace Undertone
     public partial class MainWindow
     {
         /// <summary>Playlist — свой (можно править), PublicPlaylist — чужой (из поиска).</summary>
-        private enum CollectionKind { None, Artist, Album, Playlist, PublicPlaylist }
+        private enum CollectionKind { None, Artist, Album, Playlist, PublicPlaylist, Mix }
 
         private ObservableCollection<TrackItem> _collItems = new();
         private CollectionKind _collKind;

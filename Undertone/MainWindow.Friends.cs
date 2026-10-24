@@ -47,8 +47,10 @@ namespace Undertone
                 _friendsFeed.Changed += QueueFriendsRefresh;
                 _friendsFeed.RoomChanged += OnRoomChanged;
                 _friendsFeed.EventReceived += OnRoomEvent;
+                _friendsFeed.LikesChanged += QueueFriendsRefresh;
                 _friendsSink = new FriendsSink(_friendsFeed, () => FriendsDisplayName, () => _inRoom);
                 TimeSync.EnsureStarted();
+                PublishMyLikes(force: true);
                 _sinks.Add(_friendsSink);
                 PublishNowPlaying();
             }
@@ -93,6 +95,7 @@ namespace Undertone
                 FriendsEmpty.Visibility = Visibility.Visible;
                 FriendsSetupBtn.Visibility = Visibility.Visible;
                 UpdateTogetherUi();
+                UpdateMixCard();
                 return;
             }
 
@@ -111,6 +114,7 @@ namespace Undertone
             FriendsEmpty.Visibility = friends.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
             FriendsSetupBtn.Visibility = friends.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
             UpdateTogetherUi();
+            UpdateMixCard();
         }
 
         private void FriendsSetup_Click(object sender, RoutedEventArgs e)

@@ -754,6 +754,7 @@ namespace Undertone
             PublishNowPlaying();
             OnLyricsTrackChanged();
             OnNowPlayingTrack(track);
+            SyncParty(full: true);
         }
 
         private void ShowEmptyNowPlaying()
@@ -851,6 +852,7 @@ namespace Undertone
             SetProgressValue(pos.TotalSeconds);
             PosText.Text = Format.Time(pos);
             PublishNowPlaying(positionOnly: true);
+            SyncParty(full: false);
         }
 
         /// <summary>Светлая полоса под ползунком — сколько трека уже скачано.</summary>

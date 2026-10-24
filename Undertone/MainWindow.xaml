@@ -518,6 +518,8 @@
                                 <BlurEffect Radius="110" KernelType="Gaussian" RenderingBias="Performance"/>
                             </Image.Effect>
                         </Image>
+                        <!-- живой фон: пятна цветов обложки плывут и дышат (Настройки → Приложение) -->
+                        <ui:LiveBackdrop x:Name="LiveBg" Opacity="0.75" Visibility="Collapsed"/>
                         <Rectangle>
                             <Rectangle.Fill>
                                 <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
@@ -1175,6 +1177,32 @@
                             </StackPanel>
                         </Grid>
                     </Border>
+                    <!-- Микс компании -->
+                    <Border x:Name="MixCard" DockPanel.Dock="Top" CornerRadius="14" Padding="16,14" Margin="0,0,32,16" MaxWidth="760"
+                            HorizontalAlignment="Stretch" Visibility="Collapsed" Background="{StaticResource CardBrush}">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid Width="44" Height="44">
+                                <Border CornerRadius="10" Background="{StaticResource LikedGradient}"/>
+                                <TextBlock Text="&#xE8B1;" FontFamily="{StaticResource IconFont}" FontSize="18" Foreground="White"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Grid>
+                            <StackPanel Grid.Column="1" Margin="14,0,12,0" VerticalAlignment="Center">
+                                <TextBlock Text="Микс компании" FontWeight="SemiBold" FontSize="15"/>
+                                <TextBlock x:Name="MixText" FontSize="12.5" Foreground="{StaticResource TextDimBrush}" TextWrapping="Wrap"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                <Button x:Name="MixOpenBtn" Style="{StaticResource PillSecondary}" Content="Открыть" Margin="0,0,10,0"
+                                        Click="MixOpen_Click"/>
+                                <Button x:Name="MixPlayBtn" Style="{StaticResource HeroPlay}" Width="42" Height="42" FontSize="15"
+                                        Content="&#xE768;" ToolTip="Слушать микс" Click="MixPlay_Click"/>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
                     <Grid>
                         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
                             <ItemsControl x:Name="FriendsList" Margin="0,0,16,20">
@@ -1437,6 +1465,15 @@
                         <TextBlock Text="ПРИЛОЖЕНИЕ" Style="{StaticResource SettingsHeader}"/>
                         <Border Style="{StaticResource SettingsCard}">
                             <StackPanel>
+                                <CheckBox x:Name="LiveBgToggle" Style="{StaticResource ToggleSwitch}"
+                                          Checked="LiveBg_Changed" Unchecked="LiveBg_Changed">
+                                    <StackPanel>
+                                        <TextBlock Text="Живой фон"/>
+                                        <TextBlock Style="{StaticResource SettingsHint}"
+                                                   Text="Цвета обложки медленно плывут и переливаются за экраном «Сейчас играет». Выключи, если компьютер слабый."/>
+                                    </StackPanel>
+                                </CheckBox>
+                                <Rectangle Height="1" Fill="{StaticResource DividerBrush}" Margin="0,16"/>
                                 <CheckBox x:Name="CloseToTrayToggle" Style="{StaticResource ToggleSwitch}"
                                           Checked="CloseToTray_Changed" Unchecked="CloseToTray_Changed">
                                     <StackPanel>
@@ -1652,6 +1689,8 @@
                 <!-- мини-визуализатор + громкость -->
                 <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
                     <ui:Visualizer x:Name="MiniViz" Width="112" Height="30" BarCount="20" Margin="0,0,10,0" VerticalAlignment="Center"/>
+                    <Button Style="{StaticResource IconButton}" Content="&#xE740;" FontSize="14" Click="Party_Click"
+                            ToolTip="Режим вечеринки — на весь экран (F11)" Margin="0,0,4,0"/>
                     <Button x:Name="SleepBtn" Style="{StaticResource IconButton}" Content="&#xE708;" FontSize="14" Click="Sleep_Click"
                             ToolTip="Таймер сна" Margin="0,0,4,0"/>
                     <Button Style="{StaticResource IconButton}" Content="&#xE8A7;" FontSize="14" Click="MiniPlayer_Click"

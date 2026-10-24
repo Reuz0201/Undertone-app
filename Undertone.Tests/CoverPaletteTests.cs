@@ -37,6 +37,18 @@ public class CoverPaletteTests
         Assert.True(b > r && b > g, $"{r},{g},{b}");
     }
 
+    [Fact]
+    public void PickMany_FindsDistinctHues()
+    {
+        var px = new byte[200 * 4];
+        Fill(100, 230, 60, 40).CopyTo(px, 0);       // красный
+        Fill(100, 40, 90, 230).CopyTo(px, 400);     // синий
+        var colors = CoverPalette.PickMany(px, 3, 0.48);
+        Assert.Equal(2, colors.Count);
+        Assert.Contains(colors, c => c.R > c.B);
+        Assert.Contains(colors, c => c.B > c.R);
+    }
+
     [Theory]
     [InlineData("smoroz07@gmail.com", "smoroz07")]
     [InlineData("  Никитка ", "Никитка")]

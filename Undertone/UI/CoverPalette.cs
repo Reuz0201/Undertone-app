@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 
@@ -15,6 +17,20 @@ namespace Undertone.UI
         /// <summary>Цвет из картинки (уже загруженной). null — картинку не прочитать.</summary>
         public static Color? FromImage(BitmapSource source)
         {
+            if (Pixels(source) is not { } pixels) return null;
+            var (r, g, b) = Pick(pixels);
+            return Color.FromRgb(r, g, b);
+        }
+
+        /// <summary>2–3 разных оттенка обложки для живого фона (насыщеннее и темнее акцента).</summary>
+        public static Color[] PaletteFromImage(BitmapSource source)
+        {
+            if (Pixels(source) is not { } pixels) return new[] { Color.FromRgb(0x3A, 0x3F, 0x55) };
+            return PickMany(pixels, 3, 0.48).Select(c => Color.FromRgb(c.R, c.G, c.B)).ToArray();
+        }
+
+        private static byte[]? Pixels(BitmapSource source)
+        {
             try
             {
                 // уменьшаем до ~32 px — для оттенка больше не нужно
@@ -24,13 +40,58 @@ namespace Undertone.UI
                 var stride = bgra.PixelWidth * 4;
                 var pixels = new byte[stride * bgra.PixelHeight];
                 bgra.CopyPixels(pixels, stride, 0);
-                var (r, g, b) = Pick(pixels);
-                return Color.FromRgb(r, g, b);
+                return pixels;
             }
             catch (Exception ex) when (ex is not OutOfMemoryException)
             {
                 return null;
             }
+        }
+
+        /// <summary>Несколько заметных оттенков: корзины-победители, далеко друг от друга по кругу.</summary>
+        internal static List<(byte R, byte G, byte B)> PickMany(ReadOnlySpan<byte> bgra, int max, double light)
+        {
+            var weight = new double[Bins];
+            var sumR = new double[Bins];
+            var sumG = new double[Bins];
+            var sumB = new double[Bins];
+            double total = 0;
+            int count = 0;
+            for (int i = 0; i + 3 < bgra.Length; i += 4)
+            {
+                if (bgra[i + 3] < 128) continue;
+                double b = bgra[i] / 255.0, g = bgra[i + 1] / 255.0, r = bgra[i + 2] / 255.0;
+                count++;
+                var (h, s, v) = ToHsv(r, g, b);
+                if (v < 0.15 || s < 0.15) continue;
+                var w = s * s * (0.35 + v);
+                var bin = (int)(h / 360.0 * Bins) % Bins;
+                weight[bin] += w; sumR[bin] += r * w; sumG[bin] += g * w; sumB[bin] += b * w;
+                total += w;
+            }
+            var result = new List<(byte, byte, byte)>();
+            if (count == 0 || total / count < 0.025)
+            {
+                // серая обложка — спокойные графитовые пятна с лёгкой синевой
+                result.Add((0x3A, 0x3F, 0x55));
+                result.Add((0x2C, 0x30, 0x3E));
+                return result;
+            }
+            var chosen = new List<int>();
+            var order = Enumerable.Range(0, Bins).OrderByDescending(i => weight[i]).ToList();
+            foreach (var bin in order)
+            {
+                if (chosen.Count >= max || weight[bin] < weight[order[0]] * 0.12) break;
+                if (chosen.Any(c => Math.Min((c - bin + Bins) % Bins, (bin - c + Bins) % Bins) < 3)) continue;
+                chosen.Add(bin);
+            }
+            foreach (var bin in chosen)
+            {
+                var (hue, sat, _) = ToHsl(sumR[bin] / weight[bin], sumG[bin] / weight[bin], sumB[bin] / weight[bin]);
+                var (rr, gg, bb) = FromHsl(hue, Math.Clamp(sat, 0.4, 0.8), light);
+                result.Add((ToByte(rr), ToByte(gg), ToByte(bb)));
+            }
+            return result;
         }
 
         private const int Bins = 24;

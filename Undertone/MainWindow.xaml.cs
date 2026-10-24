@@ -313,6 +313,7 @@ namespace Undertone
             RefreshLikeMarks();
             SyncOfflineLiked();
             UpdateOfflineButtons();
+            PublishMyLikes();
         }
 
         private void BindLiked(ObservableCollection<TrackItem> items)
@@ -693,6 +694,12 @@ namespace Undertone
                 return;
             }
 
+            if (e.Key == Key.F11 && mods == ModifierKeys.None)
+            {
+                e.Handled = true;
+                ToggleParty();
+                return;
+            }
             if (mods == ModifierKeys.Control && e.Key == Key.K)
             {
                 e.Handled = true;
@@ -838,6 +845,7 @@ namespace Undertone
             foreach (var sink in _sinks) (sink as IDisposable)?.Dispose();
             _authCts?.Cancel();
             _updateTimer.Stop();
+            _party?.Close();
             LeaveTogether(announce: false);
             _friendsFeed?.Dispose();
             _player.Dispose();

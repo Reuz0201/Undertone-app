@@ -27,6 +27,15 @@ namespace Undertone.Core
         public bool InRoom { get; set; }
     }
 
+    /// <summary>Лайки участника для «Микса компании»: последние ~300, в формате id:albumId.</summary>
+    public sealed class FriendLikes
+    {
+        public string Member { get; set; } = "";
+        public string Name { get; set; } = "";
+        public List<string> Ids { get; set; } = new();
+        public long Ts { get; set; }
+    }
+
     /// <summary>Разовое событие комнаты: реакция или предложенный трек. Не хранится на брокере.</summary>
     public sealed class RoomEvent
     {
@@ -142,6 +151,28 @@ namespace Undertone.Core
         }
 
         public string MemberId => _member;
+
+        // ────────── лайки для «Микса компании» ──────────
+
+        private readonly ConcurrentDictionary<string, FriendLikes> _likes = new();
+        private byte[]? _myLikesPayload;
+
+        /// <summary>Лайки друзей обновились (в фоновом потоке).</summary>
+        public event Action? LikesChanged;
+
+        /// <summary>Лайки друзей (без своих), только тех, кто есть в ленте.</summary>
+        public IReadOnlyList<FriendLikes> FriendsLikes => _likes.Values.Where(l => l.Member != _member).ToList();
+
+        private string LikesTopic(string member) => $"{_topicBase}/likes-{member}";
+
+        public void PublishLikes(string name, IEnumerable<string> likeIds)
+        {
+            var likes = new FriendLikes { Member = _member, Name = name, Ids = likeIds.Take(300).ToList(), Ts = DateTimeOffset.UtcNow.ToUnixTimeSeconds() };
+            var payload = Encrypt(JsonSerializer.SerializeToUtf8Bytes(likes));
+            _myLikesPayload = payload;
+            foreach (var client in _clients.Values.Where(c => c.IsConnected))
+                _ = SafePublishAsync(client, LikesTopic(_member), payload);
+        }
 
         /// <summary>Реакция или предложение от друга (в фоновом потоке). Свои не приходят.</summary>
         public event Action<RoomEvent>? EventReceived;
@@ -306,6 +337,7 @@ namespace Undertone.Core
                     lock (_meSync) me = _me;
                     me.Ts = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
                     await client.PublishAsync(MyTopic, Encrypt(Serialize(me)), retain: true, ct);
+                    if (_myLikesPayload is { } likes) await client.PublishAsync(LikesTopic(_member), likes, retain: true, ct);
                     Log.Info($"Друзья: подключено к {host}");
                     delay = TimeSpan.FromSeconds(5);
                     Changed?.Invoke();
@@ -348,6 +380,17 @@ namespace Undertone.Core
             if (!topic.StartsWith(_topicBase + "/", StringComparison.Ordinal) || payload.Length == 0) return;
             var json = Decrypt(payload);
             if (json == null) return; // чужое или битое — молча пропускаем
+
+            if (topic.StartsWith(_topicBase + "/likes-", StringComparison.Ordinal))
+            {
+                FriendLikes? likes;
+                try { likes = JsonSerializer.Deserialize<FriendLikes>(json); }
+                catch (JsonException) { return; }
+                if (likes == null || likes.Member.Length == 0 || likes.Member == _member) return;
+                _likes.AddOrUpdate(likes.Member, likes, (_, old) => likes.Ts >= old.Ts ? likes : old);
+                LikesChanged?.Invoke();
+                return;
+            }
 
             if (topic == EventTopic)
             {

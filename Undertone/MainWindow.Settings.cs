@@ -36,6 +36,7 @@ namespace Undertone
                     : "«Без потерь» — FLAC для подписчиков Плюса; трек скачивается целиком перед стартом.";
                 SelectPill(CrossfadePanel, _settings.CrossfadeSeconds);
                 NormalizeToggle.IsChecked = _settings.Normalize;
+                LiveBgToggle.IsChecked = _settings.LiveBackground;
                 EqToggle.IsChecked = _settings.EqEnabled;
                 BuildEqualizer();
                 SelectTagPill(WaveDiversityPanel, _settings.WaveDiversity);
@@ -247,6 +248,14 @@ namespace Undertone
             _settings.Normalize = NormalizeToggle.IsChecked == true;
             PersistSettings();
             if (_queue.Current is { } t) _player.TrackGain = GainFor(t);
+        }
+
+        private void LiveBg_Changed(object sender, RoutedEventArgs e)
+        {
+            if (_fillingSettings) return;
+            _settings.LiveBackground = LiveBgToggle.IsChecked == true;
+            PersistSettings();
+            ApplyLiveBackground();
         }
 
         // ────────── эквалайзер ──────────

@@ -144,6 +144,7 @@ namespace Undertone
         private void ShowReaction(string emoji, string name)
         {
             if (ReactionImage(emoji) is not { } image) return;
+            _party?.ShowReaction(image, name);
             var layer = ReactionLayer;
             var w = Math.Max(80, layer.ActualWidth);
             var h = Math.Max(120, layer.ActualHeight);

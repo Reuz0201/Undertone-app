@@ -21,6 +21,8 @@ namespace Undertone.Core
         public bool WindowMaximized { get; set; }
         public bool TrayHintShown { get; set; }
         public int VisualizerMode { get; set; }
+        /// <summary>Живой фон из цветов обложки на экране «Сейчас играет».</summary>
+        public bool LiveBackground { get; set; } = true;
 
         // ── страница «Настройки» ──
         /// <summary>Лимит кэша аудио в мегабайтах.</summary>

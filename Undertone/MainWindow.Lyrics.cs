@@ -39,7 +39,8 @@ namespace Undertone
         /// <summary>Вызывается при смене трека; грузит текст, только если панель открыта.</summary>
         private void OnLyricsTrackChanged()
         {
-            if (_lyricsMode) _ = LoadLyricsAsync();
+            // текст нужен открытой панели или караоке в режиме вечеринки
+            if (_lyricsMode || _party != null) _ = LoadLyricsAsync();
             else _lyricsTrackId = null;
         }
 
@@ -92,6 +93,7 @@ namespace Undertone
             _lyrics = lyrics.Synced ? LyricsParser.ParseLrc(lyrics.Text) : LyricsParser.ParsePlain(lyrics.Text);
             if (_lyrics.Count == 0) _lyrics = LyricsParser.ParsePlain(lyrics.Text);
             LyricsList.ItemsSource = new ObservableCollection<LyricLine>(_lyrics);
+            _party?.SetLyrics(_lyrics);
             LyricsStatus.Visibility = Visibility.Collapsed;
             LyricsList.Visibility = Visibility.Visible;
             UpdateLyricsPosition(scroll: true);
