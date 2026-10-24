@@ -97,6 +97,7 @@ namespace Undertone
         /// <summary>Ссылка на трек в Яндекс Музыке — в буфер обмена, чтобы кинуть в мессенджер.</summary>
         private void ShareTrack(YaTrack track)
         {
+            if (LocalUnsupported(track, "Это твой файл — ссылки на него нет")) return;
             var url = track.AlbumId.Length > 0
                 ? $"https://music.yandex.ru/album/{track.AlbumId}/track/{track.Id}"
                 : $"https://music.yandex.ru/track/{track.Id}";

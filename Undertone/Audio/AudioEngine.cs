@@ -272,6 +272,9 @@ namespace Undertone.Audio
             return list;
         }
 
+        /// <summary>Имя устройства, на котором сейчас звук (выбранного или системного).</summary>
+        public string ActiveDeviceName => CurrentDeviceName();
+
         private string CurrentDeviceName()
         {
             try
@@ -342,8 +345,12 @@ namespace Undertone.Audio
         }
 
         /// <summary>Сменилось системное устройство по умолчанию (вызывается в UI-потоке).</summary>
+        /// <summary>Системное устройство по умолчанию сменилось (в UI-потоке) — даже если сейчас ничего не играет.</summary>
+        public event EventHandler? DefaultDeviceChanged;
+
         private void OnDefaultDeviceChanged()
         {
+            DefaultDeviceChanged?.Invoke(this, EventArgs.Empty);
             if (_deviceId != null || _output == null) return; // играем на выбранном вручную — не трогаем
             if (TryRecreateOutput())
                 OutputRecovered?.Invoke(this, CurrentDeviceName());

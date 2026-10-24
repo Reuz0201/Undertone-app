@@ -40,7 +40,9 @@ namespace Undertone.Core
         [JsonIgnore] public TimeSpan Duration => TimeSpan.FromMilliseconds(DurationMs);
 
         public string? CoverUrl(int size) =>
-            string.IsNullOrEmpty(CoverUri) ? null : "https://" + CoverUri.Replace("%%", $"{size}x{size}");
+            string.IsNullOrEmpty(CoverUri) ? null
+            : CoverUri.StartsWith("file:", StringComparison.Ordinal) ? CoverUri // обложка своего файла
+            : "https://" + CoverUri.Replace("%%", $"{size}x{size}");
 
         public override string ToString() => $"{ArtistsText} — {FullTitle}";
     }

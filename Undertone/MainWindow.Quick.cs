@@ -121,6 +121,14 @@ namespace Undertone
                     Cover = t.CoverUrl(100), Payload = t, Section = i == 0 ? "ТРЕКИ" : "",
                 }));
 
+                // свои файлы — сразу после треков Яндекса
+                var local = _local.Search(query, 3);
+                items.AddRange(local.Select((t, i) => new QuickItem
+                {
+                    Kind = QuickKind.Track, Title = t.FullTitle, Sub = $"{t.ArtistsText} · свой файл",
+                    Cover = t.CoverUrl(100), Payload = t, Section = i == 0 ? "МОИ ФАЙЛЫ" : "",
+                }));
+
                 var bestArtist = (r.Best?.Artist)?.Id;
                 items.AddRange(r.Artists.Where(a => a.Id != bestArtist).Take(3)
                     .Select((a, i) => ArtistItem(a, i == 0 ? "АРТИСТЫ" : "")));
@@ -224,8 +232,10 @@ namespace Undertone
                         return;
                     }
                     // включаем со всей пятёркой найденного — дальше играет то, что тоже подходило под запрос
-                    var list = _quickTracks.Select((t, i) => new TrackItem(t, i + 1)).ToList();
                     var index = _quickTracks.FindIndex(t => t.Id == track.Id);
+                    var list = index >= 0
+                        ? _quickTracks.Select((t, i) => new TrackItem(t, i + 1)).ToList()
+                        : new List<TrackItem> { new(track, 1) }; // свой файл — один
                     await PlayFromListAsync(list, Math.Max(0, index), QueueSource.Search);
                     break;
                 case QuickKind.Artist when item.Payload is YaArtist artist:

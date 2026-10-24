@@ -366,6 +366,8 @@
                                      Checked="Nav_Checked"/>
                         <RadioButton x:Name="NavSearch" Style="{StaticResource NavButton}" Tag="&#xE721;" Content="Поиск"
                                      Checked="Nav_Checked"/>
+                        <RadioButton x:Name="NavLocal" Style="{StaticResource NavButton}" Tag="&#xE8B7;" Content="Мои файлы"
+                                     Checked="Nav_Checked"/>
                         <RadioButton x:Name="NavHistory" Style="{StaticResource NavButton}" Tag="&#xE81C;" Content="История"
                                      Checked="Nav_Checked"/>
                         <RadioButton x:Name="NavFriends" Style="{StaticResource NavButton}" Tag="&#xE716;" Content="Друзья"
@@ -1127,6 +1129,57 @@
                     </Grid>
                 </DockPanel>
 
+                <!-- ── Мои файлы ── -->
+                <DockPanel x:Name="PageLocal" Visibility="Collapsed" Margin="32,30,16,0">
+                    <Grid DockPanel.Dock="Top" Margin="0,0,16,22">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <Border Width="150" Height="150" CornerRadius="18" Background="{DynamicResource LiveAccent}">
+                            <TextBlock Text="&#xE8B7;" FontFamily="{StaticResource IconFont}" FontSize="58" Foreground="{DynamicResource LiveInk}"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <StackPanel Grid.Column="1" Margin="26,0,0,0" VerticalAlignment="Bottom">
+                            <TextBlock Text="НА ЭТОМ КОМПЬЮТЕРЕ" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource TextDimBrush}"/>
+                            <TextBlock Text="Мои файлы" FontSize="42" FontWeight="SemiBold" FontFamily="Segoe UI Variable Display, Segoe UI"/>
+                            <TextBlock x:Name="LocalSub" Text="" FontSize="13" Foreground="{StaticResource TextDimBrush}" Margin="0,2,0,14"/>
+                            <StackPanel Orientation="Horizontal">
+                                <Button x:Name="LocalPlay" Style="{StaticResource CirclePlay}" Content="&#xE768;" Click="LocalPlay_Click"
+                                        ToolTip="Слушать по порядку" Margin="0,0,14,0"/>
+                                <Button Style="{StaticResource CircleGhost}" Content="&#xE8B1;" Click="LocalShuffle_Click"
+                                        ToolTip="Перемешать" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                <Button Style="{StaticResource PillSecondary}" Click="LocalAddFolder_Click" VerticalAlignment="Center" Margin="0,0,10,0">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="&#xE8F4;" FontFamily="{StaticResource IconFont}" FontSize="14" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                        <TextBlock Text="Добавить папку" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </Button>
+                                <Button x:Name="LocalRescan" Style="{StaticResource CircleGhost}" Content="&#xE72C;" Click="LocalRescan_Click"
+                                        ToolTip="Пересканировать папки" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                <Button x:Name="LocalFoldersBtn" Style="{StaticResource CircleGhost}" Content="&#xE712;" Click="LocalFolders_Click"
+                                        ToolTip="Папки: убрать из списка" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </StackPanel>
+                        <TextBox x:Name="LocalFilter" Grid.Column="2" Width="250" VerticalAlignment="Bottom"
+                                 Style="{StaticResource SearchBox}" Height="40" FontSize="13" Tag="Найти в своих файлах"
+                                 TextChanged="LocalFilter_TextChanged"/>
+                    </Grid>
+                    <Grid>
+                        <ListBox x:Name="LocalList" Style="{StaticResource TrackList}"
+                                 ItemContainerStyle="{StaticResource TrackRow}" ItemTemplate="{StaticResource TrackRowTemplate}"
+                                 KeyDown="List_KeyDown"/>
+                        <StackPanel x:Name="LocalEmpty" HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="440">
+                            <TextBlock Text="&#xE8B7;" FontFamily="{StaticResource IconFont}" FontSize="48"
+                                       Foreground="{StaticResource TextFaintBrush}" HorizontalAlignment="Center"/>
+                            <TextBlock x:Name="LocalEmptyText" Foreground="{StaticResource TextDimBrush}" FontSize="15" Margin="0,16,0,0"
+                                       TextAlignment="Center" TextWrapping="Wrap"
+                                       Text="Добавь папку с mp3, flac или m4a — треки появятся здесь, в быстром поиске и будут играть в одной очереди с Яндексом."/>
+                        </StackPanel>
+                    </Grid>
+                </DockPanel>
+
                 <!-- ── Друзья ── -->
                 <DockPanel x:Name="PageFriends" Visibility="Collapsed" Margin="32,30,16,0">
                     <Grid DockPanel.Dock="Top" Margin="0,0,16,22">
@@ -1699,6 +1752,34 @@
                             Click="Mute_Click" ToolTip="Без звука (M)"/>
                     <Slider x:Name="VolumeSlider" Width="110" Style="{StaticResource ThinSlider}" VerticalAlignment="Center"
                             Minimum="0" Maximum="1" Value="0.7" Margin="4,0,0,0" ValueChanged="Volume_ValueChanged"/>
+                    <!-- куда идёт звук: имя устройства, клик — выбрать другое -->
+                    <Button x:Name="DeviceBtn" Margin="12,0,4,0" Click="Device_Click" Cursor="Hand" Focusable="False"
+                            VerticalAlignment="Center" ToolTip="Устройство вывода">
+                        <Button.Template>
+                            <ControlTemplate TargetType="Button">
+                                <Border x:Name="Bd" Height="30" CornerRadius="15" Background="#0DFFFFFF" Padding="10,0,12,0">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock x:Name="DeviceGlyph" Text="&#xE7F5;" FontFamily="{StaticResource IconFont}" FontSize="13"
+                                                   Foreground="{DynamicResource LiveAccent}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                        <TextBlock x:Name="DeviceName" Text="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}"
+                                                   FontSize="12" Foreground="{StaticResource TextDimBrush}" MaxWidth="140"
+                                                   TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+                                        <TextBlock Text="&#xE70D;" FontFamily="{StaticResource IconFont}" FontSize="8"
+                                                   Foreground="{StaticResource TextFaintBrush}" VerticalAlignment="Center" Margin="7,1,0,0"/>
+                                    </StackPanel>
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="Bd" Property="Background" Value="#1AFFFFFF"/>
+                                        <Setter TargetName="DeviceName" Property="Foreground" Value="{StaticResource TextBrush}"/>
+                                    </Trigger>
+                                    <DataTrigger Binding="{Binding Content, RelativeSource={RelativeSource TemplatedParent}}" Value="headphones">
+                                        <Setter TargetName="DeviceGlyph" Property="Text" Value="&#xE7F6;"/>
+                                    </DataTrigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Button.Template>
+                    </Button>
                 </StackPanel>
             </Grid>
         </Border>

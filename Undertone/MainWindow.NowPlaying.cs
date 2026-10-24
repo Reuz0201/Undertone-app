@@ -140,6 +140,11 @@ namespace Undertone
             _shelvesFor = track.Id;
             var gen = ++_shelvesGen;
 
+            if (IsLocalTrack(track))
+            {
+                SimilarShelf.Visibility = Visibility.Collapsed;
+                return;
+            }
             if (!_similarCache.TryGetValue(track.Id, out var similar))
             {
                 var api = _api;

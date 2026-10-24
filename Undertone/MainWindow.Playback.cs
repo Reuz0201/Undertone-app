@@ -63,8 +63,14 @@ namespace Undertone
             _player.AdvancedToNext += (_, path) => OnAdvancedToNext(path);
             _player.Equalizer.SetGains(_settings.EqGains);
             _player.Equalizer.Enabled = _settings.EqEnabled;
-            _player.OutputRecovered += (_, name) => ShowToast($"Звук переключён: {name}");
+            _player.OutputRecovered += (_, name) =>
+            {
+                ShowToast($"Звук переключён: {name}");
+                UpdateDeviceButton();
+            };
             _player.DeviceId = _settings.OutputDeviceId;
+            _player.DefaultDeviceChanged += (_, _) => UpdateDeviceButton();
+            UpdateDeviceButton();
 
             // визуализаторы
             foreach (var viz in new[] { BigViz, MiniViz })
@@ -98,6 +104,7 @@ namespace Undertone
         private async Task PlayFromListAsync(IList<TrackItem> items, int index, QueueSource source, string? label = null)
         {
             if (index < 0 || items.Count == 0) return;
+            if (_inRoom && LocalUnsupported(items[index].Track, "Свои файлы в комнате не играют — у друзей их нет")) return;
             if (RoomSuggestInstead(items[index].Track)) return;
             ReportSkip();
             _waveSession = null;
@@ -147,8 +154,9 @@ namespace Undertone
             {
                 if (!track.Available) throw new YaApiException("трек недоступен в вашем регионе");
 
-                // 1) уже в кэше (в нужном качестве)
+                // 1) уже в кэше (в нужном качестве) — или это свой файл
                 var path = FindCachedFile(track);
+                if (path == null && IsLocalTrack(track)) throw new YaApiException("файл не найден — его переместили или удалили?");
                 StreamingMp3Reader? stream = null;
                 CacheDownload? download = null;
 
@@ -658,6 +666,7 @@ namespace Undertone
 
         private async Task ToggleLikeAsync(YaTrack track)
         {
+            if (LocalUnsupported(track, "Это твой файл — лайки бывают только у треков Яндекса")) return;
             if (_api == null || !_likePending.Add(track.Id)) return;
             var like = !_likedIds.Contains(track.Id);
             ApplyLike(track, like);
@@ -707,6 +716,7 @@ namespace Undertone
         {
             var track = _queue.Current;
             if (track == null || _api == null) return;
+            if (LocalUnsupported(track, "Это твой файл — «не нравится» бывает только у треков Яндекса")) return;
             try
             {
                 await _api.DislikeAsync(track);

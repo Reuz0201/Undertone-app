@@ -50,6 +50,7 @@ namespace Undertone
                     : NavSearch.IsChecked == true ? NavSearch
                     : NavHistory.IsChecked == true ? NavHistory
                     : NavFriends.IsChecked == true ? NavFriends
+                    : NavLocal.IsChecked == true ? NavLocal
                     : NavSettings.IsChecked == true ? NavSettings
                     : null;
             }
@@ -62,9 +63,9 @@ namespace Undertone
 
         private void ShowCollectionPage()
         {
-            PageNow.Visibility = PageLiked.Visibility = PageSearch.Visibility = PageSettings.Visibility = PageHistory.Visibility = PageFriends.Visibility = Visibility.Collapsed;
+            PageNow.Visibility = PageLiked.Visibility = PageSearch.Visibility = PageSettings.Visibility = PageHistory.Visibility = PageFriends.Visibility = PageLocal.Visibility = Visibility.Collapsed;
             PageCollection.Visibility = Visibility.Visible;
-            NavNow.IsChecked = NavLiked.IsChecked = NavSearch.IsChecked = NavSettings.IsChecked = NavHistory.IsChecked = NavFriends.IsChecked = false;
+            NavNow.IsChecked = NavLiked.IsChecked = NavSearch.IsChecked = NavSettings.IsChecked = NavHistory.IsChecked = NavFriends.IsChecked = NavLocal.IsChecked = false;
             CollBack.Visibility = _collHistory.Count > 0 || _collReturnTo != null ? Visibility.Visible : Visibility.Collapsed;
         }
 

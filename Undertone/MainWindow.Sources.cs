@@ -39,7 +39,7 @@ namespace Undertone
         }
 
         /// <summary>Готовый файл трека в кэше для текущего качества. В «Экономии» годится и обычный MP3 — он лучше.</summary>
-        private string? FindCachedFile(YaTrack track) => (EffectiveQuality switch
+        private string? FindCachedFile(YaTrack track) => IsLocalTrack(track) ? _local.PathFor(track.Id) : (EffectiveQuality switch
         {
             AudioQuality.Lossless => _cache.FindCached(track.Id, LosslessExts)
                                      ?? (_noLossless.Contains(track.Id) ? _cache.FindCached(track.Id, "mp3") : null),
@@ -135,7 +135,7 @@ namespace Undertone
         {
             var track = _reportTrack;
             _reportTrack = null;
-            if (track == null || _api == null || !_settings.ReportPlays) return;
+            if (track == null || _api == null || !_settings.ReportPlays || IsLocalTrack(track)) return;
             var end = atEnd ? track.Duration.TotalSeconds : _hasMedia ? _player.Position.TotalSeconds : 0;
             if (end < 3) return; // случайный клик — не считаем
             _ = _api.ReportPlayAsync(track, end, end, _reportPlayId);

@@ -203,6 +203,7 @@ namespace Undertone
             _settings.OutputDeviceId = id;
             PersistSettings();
             _player.DeviceId = id; // если играет — переключится на ходу, с той же позиции
+            UpdateDeviceButton();
             if (!_hasMedia) ShowToast(id == null ? "Звук — на системном устройстве" : "Устройство вывода выбрано");
         }
 

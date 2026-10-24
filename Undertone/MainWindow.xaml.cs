@@ -164,6 +164,7 @@ namespace Undertone
 
             LoadHistory();
             LoadOffline();
+            InitLocal();
             ApplyFriends();
             RestoreSession();
             _ = LoadAvatarAsync();
@@ -231,11 +232,13 @@ namespace Undertone
             PageSettings.Visibility = NavSettings.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
             PageHistory.Visibility = NavHistory.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
             PageFriends.Visibility = NavFriends.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+            PageLocal.Visibility = NavLocal.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
             PageCollection.Visibility = Visibility.Collapsed;
             ClearPlaylistSelection();
             if (NavSettings.IsChecked == true) ShowSettings();
             if (NavHistory.IsChecked == true) ShowHistory();
             if (NavFriends.IsChecked == true) RebuildFriends();
+            if (NavLocal.IsChecked == true) ShowLocal();
 
             if (NavSearch.IsChecked == true)
                 Dispatcher.InvokeAsync(() =>
@@ -644,6 +647,8 @@ namespace Undertone
                 await PlayFromListAsync(_collItems, _collItems.IndexOf(item), QueueSource.Collection, _collLabel);
             else if (list == HistoryList)
                 await PlayFromListAsync(_historyItems, _historyItems.IndexOf(item), QueueSource.Collection, "ИЗ ИСТОРИИ");
+            else if (list == LocalList)
+                await PlayFromListAsync(_localItems, _localItems.IndexOf(item), QueueSource.Collection, "МОИ ФАЙЛЫ");
             else if (list == SimilarList || list == RecentList)
                 await ActivateShelfAsync(list, item);
         }
@@ -658,7 +663,7 @@ namespace Undertone
         private void RefreshLikeMarks()
         {
             var current = _queue.Current?.Id;
-            foreach (var list in new[] { _likedItems, _searchItems, _upNextItems, _collItems, _historyItems, _similarItems, _recentItems })
+            foreach (var list in new[] { _likedItems, _searchItems, _upNextItems, _collItems, _historyItems, _similarItems, _recentItems, _localItems })
                 foreach (var it in list)
                 {
                     it.IsLiked = _likedIds.Contains(it.Track.Id);

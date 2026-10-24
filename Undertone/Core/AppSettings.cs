@@ -74,6 +74,9 @@ namespace Undertone.Core
         /// <summary>Случайный id этой установки — чтобы отличать себя от друзей.</summary>
         public string FriendsMemberId { get; set; } = "";
 
+        // ── свои файлы ──
+        public List<string> LocalFolders { get; set; } = new();
+
         // ── мини-плеер ──
         public double? MiniLeft { get; set; }
         public double? MiniTop { get; set; }

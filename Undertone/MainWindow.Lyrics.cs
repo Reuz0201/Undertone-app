@@ -54,6 +54,14 @@ namespace Undertone
                 return;
             }
             if (_lyricsTrackId == track.Id) return;
+            if (IsLocalTrack(track))
+            {
+                _lyricsTrackId = track.Id;
+                _lyrics = new List<LyricLine>();
+                _party?.SetLyrics(_lyrics);
+                ShowLyricsStatus("У своих файлов текста нет — он бывает только у треков Яндекса", spinner: false);
+                return;
+            }
             _lyricsTrackId = track.Id;
             var gen = ++_lyricsGen;
 

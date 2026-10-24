@@ -306,8 +306,9 @@ namespace Undertone
             {
                 Name = _name(),
                 Playing = state.IsPlaying && t != null,
-                TrackId = t?.Id ?? "",
-                AlbumId = t?.AlbumId ?? "",
+                // свой файл друзья включить не смогут — показываем только название
+                TrackId = t != null && !LocalLibrary.IsLocal(t) ? t.Id : "",
+                AlbumId = t != null && !LocalLibrary.IsLocal(t) ? t.AlbumId : "",
                 Title = t?.FullTitle ?? "",
                 Artists = t?.ArtistsText ?? "",
                 Cover = t?.CoverUrl(200),
