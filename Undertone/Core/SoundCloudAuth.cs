@@ -41,7 +41,8 @@ namespace Undertone.Core
         internal static IEnumerable<Func<string, string?>> Sources(EnvFile env)
         {
             yield return key => Environment.GetEnvironmentVariable(key.ToUpperInvariant());
-            yield return env.Get;
+            // секрет, введённый на экране входа, лежит зашифрованным (dpapi:…); открытые значения — как есть
+            yield return key => SecretProtector.Unprotect(env.Get(key));
             // запуск из исходников (start.bat): .env в корне репозитория, рядом со start.bat
             foreach (var path in DevEnvPaths())
             {

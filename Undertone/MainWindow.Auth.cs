@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
@@ -214,16 +215,14 @@ namespace Undertone
             ScRetry.Visibility = Visibility.Collapsed;
             ScSpinner.Visibility = Visibility.Visible;
 
+            KeyPanel.Visibility = Visibility.Collapsed;
             var cfg = _scConfig ??= SoundCloudConfig.Load(_env);
             if (cfg == null)
             {
-                ScSpinner.Visibility = Visibility.Collapsed;
-                ScRetry.Visibility = Visibility.Visible;
-                ScStatus.Text = "Не задан ключ приложения SoundCloud. Зарегистрируйте приложение на soundcloud.com/you/apps " +
-                                $"и впишите soundcloud_client_id и soundcloud_client_secret в {_env.FilePath} " +
-                                $"(redirect URI приложения: {SoundCloudConfig.DefaultRedirectUri}), затем нажмите «Повторить».";
+                ShowKeyPanel(MusicServiceKind.SoundCloud);
                 return;
             }
+            KeyChange.Visibility = Visibility.Visible;
 
             try
             {
@@ -252,6 +251,11 @@ namespace Undertone
             {
                 if (cts.IsCancellationRequested) return;
                 Log.Warn("Ошибка входа в SoundCloud", ex);
+                if (ex is AuthException { Error: "invalid_client" })
+                {
+                    ShowKeyPanel(MusicServiceKind.SoundCloud, "SoundCloud не принял этот ключ — проверь Client ID и Client Secret и вставь ещё раз.");
+                    return;
+                }
                 ScSpinner.Visibility = Visibility.Collapsed;
                 ScRetry.Visibility = Visibility.Visible;
                 ScStatus.Text = "Не получилось: " + Short(ex.Message);
@@ -285,16 +289,14 @@ namespace Undertone
             ScRetry.Visibility = Visibility.Collapsed;
             ScSpinner.Visibility = Visibility.Visible;
 
+            KeyPanel.Visibility = Visibility.Collapsed;
             var cfg = _spConfig ??= SpotifyConfig.Load(_env);
             if (cfg == null)
             {
-                ScSpinner.Visibility = Visibility.Collapsed;
-                ScRetry.Visibility = Visibility.Visible;
-                ScStatus.Text = "Не задан Client ID приложения Spotify. Создайте приложение на developer.spotify.com/dashboard " +
-                                $"(Redirect URI: {SpotifyConfig.DefaultRedirectUri}, API: Web API и Web Playback SDK) " +
-                                $"и впишите spotify_client_id в {_env.FilePath}, затем нажмите «Повторить».";
+                ShowKeyPanel(MusicServiceKind.Spotify);
                 return;
             }
+            KeyChange.Visibility = Visibility.Visible;
 
             try
             {
@@ -322,9 +324,105 @@ namespace Undertone
             {
                 if (cts.IsCancellationRequested) return;
                 Log.Warn("Ошибка входа в Spotify", ex);
+                if (ex is AuthException { Error: "invalid_client" })
+                {
+                    ShowKeyPanel(MusicServiceKind.Spotify, "Spotify не узнал этот Client ID — проверь его в Dashboard и вставь ещё раз.");
+                    return;
+                }
                 ScSpinner.Visibility = Visibility.Collapsed;
                 ScRetry.Visibility = Visibility.Visible;
                 ScStatus.Text = "Не получилось: " + Short(ex.Message);
+            }
+        }
+
+        // ────────── ключ приложения: вводится на экране входа, хранится в .env на этом ПК ──────────
+
+        private const string SpotifyDashboardUrl = "https://developer.spotify.com/dashboard";
+        private const string SoundCloudAppsUrl = "https://soundcloud.com/you/apps";
+
+        private void ShowKeyPanel(MusicServiceKind service, string? reason = null)
+        {
+            _authCts?.Cancel();
+            _browserAuthService = service;
+            var spotify = service == MusicServiceKind.Spotify;
+            ScSpinner.Visibility = Visibility.Collapsed;
+            ScOpen.IsEnabled = false;
+            ScRetry.Visibility = Visibility.Collapsed;
+            KeyChange.Visibility = Visibility.Collapsed;
+            KeyPanel.Visibility = Visibility.Visible;
+            KeySecret.Visibility = spotify ? Visibility.Collapsed : Visibility.Visible;
+            KeyRedirect.Text = spotify ? SpotifyConfig.DefaultRedirectUri : SoundCloudConfig.DefaultRedirectUri;
+            KeyOpenText.Text = spotify ? "Открыть Spotify Dashboard" : "Открыть soundcloud.com/you/apps";
+            ScStatus.Text = spotify ? "Нужен Client ID приложения Spotify" : "Нужен ключ приложения SoundCloud";
+            KeyHint.Text = reason ?? (spotify
+                ? "Один раз: создай приложение в Spotify Dashboard. Redirect URI — ровно адрес ниже, APIs — Web API и Web Playback SDK, " +
+                  "в User Management добавь свой e-mail Spotify. Потом вставь сюда Client ID — он сохранится только на этом компьютере."
+                : "Один раз: зарегистрируй приложение SoundCloud с Redirect URI ниже и вставь Client ID и Client Secret — " +
+                  "они сохранятся только на этом компьютере (секрет — в зашифрованном виде).");
+            KeyId.Text = spotify ? SpotifyConfig.Load(_env)?.ClientId ?? "" : SoundCloudConfig.Load(_env)?.ClientId ?? "";
+            KeySecret.Text = "";
+            KeyId.Focus();
+            KeyId.SelectAll();
+        }
+
+        private void KeySave_Click(object sender, RoutedEventArgs e) => SaveKeyAndSignIn();
+
+        private void Key_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key != Key.Enter) return;
+            e.Handled = true;
+            SaveKeyAndSignIn();
+        }
+
+        private void SaveKeyAndSignIn()
+        {
+            var spotify = _browserAuthService == MusicServiceKind.Spotify;
+            var id = KeyId.Text.Trim();
+            var secret = KeySecret.Text.Trim();
+            if (id.Length < 8 || id.Contains(' '))
+            {
+                KeyHint.Text = "Это не похоже на Client ID — скопируй его со страницы приложения целиком.";
+                KeyId.Focus();
+                return;
+            }
+            if (!spotify && secret.Length == 0)
+            {
+                KeyHint.Text = "SoundCloud без Client Secret не пускает — вставь и его.";
+                KeySecret.Focus();
+                return;
+            }
+
+            _env.Set(spotify
+                ? new Dictionary<string, string?> { [SpotifyConfig.IdKey] = id }
+                : new Dictionary<string, string?>
+                {
+                    [SoundCloudConfig.IdKey] = id,
+                    [SoundCloudConfig.SecretKey] = SecretProtector.Protect(secret),
+                });
+            _env.Reload();
+            _scConfig = null;
+            _spConfig = null;
+            KeyPanel.Visibility = Visibility.Collapsed;
+            Log.Info($"Ключ приложения {_browserAuthService.Title()} сохранён в .env");
+            if (spotify) _ = RunSpotifyFlowAsync();
+            else _ = RunSoundCloudFlowAsync();
+        }
+
+        private void KeyChange_Click(object sender, RoutedEventArgs e) => ShowKeyPanel(_browserAuthService);
+
+        private void KeyOpenDashboard_Click(object sender, RoutedEventArgs e) =>
+            OpenInBrowser(_browserAuthService == MusicServiceKind.Spotify ? SpotifyDashboardUrl : SoundCloudAppsUrl, ScStatus);
+
+        private void KeyCopyRedirect_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                Clipboard.SetText(KeyRedirect.Text);
+                ShowToast("Redirect URI скопирован");
+            }
+            catch (Exception ex)
+            {
+                Log.Warn("Буфер обмена занят", ex);
             }
         }
 

@@ -2539,6 +2539,39 @@
                                            VerticalAlignment="Center" Margin="10,0,0,0" TextWrapping="Wrap" MaxWidth="370"/>
                             </StackPanel>
 
+                            <!-- ключ приложения: вводится прямо здесь и сохраняется в .env на этом ПК -->
+                            <StackPanel x:Name="KeyPanel" Visibility="Collapsed" Margin="0,18,0,0">
+                                <TextBlock x:Name="KeyHint" FontSize="12.5" Foreground="{StaticResource TextDimBrush}" TextWrapping="Wrap"/>
+                                <Grid Margin="0,10,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Border Background="{StaticResource BgBrush}" CornerRadius="10" Padding="12,8">
+                                        <TextBlock x:Name="KeyRedirect" FontFamily="Cascadia Mono, Consolas" FontSize="12.5"
+                                                   VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                    </Border>
+                                    <Button Grid.Column="1" Style="{StaticResource PillSecondary}" Content="Скопировать" Padding="14,8"
+                                            Margin="8,0,0,0" Click="KeyCopyRedirect_Click"/>
+                                </Grid>
+                                <TextBox x:Name="KeyId" Style="{StaticResource PlainBox}" Tag="Client ID" Margin="0,10,0,0"
+                                         KeyDown="Key_KeyDown"/>
+                                <TextBox x:Name="KeySecret" Style="{StaticResource PlainBox}" Tag="Client Secret" Margin="0,8,0,0"
+                                         KeyDown="Key_KeyDown"/>
+                                <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                                    <Button Style="{StaticResource PillButton}" Content="Сохранить и войти" Click="KeySave_Click" Margin="0,0,10,0"/>
+                                    <Button x:Name="KeyOpenDashboard" Style="{StaticResource PillSecondary}" Click="KeyOpenDashboard_Click">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="&#xE8A7;" FontFamily="{StaticResource IconFont}" FontSize="13"
+                                                       VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                            <TextBlock x:Name="KeyOpenText" Text="Создать приложение" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </Button>
+                                </StackPanel>
+                            </StackPanel>
+                            <Button x:Name="KeyChange" Style="{StaticResource BackLink}" Content="Сменить ключ приложения"
+                                    HorizontalAlignment="Left" Margin="0,10,0,0" Click="KeyChange_Click" Visibility="Collapsed"/>
+
                             <Rectangle Height="1" Fill="{StaticResource DividerBrush}" Margin="0,24,0,14"/>
                             <TextBlock x:Name="ScNote" Text="Полностью играются треки, которые автор открыл для всех. Треки по подписке Go+ — только 30-секундный фрагмент."
                                        FontSize="12" Foreground="{StaticResource TextDimBrush}" TextWrapping="Wrap"/>
