@@ -22,16 +22,19 @@ namespace Undertone.Core
 
         private readonly Func<string, CancellationToken, Task<string?>>? _refresh;
         private readonly string _serverName;
+        private readonly string _scheme;
         private string _token;
 
-        /// <param name="serverName">Для сообщения «Сервер … не отвечает» (тот же транспорт у SoundCloud).</param>
+        /// <param name="serverName">Для сообщения «Сервер … не отвечает» (тот же транспорт у SoundCloud и Spotify).</param>
+        /// <param name="scheme">Схема заголовка Authorization: «OAuth» у Яндекса и SoundCloud, «Bearer» у Spotify.</param>
         public YaHttpHandler(string token, Func<string, CancellationToken, Task<string?>>? refresh, HttpMessageHandler inner,
-            string serverName = "Яндекс Музыки")
+            string serverName = "Яндекс Музыки", string scheme = "OAuth")
             : base(inner)
         {
             _token = token;
             _refresh = refresh;
             _serverName = serverName;
+            _scheme = scheme;
         }
 
         public string Token => _token;
@@ -55,7 +58,7 @@ namespace Undertone.Core
 
         private async Task<HttpResponseMessage> SendWithRetryAsync(HttpRequestMessage request, string token, CancellationToken ct)
         {
-            request.Headers.Authorization = new AuthenticationHeaderValue("OAuth", token);
+            request.Headers.Authorization = new AuthenticationHeaderValue(_scheme, token);
             // повторяем только то, что безопасно повторить: GET ничего не меняет на сервере
             var attempts = request.Method == HttpMethod.Get ? GetAttempts : 1;
 
@@ -66,6 +69,16 @@ namespace Undertone.Core
                 try
                 {
                     var resp = await base.SendAsync(request, timeout.Token).ConfigureAwait(false);
+                    // 429 — «слишком часто» (Spotify): ждём, сколько попросили, но не дольше 10 с
+                    if (resp.StatusCode == HttpStatusCode.TooManyRequests && attempt < attempts)
+                    {
+                        var wait = resp.Headers.RetryAfter?.Delta ?? Backoff(attempt);
+                        if (wait > TimeSpan.FromSeconds(10)) return resp;
+                        Log.Warn($"{request.Method} {request.RequestUri?.AbsolutePath}: HTTP 429, жду {wait.TotalSeconds:0.#} с");
+                        resp.Dispose();
+                        await Task.Delay(wait, ct).ConfigureAwait(false);
+                        continue;
+                    }
                     if ((int)resp.StatusCode >= 500 && attempt < attempts)
                     {
                         Log.Warn($"{request.Method} {request.RequestUri?.AbsolutePath}: HTTP {(int)resp.StatusCode}, повтор {attempt}");

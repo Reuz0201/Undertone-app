@@ -15,6 +15,14 @@ namespace Undertone
         /// <summary>Подпись на кнопке: имя устройства, значок — наушники или колонка.</summary>
         private void UpdateDeviceButton()
         {
+            // Spotify через приложение (Connect): звук не у нас — показываем, где он
+            if (_player.IsExternal && _spotifyPlayer is { UsesConnect: true, OutputName: { } spotifyDevice })
+            {
+                DeviceBtn.Tag = spotifyDevice;
+                DeviceBtn.Content = "speakers";
+                DeviceBtn.ToolTip = $"Spotify играет на «{spotifyDevice}» через Spotify Connect";
+                return;
+            }
             var name = _player.ActiveDeviceName;
             // «Динамики (Realtek High Definition Audio)» → «Динамики»: в скобках обычно драйвер, он только мешает
             var shortName = name;

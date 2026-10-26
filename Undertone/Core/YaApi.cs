@@ -52,6 +52,7 @@ namespace Undertone.Core
         [JsonIgnore]
         public string? WebUrl =>
             !string.IsNullOrEmpty(Permalink) ? Permalink
+            : SpotifyApi.IsSpId(Id) ? $"https://open.spotify.com/track/{Id[SpotifyApi.IdPrefix.Length..]}"
             : Id.StartsWith(LocalLibrary.IdPrefix, StringComparison.Ordinal) || ScApi.IsScId(Id) ? null
             : AlbumId.Length > 0 ? $"https://music.yandex.ru/album/{AlbumId}/track/{Id}"
             : $"https://music.yandex.ru/track/{Id}";
@@ -169,8 +170,8 @@ namespace Undertone.Core
         public bool SupportsLyrics => true;
         public bool SupportsAlbums => true;
 
-        /// <summary>Чужие id (sc-…, local-…) Яндексу не отправляем: он ответил бы ошибкой на всю пачку.</summary>
-        internal static bool IsYandexId(string id) => id.Length > 0 && !ScApi.IsScId(id) &&
+        /// <summary>Чужие id (sc-…, sp-…, local-…) Яндексу не отправляем: он ответил бы ошибкой на всю пачку.</summary>
+        internal static bool IsYandexId(string id) => id.Length > 0 && !ScApi.IsScId(id) && !SpotifyApi.IsSpId(id) &&
                                                       !id.StartsWith(LocalLibrary.IdPrefix, StringComparison.Ordinal);
 
         /// <param name="refresh">Вызывается при 401: получает старый токен, возвращает новый или null.</param>

@@ -11,7 +11,7 @@
     <RootNamespace>Undertone</RootNamespace>
     <AssemblyName>Undertone</AssemblyName>
     <Product>Undertone</Product>
-    <Version>4.1.0</Version>
+    <Version>4.2.0</Version>
     <SatelliteResourceLanguages>ru</SatelliteResourceLanguages>
     <ApplicationIcon>Assets\undertone.ico</ApplicationIcon>
     <UseWindowsForms>true</UseWindowsForms>
@@ -23,6 +23,8 @@
     <PackageReference Include="NAudio.Wasapi" Version="2.2.1" />
     <PackageReference Include="NAudio.WinMM" Version="2.2.1" />
     <PackageReference Include="QRCoder" Version="1.6.0" />
+    <!-- встроенный плеер Spotify (Web Playback SDK) — в невидимом WebView2 -->
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.2903.40" />
   </ItemGroup>
 
   <ItemGroup>
@@ -46,6 +48,10 @@
        (в CI — из секретов репозитория; локально их можно не передавать, а вписать в .env) -->
   <ItemGroup Condition="'$(SoundCloudClientId)' != ''">
     <AssemblyMetadata Include="SoundCloudClientId" Value="$(SoundCloudClientId)" />
+  </ItemGroup>
+  <!-- Client ID приложения Spotify (не секрет: вход по PKCE): -p:SpotifyClientId=… -->
+  <ItemGroup Condition="'$(SpotifyClientId)' != ''">
+    <AssemblyMetadata Include="SpotifyClientId" Value="$(SpotifyClientId)" />
   </ItemGroup>
   <ItemGroup Condition="'$(SoundCloudClientSecret)' != ''">
     <AssemblyMetadata Include="SoundCloudClientSecret" Value="$(SoundCloudClientSecret)" />

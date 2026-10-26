@@ -124,7 +124,9 @@ namespace Undertone
                 FxReverbText.Text = Fx.Reverb <= 0.001f ? "нет" : $"{Math.Round(Fx.Reverb * 100)}%";
                 FxSpinToggle.IsChecked = Fx.Spin;
 
-                FxHint.Text = Fx.LockSpeed
+                FxHint.Text = _player.IsExternal
+                    ? "Spotify играет своим плеером — эффекты на него не действуют. Работают на Яндексе, SoundCloud и своих файлах."
+                    : Fx.LockSpeed
                     ? "Ты в комнате с друзьями — скорость 1×, чтобы музыка шла у всех одинаково. Эхо и 8D работают."
                     : preset != null ? preset.Hint : "Свои настройки";
                 FxReset.Visibility = Fx.IsActive ? Visibility.Visible : Visibility.Collapsed;

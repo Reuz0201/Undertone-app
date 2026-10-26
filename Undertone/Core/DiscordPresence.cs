@@ -63,7 +63,8 @@ namespace Undertone.Core
                     {
                         new Dictionary<string, string>
                         {
-                            ["label"] = ScApi.IsScId(track.Id) ? "Слушать в SoundCloud" : "Слушать в Яндекс Музыке",
+                            ["label"] = ScApi.IsScId(track.Id) ? "Слушать в SoundCloud"
+                                : SpotifyApi.IsSpId(track.Id) ? "Слушать в Spotify" : "Слушать в Яндекс Музыке",
                             ["url"] = url,
                         },
                     };

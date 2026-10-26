@@ -56,6 +56,11 @@ namespace Undertone
                 UpdateOfflineButtons();
                 return;
             }
+            if (_api is { SupportsDownload: false } api)
+            {
+                ShowToast($"{api.Kind.Title()} не разрешает скачивать музыку в сторонние плееры — офлайн только в его приложении", 4);
+                return;
+            }
             var playable = tracks.Where(t => t.Available).ToList();
             _offline.Set(key, title, playable.Select(t => t.Id));
             QueueOfflineDownloads(playable);

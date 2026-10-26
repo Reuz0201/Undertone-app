@@ -46,7 +46,8 @@ namespace Undertone
         {
             if (_account == null || positionSeconds <= 0) return;
             // на скорости 0.85× трек звучит дольше, чем идёт его позиция — считаем реальные минуты
-            var seconds = (int)Math.Round(positionSeconds / Math.Max(0.1, _player.Effects.EffectiveSpeed));
+            var speed = _player.IsExternal ? 1f : _player.Effects.EffectiveSpeed; // Spotify играет сам, эффекты на него не действуют
+            var seconds = (int)Math.Round(positionSeconds / Math.Max(0.1, speed));
             if (seconds < PlayLog.MinSeconds) return;
             PlayLog.Append(_account.Uid, new PlayEvent(_reportStartedAt == default ? DateTime.Now : _reportStartedAt, track.Id, seconds));
         }

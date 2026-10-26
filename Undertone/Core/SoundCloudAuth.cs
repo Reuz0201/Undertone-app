@@ -37,7 +37,8 @@ namespace Undertone.Core
             return new SoundCloudConfig(id, Find(SecretKey), Find(RedirectKey) ?? DefaultRedirectUri);
         }
 
-        private static IEnumerable<Func<string, string?>> Sources(EnvFile env)
+        /// <summary>Источники ключей по порядку: окружение, .env, .env исходников, вшитое CI. Общие для SoundCloud и Spotify.</summary>
+        internal static IEnumerable<Func<string, string?>> Sources(EnvFile env)
         {
             yield return key => Environment.GetEnvironmentVariable(key.ToUpperInvariant());
             yield return env.Get;
@@ -69,6 +70,7 @@ namespace Undertone.Core
             {
                 IdKey => "SoundCloudClientId",
                 SecretKey => "SoundCloudClientSecret",
+                SpotifyConfig.IdKey => "SpotifyClientId",
                 _ => null,
             };
             if (name == null) return null;

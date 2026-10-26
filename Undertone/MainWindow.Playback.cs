@@ -158,6 +158,13 @@ namespace Undertone
                 if (MusicServices.Of(track) is { } owner && owner != api.Kind && FindCachedFile(track) == null)
                     throw new YaApiException($"это трек из {owner.TitleGenitive()} — переключитесь на этот аккаунт в меню профиля");
 
+                // 0) Spotify файлы не отдаёт — трек играет его собственный плеер
+                if (api is SpotifyApi spotify && !IsLocalTrack(track))
+                {
+                    await PlaySpotifyAsync(spotify, track, gen, cts.Token);
+                    return;
+                }
+
                 // 1) уже в кэше (в нужном качестве) — или это свой файл
                 var path = FindCachedFile(track);
                 if (path == null && IsLocalTrack(track)) throw new YaApiException("файл не найден — его переместили или удалили?");
@@ -243,6 +250,40 @@ namespace Undertone
                     _loadingTrackId = null;
                 }
             }
+        }
+
+        // ────────── Spotify ──────────
+
+        private SpotifyPlayer? _spotifyPlayer;
+
+        private async Task PlaySpotifyAsync(SpotifyApi api, YaTrack track, int gen, CancellationToken ct)
+        {
+            var player = _spotifyPlayer ??= new SpotifyPlayer(api, Dispatcher, text => ShowToast(text, 4));
+            var start = _resumeAt is { } resume && resume.TrackId == track.Id ? resume.Position : TimeSpan.Zero;
+            _resumeAt = null;
+            await player.LoadAsync(track, start, ct);
+            if (gen != _playGen)
+            {
+                player.Pause();
+                return;
+            }
+            _player.OpenExternal(player);
+            _hasMedia = true;
+            _isPlaying = true;
+            _failStreak = 0;
+            _progressTimer.Start();
+            UpdatePlayState();
+            UpdateDeviceButton();
+            OnTrackStarted(track, api);
+        }
+
+        /// <summary>Сменили аккаунт или вышли — плеер Spotify (и его WebView2) больше не нужен.</summary>
+        private void DisposeSpotifyPlayer()
+        {
+            if (_spotifyPlayer == null) return;
+            if (_player.IsExternal) _player.Close();
+            _spotifyPlayer.Dispose();
+            _spotifyPlayer = null;
         }
 
         /// <summary>Трек зазвучал — обычным запуском или бесшовным переходом.</summary>
@@ -402,7 +443,7 @@ namespace Undertone
         {
             var api = _api;
             var count = Math.Clamp(_settings.PrefetchCount, 0, 3);
-            if (api == null || count == 0) return;
+            if (api == null || count == 0 || !api.SupportsDownload) return;
             var gen = ++_prefetchGen;
             foreach (var next in _queue.PeekAhead(count))
             {
@@ -964,7 +1005,7 @@ namespace Undertone
         private async Task PrefetchCurrentAsync(YaTrack track)
         {
             var api = _api;
-            if (api == null || !track.Available || FindCachedFile(track) != null) return;
+            if (api == null || !api.SupportsDownload || !track.Available || FindCachedFile(track) != null) return;
             try
             {
                 if (EffectiveQuality == AudioQuality.Lossless && await DownloadLosslessAsync(api, track, CancellationToken.None) != null)

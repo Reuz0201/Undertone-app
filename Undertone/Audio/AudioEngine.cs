@@ -57,6 +57,9 @@ namespace Undertone.Audio
         private DateTime _lastRecovery = DateTime.MinValue;
         private string? _deviceId;
 
+        /// <summary>Сейчас играет внешний плеер (Spotify) — команды уходят ему.</summary>
+        private IExternalPlayer? _external;
+
         private MMDeviceEnumerator? _enumerator;
         private DeviceWatcher? _watcher;
 
@@ -97,22 +100,26 @@ namespace Undertone.Audio
         /// </summary>
         public event EventHandler<string>? AdvancedToNext;
 
-        public bool HasMedia => _reader != null;
+        public bool HasMedia => _reader != null || _external != null;
+
+        /// <summary>Звук идёт не через движок, а через внешний плеер (Spotify).</summary>
+        public bool IsExternal => _external != null;
 
         /// <summary>Следующий трек уже подготовлен для бесшовного перехода.</summary>
         public bool HasPreparedNext => _mixer?.HasNext == true;
 
         /// <summary>Файл текущего трека (null — играет поток идущей закачки).</summary>
         public string? CurrentPath => _readerPath;
-        public bool IsPlaying => _output?.PlaybackState == PlaybackState.Playing;
+        public bool IsPlaying => _external?.IsPlaying ?? _output?.PlaybackState == PlaybackState.Playing;
 
         /// <summary>Трек играет потоком и ждёт данных из сети.</summary>
         public bool IsBuffering => (_reader as StreamingMp3Reader)?.IsStarved == true;
 
         /// <summary>Сколько трека скачано (0..1). Для готового файла — 1.</summary>
-        public double BufferedFraction => _reader is StreamingMp3Reader s ? s.BufferedFraction : _reader != null ? 1 : 0;
+        public double BufferedFraction =>
+            _external != null ? 1 : _reader is StreamingMp3Reader s ? s.BufferedFraction : _reader != null ? 1 : 0;
 
-        public TimeSpan? NaturalDuration => _reader?.TotalTime;
+        public TimeSpan? NaturalDuration => _external != null ? _external.Duration : _reader?.TotalTime;
 
         /// <summary>id устройства вывода; null — системное устройство по умолчанию (и следовать за его сменой).</summary>
         public string? DeviceId
@@ -133,6 +140,7 @@ namespace Undertone.Audio
         {
             get
             {
+                if (_external != null) return _external.Position;
                 var reader = _reader;
                 if (reader == null) return TimeSpan.Zero;
                 TimeSpan pos;
@@ -142,6 +150,11 @@ namespace Undertone.Audio
             }
             set
             {
+                if (_external != null)
+                {
+                    _external.Seek(value < TimeSpan.Zero ? TimeSpan.Zero : value);
+                    return;
+                }
                 var reader = _reader;
                 if (reader == null) return;
                 var max = reader.TotalTime - TimeSpan.FromMilliseconds(200);
@@ -197,6 +210,7 @@ namespace Undertone.Audio
         {
             // кубическая кривая — слайдер ощущается линейно на слух
             if (_volume != null) _volume.Volume = _muted ? 0f : _level * _level * _level * _trackGain;
+            _external?.SetVolume(_muted ? 0 : _level * _level * _level);
         }
 
         /// <summary>Открыть готовый файл из кэша.</summary>
@@ -215,6 +229,28 @@ namespace Undertone.Audio
             }
             OpenCore(reader);
             if (_reader == reader) _readerPath = path;
+        }
+
+        /// <summary>Трек играет внешний плеер (Spotify): движок только пересылает ему команды и события.</summary>
+        public void OpenExternal(IExternalPlayer player)
+        {
+            Close();
+            _external = player;
+            player.Ended += OnExternalEnded;
+            player.Failed += OnExternalFailed;
+            ApplyVolume();
+            Analyzer.Reset(44100);
+            MediaOpened?.Invoke(this, EventArgs.Empty);
+        }
+
+        private void OnExternalEnded(object? sender, EventArgs e)
+        {
+            if (ReferenceEquals(sender, _external)) MediaEnded?.Invoke(this, EventArgs.Empty);
+        }
+
+        private void OnExternalFailed(object? sender, Exception ex)
+        {
+            if (ReferenceEquals(sender, _external)) MediaFailed?.Invoke(this, ex);
         }
 
         /// <summary>Открыть поток (трек ещё качается). Движок становится владельцем reader.</summary>
@@ -367,6 +403,11 @@ namespace Undertone.Audio
 
         public void Play()
         {
+            if (_external != null)
+            {
+                _external.Play();
+                return;
+            }
             if (_output == null) return;
             _stopRequested = false;
             _wantPlaying = true;
@@ -376,12 +417,18 @@ namespace Undertone.Audio
         public void Pause()
         {
             _wantPlaying = false;
+            _external?.Pause();
             _output?.Pause();
         }
 
         /// <summary>Как MediaPlayer.Stop: стоп и перемотка в начало. MediaEnded не вызывается.</summary>
         public void Stop()
         {
+            if (_external != null)
+            {
+                _external.Stop();
+                return;
+            }
             if (_output == null || _reader == null) return;
             _stopRequested = true;
             _wantPlaying = false;
@@ -392,6 +439,13 @@ namespace Undertone.Audio
 
         public void Close()
         {
+            if (_external is { } external)
+            {
+                // сам плеер не закрываем — он общий на все треки Spotify; только отписываемся
+                external.Ended -= OnExternalEnded;
+                external.Failed -= OnExternalFailed;
+                _external = null;
+            }
             var output = _output;
             var reader = _reader;
             var mixer = _mixer;

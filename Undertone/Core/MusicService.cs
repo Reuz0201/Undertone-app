@@ -10,29 +10,54 @@ namespace Undertone.Core
     {
         Yandex,
         SoundCloud,
+        Spotify,
     }
 
     public static class MusicServices
     {
-        public static readonly MusicServiceKind[] All = { MusicServiceKind.Yandex, MusicServiceKind.SoundCloud };
+        public static readonly MusicServiceKind[] All = { MusicServiceKind.Yandex, MusicServiceKind.SoundCloud, MusicServiceKind.Spotify };
 
         /// <summary>Ключ для settings.json.</summary>
-        public static string Id(this MusicServiceKind kind) => kind == MusicServiceKind.SoundCloud ? "soundcloud" : "yandex";
+        public static string Id(this MusicServiceKind kind) => kind switch
+        {
+            MusicServiceKind.SoundCloud => "soundcloud",
+            MusicServiceKind.Spotify => "spotify",
+            _ => "yandex",
+        };
 
-        public static MusicServiceKind Parse(string? id) =>
-            string.Equals(id, "soundcloud", StringComparison.OrdinalIgnoreCase) ? MusicServiceKind.SoundCloud : MusicServiceKind.Yandex;
+        public static MusicServiceKind Parse(string? id) => id?.ToLowerInvariant() switch
+        {
+            "soundcloud" => MusicServiceKind.SoundCloud,
+            "spotify" => MusicServiceKind.Spotify,
+            _ => MusicServiceKind.Yandex,
+        };
 
-        public static string Title(this MusicServiceKind kind) => kind == MusicServiceKind.SoundCloud ? "SoundCloud" : "Яндекс Музыка";
+        public static string Title(this MusicServiceKind kind) => kind switch
+        {
+            MusicServiceKind.SoundCloud => "SoundCloud",
+            MusicServiceKind.Spotify => "Spotify",
+            _ => "Яндекс Музыка",
+        };
 
         /// <summary>«в каталоге …», «удалён из …», «подключиться к …».</summary>
-        public static string TitleGenitive(this MusicServiceKind kind) => kind == MusicServiceKind.SoundCloud ? "SoundCloud" : "Яндекс Музыки";
+        public static string TitleGenitive(this MusicServiceKind kind) => kind switch
+        {
+            MusicServiceKind.SoundCloud => "SoundCloud",
+            MusicServiceKind.Spotify => "Spotify",
+            _ => "Яндекс Музыки",
+        };
 
-        public static MusicServiceKind Other(this MusicServiceKind kind) =>
-            kind == MusicServiceKind.SoundCloud ? MusicServiceKind.Yandex : MusicServiceKind.SoundCloud;
+        /// <summary>Остальные сервисы по порядку — куда переключиться после выхода, где искать сохранённый вход.</summary>
+        public static IEnumerable<MusicServiceKind> Others(this MusicServiceKind kind)
+        {
+            foreach (var k in All)
+                if (k != kind) yield return k;
+        }
 
-        /// <summary>Сервис трека по его id: у SoundCloud id вида sc-123 (как local-… у своих файлов).</summary>
+        /// <summary>Сервис трека по его id: у SoundCloud id вида sc-123, у Spotify — sp-… (как local-… у своих файлов).</summary>
         public static MusicServiceKind? Of(YaTrack track) =>
             ScApi.IsScId(track.Id) ? MusicServiceKind.SoundCloud
+            : SpotifyApi.IsSpId(track.Id) ? MusicServiceKind.Spotify
             : LocalLibrary.IsLocal(track) ? null
             : MusicServiceKind.Yandex;
     }
@@ -49,6 +74,12 @@ namespace Undertone.Core
         bool SupportsLossless { get; }
         bool SupportsLyrics { get; }
         bool SupportsAlbums { get; }
+
+        /// <summary>
+        /// Звук можно скачать в кэш (и, значит, играть через свой движок: эквалайзер, эффекты, кроссфейд, офлайн).
+        /// false — сервис играет сам (Spotify: только своим плеером, файлы не отдаёт).
+        /// </summary>
+        bool SupportsDownload => true;
 
         /// <summary>id аккаунта для локальных хранилищ (кэш библиотеки, история, сессия). У SoundCloud отрицательный — не пересекается с Яндексом.</summary>
         long Uid { get; }

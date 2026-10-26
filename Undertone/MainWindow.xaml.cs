@@ -23,7 +23,9 @@ namespace Undertone
         private readonly EnvFile _env = EnvFile.Locate();
         private readonly TokenStore _yaTokens;
         private readonly TokenStore _scTokens;
+        private readonly TokenStore _spTokens;
         private SoundCloudConfig? _scConfig;
+        private SpotifyConfig? _spConfig;
         private readonly AudioCache _cache;
 
         private IMusicService? _api;
@@ -63,6 +65,9 @@ namespace Undertone
             _scConfig = SoundCloudConfig.Load(_env);
             _scTokens = TokenStore.ForSoundCloud(_env, (refresh, ct) =>
                 SoundCloudAuth.RefreshAsync(_scConfig ?? throw new AuthException("Не задан ключ приложения SoundCloud"), refresh, ct));
+            _spConfig = SpotifyConfig.Load(_env);
+            _spTokens = TokenStore.ForSpotify(_env, (refresh, ct) =>
+                SpotifyAuth.RefreshAsync(_spConfig ?? throw new AuthException("Не задан Client ID приложения Spotify"), refresh, ct));
             _cache = new AudioCache(_settings.CacheLimitBytes);
 
             BindLiked(_likedItems);
@@ -129,7 +134,7 @@ namespace Undertone
 
             // прошлый сервис, если в нём есть вход, иначе другой; ни одного — экран выбора
             var preferred = MusicServices.Parse(_settings.ActiveService);
-            foreach (var service in new[] { preferred, preferred.Other() })
+            foreach (var service in new[] { preferred }.Concat(preferred.Others()))
             {
                 if (TokensFor(service).AccessToken is { Length: > 0 } token)
                 {
@@ -143,18 +148,26 @@ namespace Undertone
 
         // ────────── аккаунты: Яндекс Музыка и SoundCloud ──────────
 
-        private TokenStore TokensFor(MusicServiceKind service) =>
-            service == MusicServiceKind.SoundCloud ? _scTokens : _yaTokens;
+        private TokenStore TokensFor(MusicServiceKind service) => service switch
+        {
+            MusicServiceKind.SoundCloud => _scTokens,
+            MusicServiceKind.Spotify => _spTokens,
+            _ => _yaTokens,
+        };
 
         private async Task ConnectAsync(MusicServiceKind service, string token)
         {
             var gen = ++_connectGen;
+            DisposeSpotifyPlayer();
             _api?.Dispose();
             var store = TokensFor(service);
             _service = service;
-            IMusicService api = service == MusicServiceKind.SoundCloud
-                ? new ScApi(token, (old, ct) => store.TryRefreshAsync(old, ct))
-                : new YaApi(token, (old, ct) => store.TryRefreshAsync(old, ct));
+            IMusicService api = service switch
+            {
+                MusicServiceKind.SoundCloud => new ScApi(token, (old, ct) => store.TryRefreshAsync(old, ct)),
+                MusicServiceKind.Spotify => new SpotifyApi(token, (old, ct) => store.TryRefreshAsync(old, ct)),
+                _ => new YaApi(token, (old, ct) => store.TryRefreshAsync(old, ct)),
+            };
             _api = api;
             if (_settings.ActiveService != service.Id())
             {
@@ -272,6 +285,7 @@ namespace Undertone
             FlushPlayReport();
             LeaveTogether(announce: false);
             StopPlayback();
+            DisposeSpotifyPlayer();
             _queue.Clear();
             _waveSession = null;
             _waveKey = "";
@@ -308,7 +322,7 @@ namespace Undertone
             var dislike = _api?.SupportsDislike ?? _service == MusicServiceKind.Yandex;
             WaveCard.Visibility = wave ? Visibility.Visible : Visibility.Collapsed;
             NowDislike.Visibility = dislike ? Visibility.Visible : Visibility.Collapsed;
-            EmptyTitle.Text = wave ? "Моя волна" : "SoundCloud";
+            EmptyTitle.Text = wave ? "Моя волна" : _service.Title();
             EmptySub.Text = wave
                 ? "Бесконечный поток музыки под ваш вкус"
                 : "Включите любимые треки или найдите что-нибудь в поиске";
@@ -340,8 +354,8 @@ namespace Undertone
             if (uid != null && SessionStore.Load(uid.Value) != null) SessionStore.Clear();
             if (_settings.AccountNames.Remove(service.Id())) PersistSettings();
 
-            var other = service.Other();
-            if (TokensFor(other).AccessToken is { Length: > 0 } token)
+            var other = service.Others().FirstOrDefault(k => TokensFor(k).AccessToken is { Length: > 0 });
+            if (TokensFor(other).AccessToken is { Length: > 0 } token && other != service)
             {
                 ShowToast($"Вы вышли из {service.TitleGenitive()} · переключаюсь на {other.Title()}");
                 _ = ConnectAsync(other, token);
@@ -1013,6 +1027,7 @@ namespace Undertone
             _remote?.Dispose();
             LeaveTogether(announce: false);
             _friendsFeed?.Dispose();
+            DisposeSpotifyPlayer();
             _player.Dispose();
             _api?.Dispose();
             _tray?.Dispose();

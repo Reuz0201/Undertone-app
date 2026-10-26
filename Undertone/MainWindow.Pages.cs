@@ -113,7 +113,8 @@ namespace Undertone
             CollAlbumsSection.Visibility = Visibility.Collapsed;
             CollAlbums.ItemsSource = null;
             CollTracksHeader.Text = kind != CollectionKind.Artist ? "Треки"
-                : _service == MusicServiceKind.SoundCloud ? "Треки автора" : "Популярные треки";
+                : _service == MusicServiceKind.SoundCloud ? "Треки автора"
+                : _service == MusicServiceKind.Spotify ? "Треки" : "Популярные треки";
             _collItems = new ObservableCollection<TrackItem>();
             CollList.ItemsSource = _collItems;
             CollEmpty.Visibility = Visibility.Collapsed;

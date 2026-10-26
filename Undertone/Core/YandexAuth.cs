@@ -133,6 +133,7 @@ namespace Undertone.Core
     public sealed class TokenStore
     {
         public const string SoundCloudPrefix = "soundcloud_";
+        public const string SpotifyPrefix = "spotify_";
 
         private readonly EnvFile _env;
         private readonly SemaphoreSlim _refreshLock = new(1, 1);
@@ -157,6 +158,10 @@ namespace Undertone.Core
         /// <summary>Токены SoundCloud: soundcloud_access_token / soundcloud_refresh_token / soundcloud_expires_in.</summary>
         public static TokenStore ForSoundCloud(EnvFile env, Func<string, CancellationToken, Task<OAuthToken>> refresh) =>
             new(env, SoundCloudPrefix, "SoundCloud", refresh);
+
+        /// <summary>Токены Spotify: spotify_access_token / spotify_refresh_token / spotify_expires_in.</summary>
+        public static TokenStore ForSpotify(EnvFile env, Func<string, CancellationToken, Task<OAuthToken>> refresh) =>
+            new(env, SpotifyPrefix, "Spotify", refresh);
 
         public string EnvPath => _env.FilePath;
 

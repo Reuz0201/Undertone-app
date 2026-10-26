@@ -9,8 +9,8 @@ using Undertone.Core;
 namespace Undertone
 {
     /// <summary>
-    /// Вход: выбор сервиса → Яндекс (код на ya.ru/device или ручной токен) или SoundCloud (браузер + PKCE).
-    /// Токены пишутся в .env в зашифрованном виде (у SoundCloud — ключи soundcloud_…).
+    /// Вход: выбор сервиса → Яндекс (код на ya.ru/device или ручной токен), SoundCloud или Spotify (браузер + PKCE).
+    /// Токены пишутся в .env в зашифрованном виде (у SoundCloud — ключи soundcloud_…, у Spotify — spotify_…).
     /// </summary>
     public partial class MainWindow
     {
@@ -31,7 +31,8 @@ namespace Undertone
 
             AuthChoosePanel.Visibility = service == null ? Visibility.Visible : Visibility.Collapsed;
             AuthYandexPanel.Visibility = service == MusicServiceKind.Yandex ? Visibility.Visible : Visibility.Collapsed;
-            AuthScPanel.Visibility = service == MusicServiceKind.SoundCloud ? Visibility.Visible : Visibility.Collapsed;
+            // SoundCloud и Spotify входят одинаково — через браузер, панель общая
+            AuthScPanel.Visibility = service is MusicServiceKind.SoundCloud or MusicServiceKind.Spotify ? Visibility.Visible : Visibility.Collapsed;
 
             switch (service)
             {
@@ -41,6 +42,7 @@ namespace Undertone
                         : "Выберите, откуда слушать музыку. Второй сервис можно подключить потом в меню профиля.");
                     YandexConnected.Visibility = _yaTokens.AccessToken != null ? Visibility.Visible : Visibility.Collapsed;
                     ScConnected.Visibility = _scTokens.AccessToken != null ? Visibility.Visible : Visibility.Collapsed;
+                    SpConnected.Visibility = _spTokens.AccessToken != null ? Visibility.Visible : Visibility.Collapsed;
                     break;
 
                 case MusicServiceKind.Yandex:
@@ -51,9 +53,22 @@ namespace Undertone
                     break;
 
                 case MusicServiceKind.SoundCloud:
+                    _browserAuthService = MusicServiceKind.SoundCloud;
+                    ScTitle.Text = "Вход в SoundCloud";
+                    ScNote.Text = "Полностью играются треки, которые автор открыл для всех. Треки по подписке Go+ — только 30-секундный фрагмент.";
                     ScHint.Text = reason ?? "Откроется браузер — войдите в SoundCloud и разрешите доступ Undertone.";
                     ScEnvPath.Text = $"Токены сохранятся в зашифрованном виде в {_env.FilePath}";
                     _ = RunSoundCloudFlowAsync();
+                    break;
+
+                case MusicServiceKind.Spotify:
+                    _browserAuthService = MusicServiceKind.Spotify;
+                    ScTitle.Text = "Вход в Spotify";
+                    ScNote.Text = "Слушать можно только с Spotify Premium. Звук играет встроенный плеер Spotify (устройство «Undertone»), " +
+                                  "а если он не запустится — приложение Spotify на этом ПК или телефоне. Эквалайзер, эффекты и офлайн для Spotify не работают.";
+                    ScHint.Text = reason ?? "Откроется браузер — войдите в Spotify и разрешите доступ Undertone.";
+                    ScEnvPath.Text = $"Токены сохранятся в зашифрованном виде в {_env.FilePath}";
+                    _ = RunSpotifyFlowAsync();
                     break;
             }
         }
@@ -81,6 +96,9 @@ namespace Undertone
 
         private void AuthChooseSc_Click(object sender, RoutedEventArgs e) =>
             ChooseService(MusicServiceKind.SoundCloud);
+
+        private void AuthChooseSpotify_Click(object sender, RoutedEventArgs e) =>
+            ChooseService(MusicServiceKind.Spotify);
 
         /// <summary>Уже вошли в этот сервис — просто переключаемся, иначе — экран входа.</summary>
         private void ChooseService(MusicServiceKind service)
@@ -248,8 +266,66 @@ namespace Undertone
         private void ScRetry_Click(object sender, RoutedEventArgs e)
         {
             _scConfig = null; // могли только что вписать ключи в .env
+            _spConfig = null;
             _env.Reload();
-            _ = RunSoundCloudFlowAsync();
+            if (_browserAuthService == MusicServiceKind.Spotify) _ = RunSpotifyFlowAsync();
+            else _ = RunSoundCloudFlowAsync();
+        }
+
+        // ────────── Spotify: вход через браузер (PKCE, без секрета) ──────────
+
+        private MusicServiceKind _browserAuthService = MusicServiceKind.SoundCloud;
+
+        private async Task RunSpotifyFlowAsync()
+        {
+            _authCts?.Cancel();
+            var cts = _authCts = new CancellationTokenSource();
+            _scAuthUrl = null;
+            ScOpen.IsEnabled = false;
+            ScRetry.Visibility = Visibility.Collapsed;
+            ScSpinner.Visibility = Visibility.Visible;
+
+            var cfg = _spConfig ??= SpotifyConfig.Load(_env);
+            if (cfg == null)
+            {
+                ScSpinner.Visibility = Visibility.Collapsed;
+                ScRetry.Visibility = Visibility.Visible;
+                ScStatus.Text = "Не задан Client ID приложения Spotify. Создайте приложение на developer.spotify.com/dashboard " +
+                                $"(Redirect URI: {SpotifyConfig.DefaultRedirectUri}, API: Web API и Web Playback SDK) " +
+                                $"и впишите spotify_client_id в {_env.FilePath}, затем нажмите «Повторить».";
+                return;
+            }
+
+            try
+            {
+                ScStatus.Text = "Открываю браузер…";
+                var token = await SpotifyAuth.SignInAsync(cfg, url =>
+                {
+                    Dispatcher.Invoke(() =>
+                    {
+                        _scAuthUrl = url;
+                        ScOpen.IsEnabled = true;
+                        ScStatus.Text = "Жду, пока вы разрешите доступ в браузере…";
+                        OpenInBrowser(url, ScStatus);
+                    });
+                }, cts.Token);
+                if (cts.IsCancellationRequested) return;
+
+                _spTokens.Save(token);
+                ScStatus.Text = "Готово!";
+                await CompleteAuthAsync(MusicServiceKind.Spotify, token.AccessToken);
+            }
+            catch (OperationCanceledException)
+            {
+            }
+            catch (Exception ex)
+            {
+                if (cts.IsCancellationRequested) return;
+                Log.Warn("Ошибка входа в Spotify", ex);
+                ScSpinner.Visibility = Visibility.Collapsed;
+                ScRetry.Visibility = Visibility.Visible;
+                ScStatus.Text = "Не получилось: " + Short(ex.Message);
+            }
         }
 
         private static void OpenInBrowser(string url, System.Windows.Controls.TextBlock status)
