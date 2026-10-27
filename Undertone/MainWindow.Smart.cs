@@ -37,6 +37,7 @@ namespace Undertone
         private void RebuildSmart()
         {
             SmartList.ItemsSource = SmartRules.Select((r, i) => new SmartItem(r, i)).ToList();
+            _ = RebuildSpotifyMixesAsync();
         }
 
         private List<YaTrack> EvaluateSmart(SmartPlaylist rule) =>

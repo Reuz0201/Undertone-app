@@ -1186,6 +1186,49 @@
                     </StackPanel>
                     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
                         <StackPanel Margin="0,0,16,24">
+                            <!-- миксы Spotify: только когда вошли в Spotify -->
+                            <StackPanel x:Name="SpotifyMixSection" Visibility="Collapsed" Margin="0,0,0,8">
+                                <TextBlock Text="МИКСЫ SPOTIFY" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource TextDimBrush}"/>
+                                <TextBlock x:Name="SpotifyMixHint" FontSize="12.5" Foreground="{StaticResource TextDimBrush}" TextWrapping="Wrap"
+                                           MaxWidth="620" HorizontalAlignment="Left" Margin="0,2,0,14"/>
+                                <ItemsControl x:Name="SpotifyMixList">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate DataType="{x:Type ui:SpotifyMixItem}">
+                                            <Border Width="184" Margin="0,0,18,22" Background="Transparent" Cursor="Hand"
+                                                    MouseLeftButtonUp="SpotifyMix_Click">
+                                                <StackPanel>
+                                                    <Border x:Name="Tile" Width="184" Height="184" CornerRadius="16" Background="{Binding Background}"
+                                                            RenderTransformOrigin="0.5,0.5">
+                                                        <Border.RenderTransform><ScaleTransform/></Border.RenderTransform>
+                                                        <Grid>
+                                                            <TextBlock Text="{Binding Glyph}" FontFamily="{StaticResource IconFont}" FontSize="54"
+                                                                       Foreground="#E6FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                            <TextBlock Text="{Binding Title}" FontSize="15" FontWeight="SemiBold" Foreground="White"
+                                                                       Margin="14,0,14,12" VerticalAlignment="Bottom" TextTrimming="CharacterEllipsis"/>
+                                                        </Grid>
+                                                    </Border>
+                                                    <TextBlock Text="{Binding Title}" FontSize="13.5" FontWeight="SemiBold" Margin="0,10,0,0"
+                                                               TextTrimming="CharacterEllipsis"/>
+                                                    <TextBlock Text="{Binding Sub}" FontSize="12" Foreground="{StaticResource TextDimBrush}"
+                                                               TextWrapping="Wrap" MaxHeight="34" TextTrimming="CharacterEllipsis"/>
+                                                </StackPanel>
+                                            </Border>
+                                            <DataTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="Tile" Property="RenderTransform">
+                                                        <Setter.Value><ScaleTransform ScaleX="1.03" ScaleY="1.03"/></Setter.Value>
+                                                    </Setter>
+                                                </Trigger>
+                                            </DataTemplate.Triggers>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <TextBlock Text="ПО ПРАВИЛАМ" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource TextDimBrush}"
+                                           Margin="0,6,0,14"/>
+                            </StackPanel>
                             <ItemsControl x:Name="SmartList">
                                 <ItemsControl.ItemsPanel>
                                     <ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate>

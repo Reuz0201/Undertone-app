@@ -90,6 +90,8 @@ namespace Undertone.Core
         public YaArtist Artist { get; init; } = new();
         public List<YaTrack> Tracks { get; init; } = new();
         public List<YaAlbum> Albums { get; init; } = new();
+        /// <summary>Похожие артисты (у Spotify — по соавторам и жанрам), если сервис их знает.</summary>
+        public List<YaArtist> Similar { get; init; } = new();
     }
 
     public sealed class YaPlaylist

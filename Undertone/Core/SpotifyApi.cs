@@ -26,7 +26,7 @@ namespace Undertone.Core
     /// для этого здесь команды /me/player.
     /// Внутри приложения id — sp-&lt;base62&gt; (безопасно для имён файлов), в API уходят id и URI spotify:track:….
     /// </summary>
-    public sealed class SpotifyApi : IMusicService
+    public sealed partial class SpotifyApi : IMusicService
     {
         public const string IdPrefix = "sp-";
 
@@ -58,7 +58,8 @@ namespace Undertone.Core
         }
 
         public MusicServiceKind Kind => MusicServiceKind.Spotify;
-        public bool SupportsWave => false;
+        /// <summary>Волны у Spotify для сторонних нет — своя, из истории, лайков и каталога (см. SpotifyApi.Radio).</summary>
+        public bool SupportsWave => true;
         public bool SupportsDislike => false;
         public bool SupportsLossless => false;
         public bool SupportsLyrics => false;
@@ -259,7 +260,9 @@ namespace Undertone.Core
         public async Task<(int Revision, List<string> Ids)> GetLikedIdsAsync(CancellationToken ct = default)
         {
             var items = await GetPagedAsync("/me/tracks?limit=50", MaxLikes, ct);
-            return (0, Remember(items.Select(UnwrapItem).Where(t => t.ValueKind == JsonValueKind.Object)).Select(t => t.Id).ToList());
+            var liked = Remember(items.Select(UnwrapItem).Where(t => t.ValueKind == JsonValueKind.Object));
+            _liked = liked; // основа вкуса для миксов и волны
+            return (0, liked.Select(t => t.Id).ToList());
         }
 
         /// <summary>Треки по id в том же порядке. Пачкой Spotify больше не отдаёт — неизвестные запрашиваем по одному.</summary>
@@ -332,33 +335,72 @@ namespace Undertone.Core
         public Task ReportPlayAsync(YaTrack track, double playedSeconds, double endPositionSeconds,
             string playId, string? playlistId = null, CancellationToken ct = default) => Task.CompletedTask;
 
-        /// <summary>Рекомендации закрыты для новых приложений — «похожих» нет.</summary>
-        public Task<List<YaTrack>> GetSimilarTracksAsync(string trackId, CancellationToken ct = default) =>
-            Task.FromResult(new List<YaTrack>());
-
         // ────────── артисты и альбомы ──────────
 
-        /// <summary>Топ-треков больше нет — вместо них поиск «artist:Имя» (только треки этого артиста).</summary>
+        /// <summary>
+        /// Страница артиста. Топ-треков Spotify больше не даёт — берём поиск «artist:Имя» (популярное выше),
+        /// а если он пуст — треки из последних релизов. Похожие — соавторы и артисты того же жанра.
+        /// </summary>
         public async Task<YaArtistPage> GetArtistAsync(string artistId, CancellationToken ct = default)
         {
             var raw = Raw(artistId);
-            var artist = ParseArtist(await GetAsync($"/artists/{raw}", ct));
+            var id = ToId(raw);
+            YaArtist artist;
+            try
+            {
+                artist = ParseArtist(await GetAsync($"/artists/{raw}", ct));
+                if (artist.Id.Length == 0) throw new YaApiException("Spotify вернул пустого артиста");
+                _artistInfo[artist.Id] = artist;
+            }
+            catch (YaApiException ex) when (ex.Status != HttpStatusCode.Unauthorized)
+            {
+                // карточка артиста не отдалась — собираем страницу из того, что о нём известно по трекам
+                Log.Warn($"Spotify: артист {raw} не получен ({ex.Message}), собираю страницу по трекам", ex);
+                var name = _known.Values.SelectMany(t => t.ArtistRefs).FirstOrDefault(a => a.Id == id)?.Name
+                           ?? throw new YaApiException("Spotify не отдал страницу артиста: " + ex.Message, ex.Status);
+                artist = new YaArtist { Id = id, Name = name };
+            }
+
             var albumsTask = SafeAsync(() => GetAsync($"/artists/{raw}/albums?include_groups=album,single&limit=20", ct));
             var q = Uri.EscapeDataString($"artist:\"{artist.Name}\"");
             var tracks = new List<YaTrack>();
             for (var page = 0; page < 3; page++)
             {
-                var r = await SafeAsync(() => GetAsync($"/search?q={q}&type=track&limit=10&offset={page * 10}", ct));
+                var offset = page * 10;
+                var r = await SafeAsync(() => GetAsync($"/search?q={q}&type=track&limit=10&offset={offset}", ct));
                 if (r is not { } found) break;
                 var batch = Remember(Items(found, "tracks"));
                 tracks.AddRange(batch.Where(t => t.ArtistRefs.Any(a => a.Id == artist.Id) && tracks.All(x => x.Id != t.Id)).ToList());
                 if (batch.Count < 10) break;
             }
-            var page0 = new YaArtistPage { Artist = artist };
-            page0.Tracks.AddRange(tracks);
-            if (await albumsTask is { } albums)
-                page0.Albums.AddRange(ParsePage(albums).Items.Select(ParseAlbum).Where(a => a.Id.Length > 0));
-            return page0;
+
+            var albums = await albumsTask is { } albumsJson
+                ? ParsePage(albumsJson).Items.Select(ParseAlbum).Where(a => a.Id.Length > 0).ToList()
+                : new List<YaAlbum>();
+
+            // поиск ничего не дал — треки из свежих релизов
+            for (var i = 0; i < albums.Count && i < 3 && tracks.Count < 10; i++)
+            {
+                try
+                {
+                    var (_, albumTracks) = await GetAlbumAsync(albums[i].Id, ct);
+                    tracks.AddRange(albumTracks.Where(t => tracks.All(x => x.Id != t.Id)).Take(10 - tracks.Count));
+                }
+                catch (YaApiException ex) when (!ex.IsUnauthorized)
+                {
+                    Log.Warn($"Spotify: альбом {albums[i].Id} не получен", ex);
+                }
+            }
+
+            List<YaArtist> similar;
+            try { similar = await SimilarArtistsAsync(artist, tracks, ct); }
+            catch (Exception ex) when (ex is YaApiException or System.Net.Http.HttpRequestException) { similar = new(); }
+
+            var result = new YaArtistPage { Artist = artist };
+            result.Tracks.AddRange(tracks);
+            result.Albums.AddRange(albums);
+            result.Similar.AddRange(similar);
+            return result;
         }
 
         public async Task<(YaAlbum Album, List<YaTrack> Tracks)> GetAlbumAsync(string albumId, CancellationToken ct = default)
@@ -452,17 +494,6 @@ namespace Undertone.Core
             CoverUri = p.CoverUri,
             DurationMs = p.DurationMs,
         };
-
-        // ────────── волны нет ──────────
-
-        public Task<WaveBatch> StartWaveAsync(IEnumerable<string> seeds, CancellationToken ct = default) =>
-            throw new NotSupportedException("В Spotify нет Моей волны");
-
-        public Task<WaveBatch> GetWaveTracksAsync(string sessionId, IEnumerable<string> queue, CancellationToken ct = default) =>
-            throw new NotSupportedException("В Spotify нет Моей волны");
-
-        public Task WaveFeedbackAsync(string sessionId, string? batchId, string type, string? trackId = null,
-            double? playedSeconds = null, CancellationToken ct = default) => Task.CompletedTask;
 
         // ────────── плеер: Spotify Connect ──────────
 

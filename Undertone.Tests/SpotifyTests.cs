@@ -222,3 +222,149 @@ public class SpotifyApiTests
         Assert.Contains("\"position_ms\":5000", play.Body);
     }
 }
+
+public class SpotifyRadioTests
+{
+    private static YaTrack T(string id, params string[] artists) => new()
+    {
+        Id = "sp-" + id,
+        Title = id,
+        Artists = artists,
+        ArtistRefs = artists.Select(a => new YaArtistRef("sp-" + a, a)).ToArray(),
+        DurationMs = 180_000,
+    };
+
+    [Fact]
+    public void Collaborators_LinkArtistsOfSameTrack()
+    {
+        var map = SpotifyTaste.Collaborators(new[] { T("1", "A", "B"), T("2", "A", "B"), T("3", "A", "C"), T("4", "D") });
+        Assert.Equal(2, map["sp-A"]["sp-B"].Count);
+        Assert.Equal(1, map["sp-A"]["sp-C"].Count);
+        Assert.True(map["sp-B"].ContainsKey("sp-A"));
+        Assert.False(map.ContainsKey("sp-D"));
+    }
+
+    [Fact]
+    public void Genres_WeightedByTopPosition()
+    {
+        var genres = SpotifyTaste.RankGenres(new[]
+        {
+            new YaArtist { Id = "1", Name = "x", Genres = new[] { "indie", "rock" } },
+            new YaArtist { Id = "2", Name = "y", Genres = new[] { "rock" } },
+            new YaArtist { Id = "3", Name = "z", Genres = new[] { "jazz" } },
+        });
+        Assert.Equal("rock", genres[0].Genre);
+        Assert.Equal("indie", genres[1].Genre);
+    }
+
+    [Fact]
+    public void ArtistWeights_FallBackToLikes()
+    {
+        var taste = new SpotifyTaste { Liked = new() { T("1", "A"), T("2", "A"), T("3", "B") } };
+        var w = taste.ArtistWeights();
+        Assert.Equal("sp-A", w[0].Id);
+        Assert.Equal(2, w.Count);
+    }
+
+    [Fact]
+    public void Compose_MixesFamiliar_LimitsPerArtist_SkipsSeen()
+    {
+        var s = new RadioSession
+        {
+            Rng = new Random(1),
+            FamiliarRatio = 0.3,
+            FamiliarPool = new() { T("f1", "F"), T("f2", "G"), T("f3", "H") },
+        };
+        s.Seen.Add("sp-n9");
+        var fresh = new[] { T("n1", "A"), T("n2", "A"), T("n3", "A"), T("n4", "B"), T("n5", "C"), T("n9", "D"), T("n6", "E"), T("n7", "K"), T("n8", "L") };
+        var batch = s.Compose(fresh, 10);
+
+        Assert.Equal(10, batch.Count);
+        Assert.Equal(3, batch.Count(t => t.Id.StartsWith("sp-f")));
+        Assert.True(batch.Count(t => t.Artists[0] == "A") <= 2);
+        Assert.DoesNotContain(batch, t => t.Id == "sp-n9");
+        Assert.Equal(batch.Count, batch.Select(t => t.Id).Distinct().Count());
+
+        // следующая пачка не повторяет уже выданное
+        var again = s.Compose(fresh, 10);
+        Assert.Empty(again.Select(t => t.Id).Intersect(batch.Select(t => t.Id)));
+    }
+
+    [Fact]
+    public void Feedback_SkipsBlockArtist_DiscoverExcludesLikes()
+    {
+        var s = new RadioSession { Rng = new Random(2), FamiliarRatio = 0, ExcludeLiked = true, LikedIds = new() { "sp-l1" } };
+        s.Feedback(T("x", "Bad"), skipped: true);
+        s.Feedback(T("y", "Bad"), skipped: true);
+        var batch = s.Compose(new[] { T("b1", "Bad"), T("l1", "Ok"), T("g1", "Good") }, 5);
+        Assert.Equal(new[] { "sp-g1" }, batch.Select(t => t.Id));
+
+        s.Feedback(T("z", "Good", "Feat"), skipped: false);
+        Assert.True(s.Artists.ContainsKey("sp-Feat"));
+    }
+
+    [Fact]
+    public void PickIndex_IgnoresZeroWeights()
+    {
+        var s = new RadioSession { Rng = new Random(3) };
+        for (var i = 0; i < 50; i++) Assert.Equal(1, s.PickIndex(new[] { 0.0, 2.0, -1.0 }));
+        Assert.Equal(-1, s.PickIndex(new[] { 0.0, 0.0 }));
+    }
+
+    [Fact]
+    public void Mixes_CatalogFollowsWhatIsKnown_AndDaySeedIsStable()
+    {
+        var taste = new SpotifyTaste
+        {
+            TopArtists = new() { new YaArtist { Id = "sp-A", Name = "Artist A", Genres = new[] { "synthwave" } } },
+            TopShort = new() { T("1", "A") },
+        };
+        var ids = SpotifyMixes.Catalog(taste).Select(m => m.Id).ToList();
+        Assert.Contains("daily", ids);
+        Assert.Contains("top-short", ids);
+        Assert.DoesNotContain("recent", ids);
+        Assert.Contains("genre:synthwave", ids);
+        Assert.Contains("artist:sp-A", ids);
+        Assert.Equal("Микс: Synthwave", SpotifyMixes.Catalog(taste).First(m => m.Id == "genre:synthwave").Title);
+
+        var day = new DateTime(2026, 10, 27, 9, 0, 0);
+        Assert.Equal(SpotifyMixes.DaySeed(day, "daily"), SpotifyMixes.DaySeed(day.AddHours(10), "daily"));
+        Assert.NotEqual(SpotifyMixes.DaySeed(day, "daily"), SpotifyMixes.DaySeed(day.AddDays(1), "daily"));
+    }
+
+    [Fact]
+    public async Task ArtistPage_FallsBackToTrackInfo_WhenArtistEndpointFails()
+    {
+        using var api = new SpotifyApi(new StatusHandler(req =>
+        {
+            var path = req.RequestUri!.AbsolutePath;
+            if (path == "/v1/artists/A") return (HttpStatusCode.Forbidden, """{ "error": { "status": 403, "message": "Forbidden" } }""");
+            if (path == "/v1/tracks/t1")
+                return (HttpStatusCode.OK, """{ "id": "t1", "name": "One", "artists": [ { "id": "A", "name": "Artist A" }, { "id": "B", "name": "Feat B" } ] }""");
+            if (path == "/v1/search")
+                return (HttpStatusCode.OK, """{ "tracks": { "items": [ { "id": "t2", "name": "Two", "artists": [ { "id": "A", "name": "Artist A" }, { "id": "B", "name": "Feat B" } ] } ] } }""");
+            return (HttpStatusCode.OK, "{}");
+        }));
+        await api.GetTracksAsync(new[] { "sp-t1" }); // трек с этим артистом уже встречался
+
+        var page = await api.GetArtistAsync("sp-A");
+        Assert.Equal("Artist A", page.Artist.Name);
+        Assert.Equal("sp-t2", Assert.Single(page.Tracks).Id);
+        Assert.Contains(page.Similar, a => a.Id == "sp-B");
+    }
+
+    private sealed class StatusHandler : HttpMessageHandler
+    {
+        private readonly Func<HttpRequestMessage, (HttpStatusCode, string)> _respond;
+        public StatusHandler(Func<HttpRequestMessage, (HttpStatusCode, string)> respond) => _respond = respond;
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, System.Threading.CancellationToken ct)
+        {
+            var (status, body) = _respond(request);
+            return Task.FromResult(new HttpResponseMessage(status)
+            {
+                Content = new StringContent(body, System.Text.Encoding.UTF8, "application/json"),
+            });
+        }
+    }
+}

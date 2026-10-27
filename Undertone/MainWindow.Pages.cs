@@ -179,6 +179,14 @@ namespace Undertone
                     CollAlbums.ItemsSource = page.Albums.Select(a => new AlbumItem(a)).ToList();
                     CollAlbumsSection.Visibility = Visibility.Visible;
                 }
+                // похожие артисты (у Spotify — соавторы и тот же жанр): ссылки под названием
+                if (page.Similar.Count > 0)
+                {
+                    var links = new List<ArtistLink> { new("", "Похожие:", " ") };
+                    links.AddRange(ArtistLink.From(page.Similar.Select(a => new YaArtistRef(a.Id, a.Name)).ToList()));
+                    CollArtists.ItemsSource = links;
+                    CollArtists.Visibility = Visibility.Visible;
+                }
                 FillTracks(page.Tracks, "У артиста нет доступных треков");
             }
             catch (Exception ex)
