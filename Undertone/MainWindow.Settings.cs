@@ -39,6 +39,7 @@ namespace Undertone
                 SelectPill(CrossfadePanel, _settings.CrossfadeSeconds);
                 NormalizeToggle.IsChecked = _settings.Normalize;
                 LiveBgToggle.IsChecked = _settings.LiveBackground;
+                AnimationsToggle.IsChecked = _settings.Animations;
                 FillRemoteSettings();
                 EqToggle.IsChecked = _settings.EqEnabled;
                 BuildEqualizer();
@@ -256,6 +257,15 @@ namespace Undertone
             _settings.Normalize = NormalizeToggle.IsChecked == true;
             PersistSettings();
             if (_queue.Current is { } t) _player.TrackGain = GainFor(t);
+        }
+
+        private void Animations_Changed(object sender, RoutedEventArgs e)
+        {
+            if (_fillingSettings) return;
+            _settings.Animations = AnimationsToggle.IsChecked == true;
+            PersistSettings();
+            Undertone.UI.Motion.Enabled = _settings.Animations;
+            if (_settings.Animations) Undertone.UI.Motion.Enter(PageSettings, rise: 10, ms: 260);
         }
 
         private void LiveBg_Changed(object sender, RoutedEventArgs e)

@@ -61,6 +61,7 @@ namespace Undertone
         public MainWindow()
         {
             InitializeComponent();
+            InitMotion();
             _yaTokens = new TokenStore(_env);
             _scConfig = SoundCloudConfig.Load(_env);
             _scTokens = TokenStore.ForSoundCloud(_env, (refresh, ct) =>
@@ -823,6 +824,7 @@ namespace Undertone
             NowLikeGlyph.Text = liked ? "" : "";
             NowLikeGlyph.Foreground = liked ? RedBrushRes : TextBrushRes;
             NowLike.ToolTip = liked ? "В любимых — убрать (L)" : "Мне нравится (L)";
+            AnimateLike(current, liked);
         }
 
         // ────────── хоткеи ──────────
@@ -1039,7 +1041,9 @@ namespace Undertone
         private void ShowToast(string text, double seconds = 2.6)
         {
             ToastText.Text = text;
+            var hidden = Toast.Opacity < 0.5;
             Toast.BeginAnimation(OpacityProperty, new DoubleAnimation(1, TimeSpan.FromMilliseconds(160)));
+            if (hidden) Motion.ToastIn(Toast);
             _toastTimer.Stop();
             _toastTimer.Interval = TimeSpan.FromSeconds(seconds);
             _toastTimer.Start();
