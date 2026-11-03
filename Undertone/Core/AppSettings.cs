@@ -23,6 +23,8 @@ namespace Undertone.Core
         public int VisualizerMode { get; set; }
         /// <summary>Живой фон из цветов обложки на экране «Сейчас играет».</summary>
         public bool LiveBackground { get; set; } = true;
+        /// <summary>Анимации интерфейса (переходы страниц, появление списков, смена трека).</summary>
+        public bool Animations { get; set; } = true;
         /// <summary>Показывать перевод текста песен на русский.</summary>
         public bool TranslateLyrics { get; set; }
 
