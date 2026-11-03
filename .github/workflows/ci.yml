@@ -37,7 +37,6 @@ jobs:
             Write-Output "::error title=$($r.testName)::$msg"
           }
 
-      # пока не обязательная: показывает nullable-предупреждения, но не роняет сборку
-      - name: Проверка nullable (информационно)
-        continue-on-error: true
+      # nullable-предупреждений ноль — новое предупреждение роняет сборку
+      - name: Проверка nullable
         run: dotnet build Undertone/Undertone.csproj -c Release --nologo --no-incremental -p:WarningsAsErrors=nullable
