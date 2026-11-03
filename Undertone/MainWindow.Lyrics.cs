@@ -21,6 +21,8 @@ namespace Undertone
         private int _lyricsActive = -1;
         private int _lyricsGen;
         private readonly Dictionary<string, (bool Synced, string Text)?> _lyricsCache = new();
+        /// <summary>Чьи тексты взяты из LRCLIB — под текстом подписываем источник.</summary>
+        private readonly HashSet<string> _lyricsFromLrcLib = new();
 
         private void NowLyrics_Click(object sender, RoutedEventArgs e) => ToggleLyrics();
 
@@ -55,20 +57,14 @@ namespace Undertone
                 return;
             }
             if (_lyricsTrackId == track.Id) return;
-            if (IsLocalTrack(track))
-            {
-                _lyricsTrackId = track.Id;
-                _lyrics = new List<LyricLine>();
-                _party?.SetLyrics(_lyrics);
-                ShowLyricsStatus("У своих файлов текста нет — он бывает только у треков Яндекса", spinner: false);
-                return;
-            }
+            var local = IsLocalTrack(track);
             _lyricsTrackId = track.Id;
             var gen = ++_lyricsGen;
 
             _lyrics = new List<LyricLine>();
             _lyricsActive = -1;
             LyricsList.ItemsSource = null;
+            ResetLyricMotion();
             ShowLyricsStatus("Загружаю текст…", spinner: true);
 
             (bool Synced, string Text)? found;
@@ -77,10 +73,19 @@ namespace Undertone
                 found = null;
                 try
                 {
-                    // сначала с таймкодами; если нет — обычный текст
-                    var lrc = track.HasSyncLyrics || !track.HasLyrics ? await api.GetLyricsAsync(track.Id, sync: true) : null;
-                    if (lrc != null) found = (true, lrc);
-                    else if (await api.GetLyricsAsync(track.Id, sync: false) is { } plain) found = (false, plain);
+                    // сначала у самого сервиса: с таймкодами, потом обычный текст
+                    if (!local)
+                    {
+                        var lrc = track.HasSyncLyrics || !track.HasLyrics ? await api.GetLyricsAsync(track.Id, sync: true) : null;
+                        if (lrc != null) found = (true, lrc);
+                        else if (await api.GetLyricsAsync(track.Id, sync: false) is { } plain) found = (false, plain);
+                    }
+                    // сервис текста не дал (Spotify его не отдаёт, у своих файлов его нет) — ищем в LRCLIB
+                    if (found == null && await LrcLib.FindAsync(track) is { } open)
+                    {
+                        found = (open.Synced, open.Text);
+                        _lyricsFromLrcLib.Add(track.Id);
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -95,12 +100,17 @@ namespace Undertone
 
             if (found is not { } lyrics)
             {
-                ShowLyricsStatus("У этого трека нет текста в Яндекс Музыке", spinner: false);
+                _party?.SetLyrics(_lyrics);
+                ShowLyricsStatus(local
+                    ? "Текст этого файла не нашёлся в открытой базе LRCLIB"
+                    : $"Текст не нашёлся — ни в {_service.TitleGenitive()}, ни в открытой базе LRCLIB", spinner: false);
                 return;
             }
+            LyricsCredits.Text = _lyricsFromLrcLib.Contains(track.Id) ? "Текст: LRCLIB" : "";
 
             _lyrics = lyrics.Synced ? LyricsParser.ParseLrc(lyrics.Text) : LyricsParser.ParsePlain(lyrics.Text);
             if (_lyrics.Count == 0) _lyrics = LyricsParser.ParsePlain(lyrics.Text);
+            ResetLyricMotion();
             LyricsList.ItemsSource = new ObservableCollection<LyricLine>(_lyrics);
             TranslateBtn.Visibility = Visibility.Visible;
             UpdateTranslateButton();
@@ -192,7 +202,11 @@ namespace Undertone
                 _lyrics[i].IsPast = i < index;
             }
             _lyricsActive = index;
-            if (index >= 0) CenterLyric(_lyrics[index]);
+            if (index >= 0)
+            {
+                CenterLyric(_lyrics[index]);
+                AnimateLyric(_lyrics[index]);
+            }
         }
 
         /// <summary>Прокручивает так, чтобы текущая строка была примерно посередине (а не у края, как ScrollIntoView).</summary>
@@ -208,7 +222,7 @@ namespace Undertone
             {
                 var top = container.TransformToAncestor(viewer).Transform(new Point(0, 0)).Y;
                 var target = viewer.VerticalOffset + top - (viewer.ViewportHeight - container.ActualHeight) * 0.4;
-                viewer.ScrollToVerticalOffset(Math.Max(0, target));
+                Motion.ScrollTo(viewer, Math.Min(Math.Max(0, target), viewer.ScrollableHeight));
             }
             catch (InvalidOperationException)
             {

@@ -139,10 +139,26 @@ namespace Undertone.Core
         {
             if (string.IsNullOrEmpty(uri)) return null;
             if (uri.StartsWith("file:", StringComparison.Ordinal)) return uri;
+            if (uri.StartsWith("https://i.scdn.co/image/ab67616d", StringComparison.OrdinalIgnoreCase))
+                return SpotifySize(uri, size);
             if (uri.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
                 uri.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
                 return uri.Replace("%%", SoundCloudSize(size));
             return "https://" + uri.Replace("%%", $"{size}x{size}");
+        }
+
+        /// <summary>
+        /// Обложка альбома Spotify: размер зашит в начало id картинки (ab67616d + 00004851 — 64 px,
+        /// 00001e02 — 300 px, 0000b273 — 640 px). Берём ближайший не меньше нужного.
+        /// </summary>
+        internal static string SpotifySize(string uri, int size)
+        {
+            const string prefix = "https://i.scdn.co/image/ab67616d";
+            if (uri.Length < prefix.Length + 8) return uri;
+            var code = uri.Substring(prefix.Length, 8);
+            if (code is not ("00004851" or "00001e02" or "0000b273")) return uri;
+            var want = size <= 64 ? "00004851" : size <= 300 ? "00001e02" : "0000b273";
+            return prefix + want + uri.Substring(prefix.Length + 8);
         }
 
         /// <summary>Ближайший больший размер артворка SoundCloud.</summary>

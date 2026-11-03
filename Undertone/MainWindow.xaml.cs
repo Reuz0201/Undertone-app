@@ -61,6 +61,7 @@ namespace Undertone
         public MainWindow()
         {
             InitializeComponent();
+            InitMotion();
             _yaTokens = new TokenStore(_env);
             _scConfig = SoundCloudConfig.Load(_env);
             _scTokens = TokenStore.ForSoundCloud(_env, (refresh, ct) =>
@@ -371,6 +372,7 @@ namespace Undertone
         private void Nav_Checked(object sender, RoutedEventArgs e)
         {
             if (!_ready) return;
+            if (sender is RadioButton nav) OnNavMotion(nav);
             PageNow.Visibility = NavNow.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
             PageLiked.Visibility = NavLiked.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
             PageSearch.Visibility = NavSearch.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
@@ -386,6 +388,7 @@ namespace Undertone
             if (NavFriends.IsChecked == true) RebuildFriends();
             if (NavLocal.IsChecked == true) ShowLocal();
             if (NavSmart.IsChecked == true) RebuildSmart();
+            SyncNavIndicator();
 
             if (NavSearch.IsChecked == true)
                 Dispatcher.InvokeAsync(() =>
@@ -823,6 +826,7 @@ namespace Undertone
             NowLikeGlyph.Text = liked ? "" : "";
             NowLikeGlyph.Foreground = liked ? RedBrushRes : TextBrushRes;
             NowLike.ToolTip = liked ? "В любимых — убрать (L)" : "Мне нравится (L)";
+            AnimateLike(current, liked);
         }
 
         // ────────── хоткеи ──────────
@@ -1039,7 +1043,9 @@ namespace Undertone
         private void ShowToast(string text, double seconds = 2.6)
         {
             ToastText.Text = text;
+            var hidden = Toast.Opacity < 0.5;
             Toast.BeginAnimation(OpacityProperty, new DoubleAnimation(1, TimeSpan.FromMilliseconds(160)));
+            if (hidden) Motion.ToastIn(Toast);
             _toastTimer.Stop();
             _toastTimer.Interval = TimeSpan.FromSeconds(seconds);
             _toastTimer.Start();
@@ -1049,6 +1055,7 @@ namespace Undertone
         {
             _toastTimer.Stop();
             Toast.BeginAnimation(OpacityProperty, new DoubleAnimation(0, TimeSpan.FromMilliseconds(300)));
+            Motion.ToastOut(Toast);
         }
 
         private static string Short(string message) =>

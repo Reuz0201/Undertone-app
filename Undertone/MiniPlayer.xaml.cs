@@ -27,6 +27,22 @@ namespace Undertone
             InitializeComponent();
             _settings = settings;
             PlaceOnScreen();
+            // появляется, раскрываясь из чуть меньшего
+            Loaded += (_, _) => { if (Content is UIElement root) Motion.PopIn(root, from: 0.9, ms: 360); };
+        }
+
+        private bool _fadedOut;
+
+        /// <summary>Закрывается не щелчком, а гаснет и чуть сжимается (окно прозрачное — так можно).</summary>
+        protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
+        {
+            base.OnClosing(e);
+            if (e.Cancel || _fadedOut || !Motion.On || !IsVisible) return;
+            e.Cancel = true;
+            _fadedOut = true;
+            var fade = new System.Windows.Media.Animation.DoubleAnimation(0, TimeSpan.FromMilliseconds(170));
+            fade.Completed += (_, _) => Close();
+            BeginAnimation(OpacityProperty, fade);
         }
 
         /// <summary>Где был в прошлый раз; если тот монитор отключили — в правый нижний угол рабочей области.</summary>

@@ -359,7 +359,14 @@
                         </Button.Template>
                     </Button>
 
-                    <StackPanel DockPanel.Dock="Top">
+                    <Grid x:Name="NavHost" DockPanel.Dock="Top">
+                    <!-- подсветка выбранного пункта: одна на всё меню, переезжает между пунктами -->
+                    <Border x:Name="NavPill" VerticalAlignment="Top" Background="{StaticResource CardBrush}" CornerRadius="10"
+                            Opacity="0" IsHitTestVisible="False">
+                        <Border Width="3" Height="18" CornerRadius="2" HorizontalAlignment="Left"
+                                Background="{DynamicResource LiveAccent}"/>
+                    </Border>
+                    <StackPanel x:Name="NavStack">
                         <RadioButton x:Name="NavNow" Style="{StaticResource NavButton}" Tag="&#xE8D6;" Content="Сейчас играет"
                                      IsChecked="True" Checked="Nav_Checked"/>
                         <RadioButton x:Name="NavLiked" Style="{StaticResource NavButton}" Tag="&#xEB51;" Content="Мне нравится"
@@ -402,6 +409,7 @@
                             </Button.Template>
                         </Button>
                     </StackPanel>
+                    </Grid>
 
                     <!-- заголовок «Плейлисты» -->
                     <Grid DockPanel.Dock="Top" Margin="12,18,0,6">
@@ -514,7 +522,7 @@
                 <!-- фон страниц артиста/альбома/плейлиста: размытая обложка полосой сверху -->
                 <Grid x:Name="CollBackdrop" ClipToBounds="True" IsHitTestVisible="False" VerticalAlignment="Top" Height="440"
                       Visibility="{Binding Visibility, ElementName=PageCollection}">
-                    <Image x:Name="CollBackdropImage" Stretch="UniformToFill" Opacity="0.55" Margin="-120,-160,-120,-40">
+                    <Image x:Name="CollBackdropImage" Stretch="UniformToFill" Opacity="0.55" Margin="-120,-160,-120,-40" CacheMode="BitmapCache">
                         <Image.Effect>
                             <BlurEffect Radius="100" KernelType="Gaussian" RenderingBias="Performance"/>
                         </Image.Effect>
@@ -545,7 +553,8 @@
                 <Grid x:Name="PageNow" SizeChanged="PageNow_SizeChanged">
                     <!-- фон: размытая обложка, гаснет к низу -->
                     <Grid ClipToBounds="True" IsHitTestVisible="False">
-                        <Image x:Name="BackdropImage" Stretch="UniformToFill" Opacity="0.5" Margin="-120">
+                        <!-- CacheMode: размытие считается один раз на обложку, а не в каждом кадре, пока поверх движется фон -->
+                        <Image x:Name="BackdropImage" Stretch="UniformToFill" Opacity="0.5" Margin="-120" CacheMode="BitmapCache">
                             <Image.Effect>
                                 <BlurEffect Radius="110" KernelType="Gaussian" RenderingBias="Performance"/>
                             </Image.Effect>
@@ -561,6 +570,8 @@
                                 </LinearGradientBrush>
                             </Rectangle.Fill>
                         </Rectangle>
+                        <!-- визуализация на фоне: частицы, волны или пульс под музыку (Настройки → Приложение) -->
+                        <ui:AmbientViz x:Name="Ambient"/>
                     </Grid>
 
                     <!-- пустое состояние: большая кнопка «Моя волна» -->
@@ -631,12 +642,12 @@
 
                                 <Grid x:Name="HeroCover" Width="300" Height="300" VerticalAlignment="Top">
                                     <!-- свечение цвета обложки под ней -->
-                                    <Border CornerRadius="16" Background="#01000000" Margin="18,26,18,0">
+                                    <Border CornerRadius="16" Background="#01000000" Margin="18,26,18,0" CacheMode="BitmapCache">
                                         <Border.Effect>
                                             <DropShadowEffect x:Name="HeroGlow" Color="#BFC3D0" BlurRadius="90" ShadowDepth="0" Opacity="0.5"/>
                                         </Border.Effect>
                                     </Border>
-                                    <Border CornerRadius="16" Background="{StaticResource CardBrush}">
+                                    <Border CornerRadius="16" Background="{StaticResource CardBrush}" CacheMode="BitmapCache">
                                         <Border.Effect>
                                             <DropShadowEffect BlurRadius="40" ShadowDepth="12" Opacity="0.5" Color="Black"/>
                                         </Border.Effect>
@@ -920,9 +931,9 @@
                         <ListBox x:Name="LikedList" Style="{StaticResource TrackList}"
                                  ItemContainerStyle="{StaticResource TrackRow}" ItemTemplate="{StaticResource TrackRowTemplate}"
                                  KeyDown="List_KeyDown"/>
-                        <StackPanel x:Name="LikedLoading" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Collapsed">
-                            <Control Style="{StaticResource Spinner}" HorizontalAlignment="Center"/>
-                            <TextBlock Text="Загружаю любимые треки…" Foreground="{StaticResource TextDimBrush}" Margin="0,12,0,0"/>
+                        <!-- пока грузится: заглушки строк с бликом -->
+                        <StackPanel x:Name="LikedLoading" VerticalAlignment="Top" Visibility="Collapsed">
+                            <ui:Skeleton Rows="9"/>
                         </StackPanel>
                         <TextBlock x:Name="LikedEmpty" Visibility="Collapsed" HorizontalAlignment="Center" VerticalAlignment="Center"
                                    Foreground="{StaticResource TextDimBrush}" TextAlignment="Center" TextWrapping="Wrap" MaxWidth="420"/>
@@ -1025,8 +1036,8 @@
                             </ItemsControl>
                         </ScrollViewer>
 
-                        <StackPanel x:Name="SearchLoading" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Collapsed">
-                            <Control Style="{StaticResource Spinner}" HorizontalAlignment="Center"/>
+                        <StackPanel x:Name="SearchLoading" VerticalAlignment="Top" Visibility="Collapsed" Margin="0,8,0,0">
+                            <ui:Skeleton Rows="8"/>
                         </StackPanel>
                         <StackPanel x:Name="SearchEmpty" HorizontalAlignment="Center" VerticalAlignment="Center">
                             <TextBlock Text="&#xE721;" FontFamily="{StaticResource IconFont}" FontSize="48"
@@ -1135,8 +1146,8 @@
                         <ListBox x:Name="CollList" Style="{StaticResource TrackList}"
                                  ItemContainerStyle="{StaticResource TrackRow}" ItemTemplate="{StaticResource TrackRowTemplate}"
                                  KeyDown="List_KeyDown"/>
-                        <StackPanel x:Name="CollLoading" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Collapsed">
-                            <Control Style="{StaticResource Spinner}" HorizontalAlignment="Center"/>
+                        <StackPanel x:Name="CollLoading" VerticalAlignment="Top" Visibility="Collapsed">
+                            <ui:Skeleton Rows="8"/>
                         </StackPanel>
                         <TextBlock x:Name="CollEmpty" Visibility="Collapsed" HorizontalAlignment="Center" VerticalAlignment="Center"
                                    Foreground="{StaticResource TextDimBrush}" TextAlignment="Center" TextWrapping="Wrap" MaxWidth="420"/>
@@ -1715,6 +1726,25 @@
                                     </StackPanel>
                                 </CheckBox>
                                 <Rectangle Height="1" Fill="{StaticResource DividerBrush}" Margin="0,16"/>
+                                <TextBlock Text="Визуализация на фоне"/>
+                                <TextBlock Style="{StaticResource SettingsHint}"
+                                           Text="За экраном «Сейчас играет» — в цветах обложки и в такт музыке: светлячки на ударах вспыхивают, волны поднимаются с басами, от обложки расходятся кольца. Spotify не отдаёт звук сторонним программам — с ним фон двигается сам, без такта."/>
+                                <WrapPanel x:Name="AmbientPanel" Margin="0,10,0,0">
+                                    <RadioButton Style="{StaticResource ChoicePill}" GroupName="Ambient" Content="Нет" Tag="0" Checked="Ambient_Checked"/>
+                                    <RadioButton Style="{StaticResource ChoicePill}" GroupName="Ambient" Content="Звёздная пыль" Tag="1" Checked="Ambient_Checked"/>
+                                    <RadioButton Style="{StaticResource ChoicePill}" GroupName="Ambient" Content="Волны" Tag="2" Checked="Ambient_Checked"/>
+                                    <RadioButton Style="{StaticResource ChoicePill}" GroupName="Ambient" Content="Пульс" Tag="3" Checked="Ambient_Checked"/>
+                                </WrapPanel>
+                                <Rectangle Height="1" Fill="{StaticResource DividerBrush}" Margin="0,16"/>
+                                <CheckBox x:Name="AnimationsToggle" Style="{StaticResource ToggleSwitch}"
+                                          Checked="Animations_Changed" Unchecked="Animations_Changed">
+                                    <StackPanel>
+                                        <TextBlock Text="Анимации"/>
+                                        <TextBlock Style="{StaticResource SettingsHint}"
+                                                   Text="Страницы выплывают, подсветка меню переезжает, обложка нового трека въезжает с той стороны, куда листаешь, лайк вспыхивает, текст песни прокручивается плавно. Если в Windows выключены эффекты анимации — их не будет и здесь."/>
+                                    </StackPanel>
+                                </CheckBox>
+                                <Rectangle Height="1" Fill="{StaticResource DividerBrush}" Margin="0,16"/>
                                 <CheckBox x:Name="CloseToTrayToggle" Style="{StaticResource ToggleSwitch}"
                                           Checked="CloseToTray_Changed" Unchecked="CloseToTray_Changed">
                                     <StackPanel>
@@ -1898,7 +1928,7 @@
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
-                    <Grid Width="58" Height="58" Cursor="Hand" MouseLeftButtonUp="BarCover_Click" ToolTip="Сейчас играет">
+                    <Grid x:Name="BarCover" Width="58" Height="58" Cursor="Hand" MouseLeftButtonUp="BarCover_Click" ToolTip="Сейчас играет">
                         <Border CornerRadius="9" Background="{StaticResource CardBrush}">
                             <TextBlock Text="&#xEC4F;" FontFamily="{StaticResource IconFont}" FontSize="18"
                                        Foreground="{StaticResource TextFaintBrush}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
@@ -2053,6 +2083,9 @@
                 </StackPanel>
             </Grid>
         </Border>
+
+        <!-- слой для коротких эффектов поверх окна (вспышка лайка) — мыши не мешает -->
+        <Canvas x:Name="FxLayer" Grid.RowSpan="2" IsHitTestVisible="False" Panel.ZIndex="30"/>
 
         <!-- ═══════════ Тост ═══════════ -->
         <Border x:Name="Toast" Grid.Row="0" VerticalAlignment="Bottom" HorizontalAlignment="Center" Margin="256,0,0,22"
