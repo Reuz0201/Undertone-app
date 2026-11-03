@@ -121,8 +121,11 @@ public class UpdaterTests
         Assert.Equal("", Undertone.MainWindow.PlainReleaseNotes("  "));
     }
 
-    private static UpdateInfo Rel(string version, bool beta = false) =>
-        new(Version.Parse(version), "v" + version, "https://zip", null, "", "", 0, IsBeta: beta);
+    private static UpdateInfo Rel(string version, bool beta = false)
+    {
+        Assert.True(Updater.TryParseVersion(version, out var v)); // 4.3.1 → 4.3.1.0, как в приложении
+        return new(v, "v" + version, "https://zip", null, "", "", 0, IsBeta: beta);
+    }
 
     [Fact]
     public void Choose_StableIgnoresBeta()
