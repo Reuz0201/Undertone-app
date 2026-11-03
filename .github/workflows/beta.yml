@@ -1,0 +1,142 @@
+# Бета-версии из pull request'ов.
+#
+# Каждый push в открытый PR собирает приложение и публикует его как pre-release с тегом
+# vX.Y.Z.N-beta.prNN, где X.Y.Z — последний релиз, N — номер сборки. Приложения с включённым
+# «Бета-тестированием» (Настройки → Обновления) скачают его сами. Обычные пользователи pre-release не видят.
+#
+# От каждого PR живёт только последняя бета; PR закрыт или слит — его беты удаляются.
+# Сборки из форков не публикуются: у них нет доступа к ключу подписи, и чужой код не должен
+# попадать к бета-тестерам без проверки.
+name: Beta
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, closed]
+
+permissions:
+  contents: write   # создать pre-release и удалить старые
+
+concurrency:
+  group: beta-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    if: >-
+      github.event.action != 'closed' &&
+      !github.event.pull_request.draft &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: windows-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PR: ${{ github.event.pull_request.number }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Версия беты
+        id: ver
+        shell: pwsh
+        run: |
+          # последний обычный релиз (/releases/latest pre-release не отдаёт); релизов нет — 0.0.0
+          $tag = gh api "repos/${{ github.repository }}/releases/latest" --jq .tag_name 2>$null
+          $base = if ($LASTEXITCODE -eq 0 -and $tag -match '^v?(\d+\.\d+\.\d+)$') { $Matches[1] } else { '0.0.0' }
+          $v = "$base.${{ github.run_number }}"
+          "version=$v" >> $env:GITHUB_OUTPUT
+          "base=$base" >> $env:GITHUB_OUTPUT
+          "tag=v$v-beta.pr$env:PR" >> $env:GITHUB_OUTPUT
+          Write-Host "Бета $v (на основе v$base)"
+
+      - name: Тесты
+        run: dotnet test Undertone.Tests/Undertone.Tests.csproj -c Release --nologo
+
+      - name: Publish
+        shell: pwsh
+        env:
+          UPDATE_PUBLIC_KEY: ${{ vars.UPDATE_PUBLIC_KEY }}
+          SOUNDCLOUD_CLIENT_ID: ${{ secrets.SOUNDCLOUD_CLIENT_ID }}
+          SOUNDCLOUD_CLIENT_SECRET: ${{ secrets.SOUNDCLOUD_CLIENT_SECRET }}
+          SPOTIFY_CLIENT_ID: ${{ secrets.SPOTIFY_CLIENT_ID }}
+        run: |
+          $publishArgs = @(
+            'publish', 'Undertone/Undertone.csproj', '-c', 'Release', '-r', 'win-x64', '--self-contained', 'true',
+            '-p:PublishSingleFile=true', '-p:IncludeNativeLibrariesForSelfExtract=true', '-p:EnableCompressionInSingleFile=true',
+            '-p:DebugType=none', "-p:Version=${{ steps.ver.outputs.version }}", "-p:UpdateRepo=${{ github.repository }}",
+            '-o', 'publish')
+          if ($env:UPDATE_PUBLIC_KEY) { $publishArgs += "-p:UpdatePublicKey=$($env:UPDATE_PUBLIC_KEY.Trim())" }
+          if ($env:SOUNDCLOUD_CLIENT_ID) { $publishArgs += "-p:SoundCloudClientId=$($env:SOUNDCLOUD_CLIENT_ID.Trim())" }
+          if ($env:SOUNDCLOUD_CLIENT_SECRET) { $publishArgs += "-p:SoundCloudClientSecret=$($env:SOUNDCLOUD_CLIENT_SECRET.Trim())" }
+          if ($env:SPOTIFY_CLIENT_ID) { $publishArgs += "-p:SpotifyClientId=$($env:SPOTIFY_CLIENT_ID.Trim())" }
+          & dotnet @publishArgs
+          if ($LASTEXITCODE -ne 0) { throw 'dotnet publish упал' }
+
+      - name: Архив и контрольная сумма
+        shell: pwsh
+        run: |
+          Compress-Archive -Path publish\* -DestinationPath Undertone-win-x64.zip
+          $hash = (Get-FileHash Undertone-win-x64.zip -Algorithm SHA256).Hash.ToLower()
+          "$hash  Undertone-win-x64.zip" | Set-Content -Encoding ascii Undertone-win-x64.zip.sha256
+
+      # тем же ключом, что и релизы: иначе сборки с вшитым ключом бету не примут
+      - name: Подпись
+        shell: pwsh
+        env:
+          UPDATE_SIGNING_KEY: ${{ secrets.UPDATE_SIGNING_KEY }}
+        run: |
+          if (-not $env:UPDATE_SIGNING_KEY) { Write-Host 'Ключа подписи нет — бета без .sig'; exit 0 }
+          $ecdsa = [System.Security.Cryptography.ECDsa]::Create()
+          $ecdsa.ImportFromPem($env:UPDATE_SIGNING_KEY)
+          $bytes = [IO.File]::ReadAllBytes((Resolve-Path 'Undertone-win-x64.zip'))
+          $sig = $ecdsa.SignData($bytes, [System.Security.Cryptography.HashAlgorithmName]::SHA256)
+          [Convert]::ToBase64String($sig) | Set-Content -Encoding ascii Undertone-win-x64.zip.sig
+
+      - name: Заметки из описания PR
+        shell: pwsh
+        env:
+          # через env, а не подстановкой в скрипт: в названии/описании PR может быть что угодно
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: |
+          $notes = if ($env:PR_BODY) { $env:PR_BODY.Trim() } else { $env:PR_TITLE }
+          $notes += "`n`n_Бета из [pull request #$env:PR]($env:PR_URL), на основе v${{ steps.ver.outputs.base }}. Может содержать ошибки._"
+          Set-Content -Path beta-notes.md -Value $notes -Encoding UTF8
+
+      - name: Убрать прошлые беты этого PR
+        shell: pwsh
+        run: |
+          $old = gh release list --limit 100 --json tagName,isPrerelease --jq ".[] | select(.isPrerelease) | .tagName" |
+            Where-Object { $_ -like "*-beta.pr$env:PR" }
+          foreach ($t in $old) { gh release delete $t --cleanup-tag --yes; Write-Host "Удалена $t" }
+
+      - name: Опубликовать бету
+        shell: pwsh
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          $files = @('Undertone-win-x64.zip', 'Undertone-win-x64.zip.sha256')
+          if (Test-Path 'Undertone-win-x64.zip.sig') { $files += 'Undertone-win-x64.zip.sig' }
+          gh release create '${{ steps.ver.outputs.tag }}' @files `
+            --prerelease --latest=false `
+            --target '${{ github.event.pull_request.head.sha }}' `
+            --title "Бета ${{ steps.ver.outputs.version }} · #${env:PR} $env:PR_TITLE" `
+            --notes-file beta-notes.md
+          if ($LASTEXITCODE -ne 0) { throw 'Не удалось опубликовать бету' }
+          "Бета **${{ steps.ver.outputs.version }}** опубликована: включи «Бета-тестирование» в настройках Undertone." >> $env:GITHUB_STEP_SUMMARY
+
+  cleanup:
+    if: github.event.action == 'closed'
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PR: ${{ github.event.pull_request.number }}
+    steps:
+      - name: Удалить беты закрытого PR
+        run: |
+          gh release list -R "${{ github.repository }}" --limit 100 --json tagName,isPrerelease \
+            --jq '.[] | select(.isPrerelease) | .tagName' |
+          grep -- "-beta.pr${PR}\$" |
+          while read -r t; do gh release delete "$t" -R "${{ github.repository }}" --cleanup-tag --yes; echo "Удалена $t"; done || true

@@ -43,6 +43,7 @@ namespace Undertone
                         : "Выберите, откуда слушать музыку. Второй сервис можно подключить потом в меню профиля.");
                     YandexConnected.Visibility = _yaTokens.AccessToken != null ? Visibility.Visible : Visibility.Collapsed;
                     ScConnected.Visibility = _scTokens.AccessToken != null ? Visibility.Visible : Visibility.Collapsed;
+                    ScServiceCard.Visibility = MusicServices.SoundCloudEnabled ? Visibility.Visible : Visibility.Collapsed;
                     SpConnected.Visibility = _spTokens.AccessToken != null ? Visibility.Visible : Visibility.Collapsed;
                     break;
 

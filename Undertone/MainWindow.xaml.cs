@@ -122,7 +122,7 @@ namespace Undertone
 
         private async Task StartAsync()
         {
-            Log.Info($"Запуск Undertone {Updater.AppVersion.ToString(3)}");
+            Log.Info($"Запуск Undertone {Updater.Display(Updater.AppVersion)}");
             _ = Task.Run(() =>
             {
                 _cache.MigrateLegacy();

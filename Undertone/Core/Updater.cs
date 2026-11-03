@@ -15,7 +15,7 @@ namespace Undertone.Core
 {
     public sealed record UpdateInfo(
         Version Version, string Tag, string ZipUrl, string? Sha256Url, string Notes, string PageUrl, long Size,
-        string? SignatureUrl = null);
+        string? SignatureUrl = null, bool IsBeta = false, string Title = "");
 
     public sealed class UpdateException : Exception
     {
@@ -30,6 +30,11 @@ namespace Undertone.Core
     /// SHA-256 защищает только от битого файла. От подмены защищает подпись .sig (ECDSA P-256):
     /// приватный ключ лежит в секретах GitHub, публичный вшивается в exe при сборке.
     /// Если в сборке есть публичный ключ, неподписанное или чужое обновление не установится.
+    ///
+    /// Бета: сборки из открытых pull request'ов (workflow beta.yml) публикуются как pre-release с версией
+    /// X.Y.Z.N — X.Y.Z последнего релиза и номер сборки. Такая версия выше релиза X.Y.Z, но ниже следующего
+    /// X.Y.(Z+1), поэтому бета-тестер сам переедет на релиз, когда тот выйдет. Выключил бету —
+    /// вернётся на последний релиз при следующей проверке.
     /// </summary>
     public sealed class Updater
     {
@@ -41,6 +46,9 @@ namespace Undertone.Core
         public string Repo { get; }
         public Version CurrentVersion { get; }
         public string AppDirectory { get; }
+
+        /// <summary>Предлагать бета-версии (pre-release из pull request'ов).</summary>
+        public bool IncludeBeta { get; set; }
 
         public Updater(string repo, Version currentVersion, string appDirectory)
         {
@@ -72,6 +80,13 @@ namespace Undertone.Core
             }
         }
 
+        /// <summary>Бета-сборка: четвёртая часть версии — номер сборки из pull request'а.</summary>
+        public static bool IsBetaVersion(Version v) => v.Revision > 0;
+
+        /// <summary>Версия для людей: «4.3.0» или «4.3.0 бета 57».</summary>
+        public static string Display(Version v) =>
+            IsBetaVersion(v) ? $"{v.ToString(3)} бета {v.Revision}" : v.ToString(3);
+
         /// <summary>owner/repo, который CI вшивает в сборку (AssemblyMetadata "UpdateRepo").</summary>
         public static string? EmbeddedRepo => Metadata("UpdateRepo");
 
@@ -90,46 +105,91 @@ namespace Undertone.Core
 
         // ────────── проверка ──────────
 
-        private string? _etag, _lastJson;
+        // ETag отдельно для каждого адреса: стабильный канал и бета ходят в разные места
+        private readonly Dictionary<string, (string? ETag, string Json)> _cache = new();
 
         public async Task<UpdateInfo?> CheckAsync(CancellationToken ct = default)
         {
-            string json;
+            var beta = IncludeBeta;
+            // /releases/latest никогда не отдаёт pre-release, поэтому для беты — список последних релизов
+            var url = beta
+                ? $"https://api.github.com/repos/{Repo}/releases?per_page=30"
+                : $"https://api.github.com/repos/{Repo}/releases/latest";
+            var json = await GetJsonAsync(url, ct);
+            if (json == null) return null;
+
+            IEnumerable<UpdateInfo> releases = beta
+                ? ParseReleases(json)
+                : ParseRelease(json) is { } one ? new[] { one } : Array.Empty<UpdateInfo>();
+            return Choose(releases, CurrentVersion, beta, UpdateGuard.BadVersions());
+        }
+
+        private async Task<string?> GetJsonAsync(string url, CancellationToken ct)
+        {
             try
             {
                 // ETag: пока релиз не менялся, GitHub отвечает 304 и не тратит лимит запросов —
                 // поэтому можно проверять часто и узнавать о новой версии почти сразу
-                using var req = new HttpRequestMessage(HttpMethod.Get, $"https://api.github.com/repos/{Repo}/releases/latest");
-                if (_etag != null) req.Headers.TryAddWithoutValidation("If-None-Match", _etag);
+                _cache.TryGetValue(url, out var cached);
+                using var req = new HttpRequestMessage(HttpMethod.Get, url);
+                if (cached.ETag != null) req.Headers.TryAddWithoutValidation("If-None-Match", cached.ETag);
                 using var resp = await Http.SendAsync(req, ct);
-                if (resp.StatusCode == System.Net.HttpStatusCode.NotModified && _lastJson != null)
-                    json = _lastJson;
-                else
-                {
+                if (resp.StatusCode == System.Net.HttpStatusCode.NotModified && cached.Json != null)
+                    return cached.Json;
                 if (resp.StatusCode == System.Net.HttpStatusCode.NotFound) return null; // релизов ещё нет
                 if ((int)resp.StatusCode == 403 || (int)resp.StatusCode == 429)
                     throw new UpdateException("GitHub временно ограничил запросы, проверю позже");
                 resp.EnsureSuccessStatusCode();
-                json = await resp.Content.ReadAsStringAsync(ct);
-                _etag = resp.Headers.ETag?.ToString();
-                _lastJson = json;
-                }
+                var json = await resp.Content.ReadAsStringAsync(ct);
+                _cache[url] = (resp.Headers.ETag?.ToString(), json);
+                return json;
             }
             catch (HttpRequestException ex)
             {
                 throw new UpdateException("Нет связи с GitHub", ex);
             }
+        }
 
-            var info = ParseRelease(json);
-            return info != null && info.Version > CurrentVersion ? info : null;
+        /// <summary>
+        /// Что ставить: самую новую версию, если она новее текущей. Исключение — сейчас стоит бета,
+        /// а бета выключена: тогда последний релиз, даже если по номеру он «старше» (возврат на стабильную).
+        /// </summary>
+        internal static UpdateInfo? Choose(IEnumerable<UpdateInfo> releases, Version current, bool includeBeta,
+            IReadOnlySet<Version>? skip = null)
+        {
+            var best = releases
+                .Where(r => includeBeta || !r.IsBeta)
+                .Where(r => skip == null || !skip.Contains(r.Version)) // уже падала у этого пользователя — откатились
+                .OrderByDescending(r => r.Version)
+                .FirstOrDefault();
+            if (best == null) return null;
+            if (best.Version > current) return best;
+            if (!includeBeta && IsBetaVersion(current) && best.Version != current) return best;
+            return null;
+        }
+
+        /// <summary>Список релизов (/releases): черновики и релизы без архива пропускаются, pre-release — бета.</summary>
+        internal static List<UpdateInfo> ParseReleases(string json)
+        {
+            using var doc = JsonDocument.Parse(json);
+            var list = new List<UpdateInfo>();
+            if (doc.RootElement.ValueKind != JsonValueKind.Array) return list;
+            foreach (var r in doc.RootElement.EnumerateArray())
+                if (ParseRelease(r, allowBeta: true) is { } info) list.Add(info);
+            return list;
         }
 
         internal static UpdateInfo? ParseRelease(string json)
         {
             using var doc = JsonDocument.Parse(json);
-            var r = doc.RootElement;
+            return ParseRelease(doc.RootElement, allowBeta: false);
+        }
+
+        private static UpdateInfo? ParseRelease(JsonElement r, bool allowBeta)
+        {
             if (r.TryGetProperty("draft", out var d) && d.ValueKind == JsonValueKind.True) return null;
-            if (r.TryGetProperty("prerelease", out var p) && p.ValueKind == JsonValueKind.True) return null;
+            var prerelease = r.TryGetProperty("prerelease", out var p) && p.ValueKind == JsonValueKind.True;
+            if (prerelease && !allowBeta) return null;
 
             var tag = r.TryGetProperty("tag_name", out var t) ? t.GetString() ?? "" : "";
             if (!TryParseVersion(tag, out var version)) return null;
@@ -162,7 +222,8 @@ namespace Undertone.Core
 
             var notes = r.TryGetProperty("body", out var b) ? b.GetString() ?? "" : "";
             var page = r.TryGetProperty("html_url", out var h) ? h.GetString() ?? "" : "";
-            return new UpdateInfo(version, tag, zip, sha, notes.Trim(), page, size, sig);
+            var title = r.TryGetProperty("name", out var nm) ? nm.GetString() ?? "" : "";
+            return new UpdateInfo(version, tag, zip, sha, notes.Trim(), page, size, sig, prerelease, title.Trim());
         }
 
         internal static bool TryParseVersion(string text, out Version version)
@@ -339,15 +400,17 @@ namespace Undertone.Core
         {
             var name = Path.GetFileName(relativePath);
             return name.Equals(EnvFile.FileName, StringComparison.OrdinalIgnoreCase)
-                || name.EndsWith(OldSuffix, StringComparison.OrdinalIgnoreCase);
+                || name.EndsWith(OldSuffix, StringComparison.OrdinalIgnoreCase)
+                || name.EndsWith(UpdateGuard.BadSuffix, StringComparison.OrdinalIgnoreCase);
         }
 
-        /// <summary>Удаляет *.old после успешного обновления (вызывать, когда старый процесс уже вышел).</summary>
+        /// <summary>Удаляет *.old (и *.bad после отката) после успешного обновления (вызывать, когда старый процесс уже вышел).</summary>
         public static void CleanupOld(string appDirectory)
         {
             try
             {
-                foreach (var f in Directory.GetFiles(appDirectory, "*" + OldSuffix, SearchOption.AllDirectories))
+                foreach (var f in Directory.GetFiles(appDirectory, "*" + OldSuffix, SearchOption.AllDirectories)
+                             .Concat(Directory.GetFiles(appDirectory, "*" + UpdateGuard.BadSuffix, SearchOption.AllDirectories)))
                 {
                     try { File.Delete(f); } catch (IOException) { } catch (UnauthorizedAccessException) { }
                 }
