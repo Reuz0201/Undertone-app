@@ -828,6 +828,7 @@ namespace Undertone
             OnLyricsTrackChanged();
             OnNowPlayingTrack(track);
             SyncParty(full: true);
+            AnimateTrackChange(track.Id);
         }
 
         private void ShowEmptyNowPlaying()

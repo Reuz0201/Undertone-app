@@ -1715,6 +1715,15 @@
                                     </StackPanel>
                                 </CheckBox>
                                 <Rectangle Height="1" Fill="{StaticResource DividerBrush}" Margin="0,16"/>
+                                <CheckBox x:Name="AnimationsToggle" Style="{StaticResource ToggleSwitch}"
+                                          Checked="Animations_Changed" Unchecked="Animations_Changed">
+                                    <StackPanel>
+                                        <TextBlock Text="Анимации"/>
+                                        <TextBlock Style="{StaticResource SettingsHint}"
+                                                   Text="Страницы выплывают, списки появляются по очереди, обложка нового трека мягко встаёт на место, лайк подпрыгивает. Если в Windows выключены эффекты анимации — их не будет и здесь."/>
+                                    </StackPanel>
+                                </CheckBox>
+                                <Rectangle Height="1" Fill="{StaticResource DividerBrush}" Margin="0,16"/>
                                 <CheckBox x:Name="CloseToTrayToggle" Style="{StaticResource ToggleSwitch}"
                                           Checked="CloseToTray_Changed" Unchecked="CloseToTray_Changed">
                                     <StackPanel>
@@ -1898,7 +1907,7 @@
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
-                    <Grid Width="58" Height="58" Cursor="Hand" MouseLeftButtonUp="BarCover_Click" ToolTip="Сейчас играет">
+                    <Grid x:Name="BarCover" Width="58" Height="58" Cursor="Hand" MouseLeftButtonUp="BarCover_Click" ToolTip="Сейчас играет">
                         <Border CornerRadius="9" Background="{StaticResource CardBrush}">
                             <TextBlock Text="&#xEC4F;" FontFamily="{StaticResource IconFont}" FontSize="18"
                                        Foreground="{StaticResource TextFaintBrush}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
