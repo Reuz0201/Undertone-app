@@ -53,9 +53,34 @@ namespace Undertone
             Motion.Pressable(NowLike);
             Motion.Pressable(BarLike);
 
+            if (Environment.GetEnvironmentVariable("UNDERTONE_FPS") == "1") StartFpsProbe();
+
             // подсветка меню: встаёт на место сразу после разметки и при изменении размеров
             NavHost.Loaded += (_, _) => Dispatcher.InvokeAsync(() => SyncNavIndicator(animate: false), DispatcherPriority.Loaded);
             NavHost.SizeChanged += (_, _) => SyncNavIndicator(animate: false);
+        }
+
+        /// <summary>
+        /// Диагностика плавности (переменная окружения UNDERTONE_FPS=1): раз в 5 с пишет в журнал кадры в секунду
+        /// и самый долгий кадр. Кадр считается от одного CompositionTarget.Rendering до следующего.
+        /// </summary>
+        private void StartFpsProbe()
+        {
+            var clock = System.Diagnostics.Stopwatch.StartNew();
+            double last = 0, windowStart = 0, worst = 0;
+            int frames = 0;
+            CompositionTarget.Rendering += (_, _) =>
+            {
+                var now = clock.Elapsed.TotalMilliseconds;
+                if (last > 0) worst = Math.Max(worst, now - last);
+                last = now;
+                frames++;
+                if (now - windowStart < 5000) return;
+                Undertone.Core.Log.Info($"FPS {frames * 1000 / (now - windowStart):0.0}, худший кадр {worst:0} мс");
+                windowStart = now;
+                frames = 0;
+                worst = 0;
+            };
         }
 
         // ────────── меню ──────────

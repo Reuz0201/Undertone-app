@@ -522,7 +522,7 @@
                 <!-- фон страниц артиста/альбома/плейлиста: размытая обложка полосой сверху -->
                 <Grid x:Name="CollBackdrop" ClipToBounds="True" IsHitTestVisible="False" VerticalAlignment="Top" Height="440"
                       Visibility="{Binding Visibility, ElementName=PageCollection}">
-                    <Image x:Name="CollBackdropImage" Stretch="UniformToFill" Opacity="0.55" Margin="-120,-160,-120,-40">
+                    <Image x:Name="CollBackdropImage" Stretch="UniformToFill" Opacity="0.55" Margin="-120,-160,-120,-40" CacheMode="BitmapCache">
                         <Image.Effect>
                             <BlurEffect Radius="100" KernelType="Gaussian" RenderingBias="Performance"/>
                         </Image.Effect>
@@ -553,7 +553,8 @@
                 <Grid x:Name="PageNow" SizeChanged="PageNow_SizeChanged">
                     <!-- фон: размытая обложка, гаснет к низу -->
                     <Grid ClipToBounds="True" IsHitTestVisible="False">
-                        <Image x:Name="BackdropImage" Stretch="UniformToFill" Opacity="0.5" Margin="-120">
+                        <!-- CacheMode: размытие считается один раз на обложку, а не в каждом кадре, пока поверх движется фон -->
+                        <Image x:Name="BackdropImage" Stretch="UniformToFill" Opacity="0.5" Margin="-120" CacheMode="BitmapCache">
                             <Image.Effect>
                                 <BlurEffect Radius="110" KernelType="Gaussian" RenderingBias="Performance"/>
                             </Image.Effect>
@@ -641,12 +642,12 @@
 
                                 <Grid x:Name="HeroCover" Width="300" Height="300" VerticalAlignment="Top">
                                     <!-- свечение цвета обложки под ней -->
-                                    <Border CornerRadius="16" Background="#01000000" Margin="18,26,18,0">
+                                    <Border CornerRadius="16" Background="#01000000" Margin="18,26,18,0" CacheMode="BitmapCache">
                                         <Border.Effect>
                                             <DropShadowEffect x:Name="HeroGlow" Color="#BFC3D0" BlurRadius="90" ShadowDepth="0" Opacity="0.5"/>
                                         </Border.Effect>
                                     </Border>
-                                    <Border CornerRadius="16" Background="{StaticResource CardBrush}">
+                                    <Border CornerRadius="16" Background="{StaticResource CardBrush}" CacheMode="BitmapCache">
                                         <Border.Effect>
                                             <DropShadowEffect BlurRadius="40" ShadowDepth="12" Opacity="0.5" Color="Black"/>
                                         </Border.Effect>

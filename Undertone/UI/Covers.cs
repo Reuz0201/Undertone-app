@@ -33,7 +33,7 @@ namespace Undertone.UI
             {
                 var bmp = new BitmapImage();
                 bmp.BeginInit();
-                bmp.UriSource = new Uri(url, UriKind.Absolute);
+                bmp.UriSource = new Uri(Distinct(url, decodeWidth), UriKind.Absolute);
                 bmp.DecodePixelWidth = decodeWidth;
                 bmp.CacheOption = BitmapCacheOption.OnLoad;
                 bmp.CreateOptions = BitmapCreateOptions.IgnoreColorProfile;
@@ -54,6 +54,20 @@ namespace Undertone.UI
             {
                 return null;
             }
+        }
+
+        /// <summary>
+        /// Своя ссылка на каждый размер. WPF качает картинки через общий кэш по адресу, и две одновременные
+        /// загрузки одного адреса (у Spotify одна ссылка на все размеры: большая обложка, нижняя панель, фон)
+        /// мешают друг другу — обе падают, и вместо обложки остаётся пустой квадрат. Лишний параметр серверы
+        /// Яндекса и Spotify пропускают мимо.
+        /// </summary>
+        internal static string Distinct(string url, int decodeWidth)
+        {
+            if (!url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) &&
+                !url.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+                return url;
+            return url + (url.Contains('?') ? "&" : "?") + "ut=" + decodeWidth;
         }
 
         private static void Forget(string key, BitmapImage bmp)

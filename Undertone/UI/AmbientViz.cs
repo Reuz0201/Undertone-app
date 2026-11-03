@@ -55,6 +55,8 @@ namespace Undertone.UI
 
         // ── звук ──
         private readonly float[] _bands = new float[24];
+        private float _lastBass, _lastMid, _lastHigh;
+        private bool _haveBands;
         private float _bass, _mid, _high, _bassAvg, _flash, _energy;
         private double _lastBeat;
         private bool _beat;
@@ -62,6 +64,12 @@ namespace Undertone.UI
         // ── цвета ──
         private Color[] _colors = { Color.FromRgb(0x8E, 0x9C, 0xD8), Color.FromRgb(0xC9, 0x8E, 0xD8) };
         private Brush[] _glow = Array.Empty<Brush>();
+        /// <summary>Те же пятна, но с готовой прозрачностью (уровни 1..Levels) — без PushOpacity на каждую частицу.</summary>
+        private Brush[][] _glowLevels = Array.Empty<Brush[]>();
+        private const int Levels = 16;
+        /// <summary>Перья колец «Пульса» по цвету и толщине (шаг 0.5 px) — не создаём новые на каждом кадре.</summary>
+        private Pen[][] _ringPens = Array.Empty<Pen[]>();
+        private const int PenSteps = 12;
         private Brush[] _waveFill = Array.Empty<Brush>();
         private Pen[] _wavePen = Array.Empty<Pen>();
 
@@ -111,6 +119,8 @@ namespace Undertone.UI
         {
             int n = _colors.Length;
             _glow = new Brush[n];
+            _glowLevels = new Brush[n][];
+            _ringPens = new Pen[n][];
             _waveFill = new Brush[n];
             _wavePen = new Pen[n];
             for (int i = 0; i < n; i++)
@@ -127,6 +137,33 @@ namespace Undertone.UI
                 };
                 glow.Freeze();
                 _glow[i] = glow;
+
+                _glowLevels[i] = new Brush[Levels + 1];
+                for (int l = 1; l <= Levels; l++)
+                {
+                    double a = l / (double)Levels;
+                    var level = new RadialGradientBrush
+                    {
+                        GradientStops =
+                        {
+                            new GradientStop(Color.FromArgb((byte)(0xFF * a), c.R, c.G, c.B), 0),
+                            new GradientStop(Color.FromArgb((byte)(0x55 * a), c.R, c.G, c.B), 0.35),
+                            new GradientStop(Color.FromArgb(0x00, c.R, c.G, c.B), 1),
+                        },
+                    };
+                    level.Freeze();
+                    _glowLevels[i][l] = level;
+                }
+
+                var ringBrush = new SolidColorBrush(c);
+                ringBrush.Freeze();
+                _ringPens[i] = new Pen[PenSteps];
+                for (int t = 0; t < PenSteps; t++)
+                {
+                    var ringPen = new Pen(ringBrush, 1.5 + t * 0.5);
+                    ringPen.Freeze();
+                    _ringPens[i][t] = ringPen;
+                }
 
                 var fill = new LinearGradientBrush
                 {
@@ -201,18 +238,30 @@ namespace Undertone.UI
         }
 
         /// <summary>Басы / середина / верха (0..1, сглажены) и удары по басам.</summary>
+        private bool _skipFft;
+
         private void Listen(bool active, double now, float dt)
         {
             float bass = 0, mid = 0, high = 0;
             bool heard = false;
-            if (active && Engine is { } engine && engine.Analyzer.ComputeBands(_bands, engine.AnalyzerDelaySamples))
+            // спектр — через кадр: 30 раз в секунду хватает с запасом (сглаживание всё равно растягивает),
+            // а FFT на 4096 точек — самое дорогое в кадре
+            _skipFft = !_skipFft;
+            if (active && _skipFft && _haveBands)
+            {
+                bass = _lastBass; mid = _lastMid; high = _lastHigh;
+                heard = true;
+            }
+            else if (active && Engine is { } engine && engine.Analyzer.ComputeBands(_bands, engine.AnalyzerDelaySamples))
             {
                 for (int i = 0; i < 4; i++) bass += _bands[i];
                 for (int i = 4; i < 13; i++) mid += _bands[i];
                 for (int i = 13; i < _bands.Length; i++) high += _bands[i];
                 bass /= 4; mid /= 9; high /= _bands.Length - 13;
                 heard = bass + mid + high > 0.02f;
+                (_lastBass, _lastMid, _lastHigh, _haveBands) = (bass, mid, high, heard);
             }
+            else _haveBands = false;
             if (!heard)
             {
                 // звука нет — мягкое «дыхание», чтобы фон не замирал
@@ -307,10 +356,9 @@ namespace Undertone.UI
                 double alpha = Math.Clamp((0.45 + _high * 0.5 + _flash * 0.45) * twinkle, 0, 1);
                 // у нижнего края частицы только проявляются, у верхнего — гаснут
                 alpha *= Math.Clamp(Math.Min((1.04 - m.Y) * 6, m.Y * 5), 0, 1);
-                if (alpha < 0.02) continue;
-                dc.PushOpacity(alpha);
-                dc.DrawEllipse(_glow[m.Color % _glow.Length], null, new Point(m.X * w, m.Y * h), r, r);
-                dc.Pop();
+                int level = (int)Math.Round(alpha * Levels);
+                if (level < 1) continue;
+                dc.DrawEllipse(_glowLevels[m.Color % _glowLevels.Length][level], null, new Point(m.X * w, m.Y * h), r, r);
             }
         }
 
@@ -392,9 +440,8 @@ namespace Undertone.UI
                 double r = coverR * 0.75 + (reach - coverR) * ease;
                 double alpha = (1 - age) * 0.9 * ring.Strength;
                 if (alpha < 0.01) continue;
-                var c = _colors[ring.Color % _colors.Length];
-                var pen = new Pen(new SolidColorBrush(Color.FromArgb(0xFF, c.R, c.G, c.B)), 1.5 + 5 * (1 - age) * ring.Strength);
-                pen.Freeze();
+                var thickness = 1.5 + 5 * (1 - age) * ring.Strength;
+                var pen = _ringPens[ring.Color % _ringPens.Length][Math.Clamp((int)Math.Round((thickness - 1.5) * 2), 0, PenSteps - 1)];
                 dc.PushOpacity(alpha);
                 dc.DrawEllipse(null, pen, center, r, r);
                 dc.Pop();
