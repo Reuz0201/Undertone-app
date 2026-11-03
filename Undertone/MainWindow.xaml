@@ -1814,6 +1814,20 @@
                             </StackPanel>
                         </Border>
 
+                        <!-- обновления -->
+                        <TextBlock Text="ОБНОВЛЕНИЯ" Style="{StaticResource SettingsHeader}"/>
+                        <Border Style="{StaticResource SettingsCard}">
+                            <StackPanel>
+                                <CheckBox x:Name="BetaToggle" Style="{StaticResource ToggleSwitch}"
+                                          Checked="Beta_Changed" Unchecked="Beta_Changed">
+                                    <StackPanel>
+                                        <TextBlock Text="Бета-тестирование"/>
+                                        <TextBlock x:Name="BetaHint" Style="{StaticResource SettingsHint}"/>
+                                    </StackPanel>
+                                </CheckBox>
+                            </StackPanel>
+                        </Border>
+
                         <!-- диагностика -->
                         <TextBlock Text="ДИАГНОСТИКА" Style="{StaticResource SettingsHeader}"/>
                         <Border Style="{StaticResource SettingsCard}">

@@ -67,6 +67,10 @@ namespace Undertone.Core
         // ── интеграции ──
         /// <summary>Отправлять прослушивания в Яндекс (рекомендации и история учитывают Undertone).</summary>
         public bool ReportPlays { get; set; } = true;
+
+        // ── обновления ──
+        /// <summary>Получать бета-версии — сборки из pull request'ов, ещё не вошедшие в релиз.</summary>
+        public bool BetaUpdates { get; set; }
         public bool GlobalHotkeys { get; set; } = true;
         /// <summary>Действие → сочетание, например "Like" → "Ctrl+Alt+L".</summary>
         public Dictionary<string, string> Hotkeys { get; set; } = new();

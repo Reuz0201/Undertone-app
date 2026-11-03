@@ -36,7 +36,7 @@ namespace Undertone
         private void UpdateVersionText()
         {
             var version = Updater.AppVersion;
-            AppVersionText.Text = $"v{version.Major}.{version.Minor}.{version.Build} · {_service.Title()}";
+            AppVersionText.Text = $"v{Updater.Display(version)} · {_service.Title()}";
         }
 
         private void InitUpdater()
@@ -45,7 +45,7 @@ namespace Undertone
             UpdateVersionText();
 
             if (App.UpdatedFrom != null)
-                ShowToast($"Обновлено до версии {version.ToString(3)}", 4);
+                ShowToast($"Установлена версия {Updater.Display(version)}", 4);
 
             // из исходников (start.bat) не обновляемся — следующая сборка всё равно перезапишет exe
             if (EnvFile.IsRunningFromSource) return;
@@ -54,7 +54,7 @@ namespace Undertone
             var repo = _env.Get("update_repo") ?? Updater.EmbeddedRepo;
             if (repo == null || !repo.Contains('/')) return;
 
-            _updater = new Updater(repo, version, AppContext.BaseDirectory);
+            _updater = new Updater(repo, version, AppContext.BaseDirectory) { IncludeBeta = _settings.BetaUpdates };
             _updateTimer.Tick += async (_, _) =>
             {
                 if (_restartPending) MaybeRestartForUpdate(force: DateTime.UtcNow - _restartPendingSince > MaxRestartWait);
@@ -81,10 +81,10 @@ namespace Undertone
             if (update == null) return;
 
             _pendingUpdate = update;
-            Log.Info($"Вышла версия {update.Version.ToString(3)} — обновляюсь");
+            Log.Info($"Вышла версия {Updater.Display(update.Version)} — обновляюсь");
             ShowUpdateOverlay(update);
             if (!IsVisible)
-                _tray?.ShowHint($"Вышел Undertone {update.Version.ToString(3)}",
+                _tray?.ShowHint($"Вышел Undertone {Updater.Display(update.Version)}",
                     "Обновлюсь сам и продолжу музыку с того же места.");
             await InstallUpdateAsync(update);
         }
@@ -94,7 +94,7 @@ namespace Undertone
         {
             if (_updater == null || _updating) return;
             _updating = true;
-            var v = update.Version.ToString(3);
+            var v = Updater.Display(update.Version);
             SetUpdateBanner("Обновление…", $"Версия {v}: скачиваю", buttonEnabled: false);
             try
             {
@@ -129,7 +129,7 @@ namespace Undertone
         private void MaybeRestartForUpdate(bool force)
         {
             if (!_restartPending) return;
-            var v = _pendingUpdate?.Version.ToString(3) ?? "";
+            var v = _pendingUpdate is { } pu ? Updater.Display(pu.Version) : "";
             if (_isPlaying && !force)
             {
                 _restartTimer?.Stop();
@@ -235,8 +235,12 @@ namespace Undertone
 
         private void ShowUpdateOverlay(UpdateInfo update)
         {
-            UpdOverlayVersion.Text = $"Версия {update.Version.ToString(3)} · сейчас {Updater.AppVersion.ToString(3)}";
+            var now = Updater.AppVersion;
+            UpdOverlayVersion.Text = update.Version < now
+                ? $"Возврат на стабильную {Updater.Display(update.Version)} · сейчас бета {Updater.Display(now)}"
+                : $"Версия {Updater.Display(update.Version)} · сейчас {Updater.Display(now)}";
             var notes = PlainReleaseNotes(update.Notes);
+            if (update.IsBeta && update.Title.Length > 0) notes = update.Title + (notes.Length > 0 ? "\n\n" + notes : "");
             UpdOverlayNotes.Text = notes.Length > 0 ? notes : "Исправления и улучшения.";
             SetUpdateProgress(0, "Скачиваю…");
             UpdateOverlay.Opacity = 0;

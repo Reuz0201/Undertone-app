@@ -59,7 +59,9 @@ namespace Undertone
                 CachePathText.Text = _cache.Directory;
                 DataPathText.Text = EnvFile.DataDirectory;
                 var v = Updater.AppVersion;
-                SettingsVersionText.Text = $"Undertone {v.Major}.{v.Minor}.{v.Build} · .NET {Environment.Version.Major}";
+                SettingsVersionText.Text = $"Undertone {Updater.Display(v)} · .NET {Environment.Version.Major}";
+                BetaToggle.IsChecked = _settings.BetaUpdates;
+                BetaHint.Text = BetaHintText();
             }
             finally
             {
@@ -389,6 +391,33 @@ namespace Undertone
             if (_fillingSettings) return;
             _settings.ReportPlays = ReportPlaysToggle.IsChecked == true;
             PersistSettings();
+        }
+
+        // ────────── обновления ──────────
+
+        private string BetaHintText()
+        {
+            if (EnvFile.IsRunningFromSource) return "Сейчас запущена сборка из исходников — она не обновляется сама.";
+            var now = Updater.AppVersion;
+            if (Updater.IsBetaVersion(now))
+                return _settings.BetaUpdates
+                    ? $"Стоит бета {Updater.Display(now)}. Новые сборки из pull request'ов приходят сами; когда выйдет релиз — переедете на него."
+                    : "Стоит бета — при следующей проверке Undertone вернётся на последний релиз.";
+            return "Сборки с изменениями, которые ещё проверяются и не вошли в релиз. Могут быть ошибки — пишите о них. Выключите, и Undertone вернётся на стабильную версию.";
+        }
+
+        private void Beta_Changed(object sender, RoutedEventArgs e)
+        {
+            if (_fillingSettings) return;
+            _settings.BetaUpdates = BetaToggle.IsChecked == true;
+            PersistSettings();
+            BetaHint.Text = BetaHintText();
+            if (_updater != null)
+            {
+                _updater.IncludeBeta = _settings.BetaUpdates;
+                _ = CheckForUpdateAsync();
+            }
+            if (_settings.BetaUpdates) ShowToast("Бета включена — проверяю, есть ли новая сборка");
         }
 
         private GlobalHotkeys? _hotkeys;
