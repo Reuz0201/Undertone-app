@@ -118,7 +118,9 @@ namespace Undertone.Core
             var json = await GetJsonAsync(url, ct);
             if (json == null) return null;
 
-            var releases = beta ? ParseReleases(json) : ParseRelease(json) is { } one ? new[] { one } : Array.Empty<UpdateInfo>();
+            IEnumerable<UpdateInfo> releases = beta
+                ? ParseReleases(json)
+                : ParseRelease(json) is { } one ? new[] { one } : Array.Empty<UpdateInfo>();
             return Choose(releases, CurrentVersion, beta, UpdateGuard.BadVersions());
         }
 

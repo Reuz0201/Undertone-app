@@ -19,7 +19,7 @@ namespace Undertone.Core
         /// SoundCloud выключен, пока нет ключей приложения (их выдают только с платным Artist Pro).
         /// Код на месте: поставь true — вернутся карточка входа, пункт в меню аккаунтов и переключение.
         /// </summary>
-        public const bool SoundCloudEnabled = false;
+        public static readonly bool SoundCloudEnabled = false;
 
         /// <summary>Сервисы, которые видит пользователь (вход, меню аккаунтов, автоподключение при старте).</summary>
         public static readonly MusicServiceKind[] All = SoundCloudEnabled
@@ -36,7 +36,7 @@ namespace Undertone.Core
 
         public static MusicServiceKind Parse(string? id) => id?.ToLowerInvariant() switch
         {
-            "soundcloud" when SoundCloudEnabled => MusicServiceKind.SoundCloud,
+            "soundcloud" => SoundCloudEnabled ? MusicServiceKind.SoundCloud : MusicServiceKind.Yandex,
             "spotify" => MusicServiceKind.Spotify,
             _ => MusicServiceKind.Yandex,
         };

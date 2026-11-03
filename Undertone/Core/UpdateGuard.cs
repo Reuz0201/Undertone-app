@@ -23,7 +23,7 @@ namespace Undertone.Core
         public const string RolledBackArg = "--rolled-back";
         public const string BadSuffix = ".bad";
 
-        private sealed record State(string To, string From, int Launches);
+        internal sealed record State(string To, string From, int Launches);
 
         private static string StatePath => Path.Combine(EnvFile.DataDirectory, "update-pending.json");
         private static string BadPath => Path.Combine(EnvFile.DataDirectory, "update-bad.txt");
