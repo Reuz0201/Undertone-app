@@ -504,6 +504,7 @@ namespace Undertone
             }
             // трек доиграл, а новая версия уже установлена — следующий начнётся в ней
             if (auto && RestartInsteadOfNextTrack()) return;
+            _motionDirection = 1;
             await PlayCurrentAsync();
         }
 
@@ -520,6 +521,7 @@ namespace Undertone
             }
             ReportSkip();
             _queue.MovePrev();
+            _motionDirection = -1;
             await PlayCurrentAsync();
         }
 
@@ -576,6 +578,8 @@ namespace Undertone
             InvalidatePreparedNext();
             PersistSettings();
             UpdateModeButtons();
+            Motion.GlyphSpin(ShuffleBtn, 0);
+            Motion.GlyphSpin(HeroShuffle, 0);
             UpdateUpNext();
             _ = PrefetchNextAsync();
             ShowToast(_settings.Shuffle ? "Перемешивание включено" : "Перемешивание выключено");
@@ -593,6 +597,8 @@ namespace Undertone
             InvalidatePreparedNext();
             PersistSettings();
             UpdateModeButtons();
+            Motion.GlyphSpin(RepeatBtn, 360);
+            Motion.GlyphSpin(HeroRepeat, 360);
             UpdateUpNext();
             ShowToast(_settings.Repeat switch
             {
@@ -864,6 +870,7 @@ namespace Undertone
                     AddedBy = added != null && added.TryGetValue(t.Id, out var who) ? Format.PublicName(who) : "",
                 }));
             UpNextList.ItemsSource = _upNextItems;
+            AnimateQueue();
             UpNextHeader.Text = "Далее";
             if (_upNextItems.Count == 0)
                 UpNextSub.Text = _queue.Repeat == RepeatMode.One ? "Повтор этого трека"
@@ -881,8 +888,10 @@ namespace Undertone
         private void UpdatePlayState()
         {
             var glyph = _isPlaying ? "" : "";
+            var before = PlayBtn.Content;
             PlayBtn.Content = glyph;
             HeroPlayBtn.Content = glyph;
+            AnimatePlayGlyph(before);
             WaveCardGlyph.Text = _queue.Source == QueueSource.Wave && IsMyWave && _isPlaying ? "" : "";
             WaveCardSub.Text = _queue.Source == QueueSource.Wave && _queue.Current != null && IsMyWave
                 ? (_isPlaying ? "Играет" : "На паузе")

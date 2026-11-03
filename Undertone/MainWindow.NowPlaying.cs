@@ -61,6 +61,7 @@ namespace Undertone
             RecentList.ItemsSource = _recentItems;
             UpdateHeroTime();
             ApplyLiveBackground();
+            InitAmbient();
         }
 
         private void UpdateHeroTime()
@@ -107,6 +108,7 @@ namespace Undertone
             AnimateAccent(CoverPalette.FromImage(image) ?? CoverPalette.Neutral);
             _livePalette = CoverPalette.PaletteFromImage(image);
             LiveBg.SetColors(_livePalette);
+            Ambient.SetColors(_livePalette);
             _party?.SetPalette(_livePalette, _accentShown);
         }
 

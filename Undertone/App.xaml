@@ -388,10 +388,9 @@
                                 <Setter TargetName="Bd" Property="Background" Value="#0FFFFFFF"/>
                                 <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
                             </Trigger>
+                            <!-- подложку и полоску выбранного пункта рисует общая подсветка меню (NavPill в главном окне) -->
                             <Trigger Property="IsChecked" Value="True">
-                                <Setter TargetName="Mark" Property="Visibility" Value="Visible"/>
                                 <Setter TargetName="Glyph" Property="Foreground" Value="{DynamicResource LiveAccent}"/>
-                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource CardBrush}"/>
                                 <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
                                 <Setter Property="FontWeight" Value="SemiBold"/>
                             </Trigger>
@@ -409,8 +408,29 @@
                 <Setter.Value>
                     <ControlTemplate TargetType="RepeatButton">
                         <Grid Background="Transparent">
-                            <Border Height="4" CornerRadius="2" Background="{TemplateBinding Background}" VerticalAlignment="Center"/>
+                            <Border x:Name="Bar" Height="4" CornerRadius="2" Background="{TemplateBinding Background}" VerticalAlignment="Center"/>
                         </Grid>
+                        <!-- под мышью полоса плавно утолщается -->
+                        <ControlTemplate.Triggers>
+                            <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=Slider}}" Value="True">
+                                <DataTrigger.EnterActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="Bar" Storyboard.TargetProperty="Height" To="6" Duration="0:0:0.16">
+                                                <DoubleAnimation.EasingFunction><CubicEase EasingMode="EaseOut"/></DoubleAnimation.EasingFunction>
+                                            </DoubleAnimation>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </DataTrigger.EnterActions>
+                                <DataTrigger.ExitActions>
+                                    <BeginStoryboard>
+                                        <Storyboard FillBehavior="Stop">
+                                            <DoubleAnimation Storyboard.TargetName="Bar" Storyboard.TargetProperty="Height" To="4" Duration="0:0:0.22"/>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </DataTrigger.ExitActions>
+                            </DataTrigger>
+                        </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
@@ -421,14 +441,37 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Thumb">
-                        <Ellipse x:Name="Dot" Width="13" Height="13" Fill="White" Opacity="0">
+                        <Ellipse x:Name="Dot" Width="13" Height="13" Fill="White" Opacity="0" RenderTransformOrigin="0.5,0.5">
+                            <Ellipse.RenderTransform><ScaleTransform x:Name="DotScale" ScaleX="0.4" ScaleY="0.4"/></Ellipse.RenderTransform>
                             <Ellipse.Effect>
                                 <DropShadowEffect BlurRadius="6" ShadowDepth="0" Opacity="0.5"/>
                             </Ellipse.Effect>
                         </Ellipse>
                         <ControlTemplate.Triggers>
+                            <!-- под мышью точка вырастает из маленькой, уходит мышь — сжимается и гаснет -->
                             <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=Slider}}" Value="True">
-                                <Setter TargetName="Dot" Property="Opacity" Value="1"/>
+                                <DataTrigger.EnterActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="Dot" Storyboard.TargetProperty="Opacity" To="1" Duration="0:0:0.12"/>
+                                            <DoubleAnimation Storyboard.TargetName="DotScale" Storyboard.TargetProperty="ScaleX" To="1" Duration="0:0:0.26">
+                                                <DoubleAnimation.EasingFunction><BackEase EasingMode="EaseOut" Amplitude="0.5"/></DoubleAnimation.EasingFunction>
+                                            </DoubleAnimation>
+                                            <DoubleAnimation Storyboard.TargetName="DotScale" Storyboard.TargetProperty="ScaleY" To="1" Duration="0:0:0.26">
+                                                <DoubleAnimation.EasingFunction><BackEase EasingMode="EaseOut" Amplitude="0.5"/></DoubleAnimation.EasingFunction>
+                                            </DoubleAnimation>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </DataTrigger.EnterActions>
+                                <DataTrigger.ExitActions>
+                                    <BeginStoryboard>
+                                        <Storyboard FillBehavior="Stop">
+                                            <DoubleAnimation Storyboard.TargetName="Dot" Storyboard.TargetProperty="Opacity" To="0" Duration="0:0:0.2"/>
+                                            <DoubleAnimation Storyboard.TargetName="DotScale" Storyboard.TargetProperty="ScaleX" To="0.4" Duration="0:0:0.2"/>
+                                            <DoubleAnimation Storyboard.TargetName="DotScale" Storyboard.TargetProperty="ScaleY" To="0.4" Duration="0:0:0.2"/>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </DataTrigger.ExitActions>
                             </DataTrigger>
                             <Trigger Property="IsDragging" Value="True">
                                 <Setter TargetName="Dot" Property="Opacity" Value="1"/>
@@ -911,12 +954,29 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="ListBoxItem">
-                        <Border x:Name="Bd" Background="Transparent" CornerRadius="10" Padding="8,6">
-                            <ContentPresenter/>
-                        </Border>
+                        <Grid>
+                            <!-- подсветка под мышью: проявляется и гаснет плавно, а не щелчком -->
+                            <Border x:Name="Hv" Background="{StaticResource CardBrush}" CornerRadius="10" Opacity="0"/>
+                            <Border x:Name="Bd" Background="Transparent" CornerRadius="10" Padding="8,6">
+                                <ContentPresenter/>
+                            </Border>
+                        </Grid>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource CardBrush}"/>
+                                <Trigger.EnterActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="Hv" Storyboard.TargetProperty="Opacity" To="1" Duration="0:0:0.1"/>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </Trigger.EnterActions>
+                                <Trigger.ExitActions>
+                                    <BeginStoryboard>
+                                        <Storyboard FillBehavior="Stop">
+                                            <DoubleAnimation Storyboard.TargetName="Hv" Storyboard.TargetProperty="Opacity" To="0" Duration="0:0:0.28"/>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </Trigger.ExitActions>
                             </Trigger>
                             <Trigger Property="IsSelected" Value="True">
                                 <Setter TargetName="Bd" Property="Background" Value="{StaticResource HoverBrush}"/>

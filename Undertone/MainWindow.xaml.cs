@@ -372,6 +372,7 @@ namespace Undertone
         private void Nav_Checked(object sender, RoutedEventArgs e)
         {
             if (!_ready) return;
+            if (sender is RadioButton nav) OnNavMotion(nav);
             PageNow.Visibility = NavNow.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
             PageLiked.Visibility = NavLiked.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
             PageSearch.Visibility = NavSearch.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
@@ -387,6 +388,7 @@ namespace Undertone
             if (NavFriends.IsChecked == true) RebuildFriends();
             if (NavLocal.IsChecked == true) ShowLocal();
             if (NavSmart.IsChecked == true) RebuildSmart();
+            SyncNavIndicator();
 
             if (NavSearch.IsChecked == true)
                 Dispatcher.InvokeAsync(() =>
@@ -1053,6 +1055,7 @@ namespace Undertone
         {
             _toastTimer.Stop();
             Toast.BeginAnimation(OpacityProperty, new DoubleAnimation(0, TimeSpan.FromMilliseconds(300)));
+            Motion.ToastOut(Toast);
         }
 
         private static string Short(string message) =>

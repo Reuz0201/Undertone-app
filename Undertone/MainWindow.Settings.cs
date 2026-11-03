@@ -37,6 +37,7 @@ namespace Undertone
                     ? "«Без потерь» доступно только с Яндекс Плюсом — сейчас будет играть MP3."
                     : "«Без потерь» — FLAC для подписчиков Плюса; трек скачивается целиком перед стартом.";
                 SelectPill(CrossfadePanel, _settings.CrossfadeSeconds);
+                SelectPill(AmbientPanel, _settings.AmbientMode);
                 NormalizeToggle.IsChecked = _settings.Normalize;
                 LiveBgToggle.IsChecked = _settings.LiveBackground;
                 AnimationsToggle.IsChecked = _settings.Animations;

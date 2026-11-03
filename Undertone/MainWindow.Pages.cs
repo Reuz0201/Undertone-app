@@ -68,6 +68,8 @@ namespace Undertone
             PageCollection.Visibility = Visibility.Visible;
             NavNow.IsChecked = NavLiked.IsChecked = NavSearch.IsChecked = NavSettings.IsChecked = NavHistory.IsChecked = NavFriends.IsChecked = NavLocal.IsChecked = NavSmart.IsChecked = false;
             CollBack.Visibility = _collHistory.Count > 0 || _collReturnTo != null ? Visibility.Visible : Visibility.Collapsed;
+            Undertone.UI.Motion.PageDirection = 0;
+            SyncNavIndicator();
         }
 
         private async void CollBack_Click(object sender, RoutedEventArgs e) => await GoBackAsync();

@@ -69,6 +69,7 @@ namespace Undertone
             _lyrics = new List<LyricLine>();
             _lyricsActive = -1;
             LyricsList.ItemsSource = null;
+            ResetLyricMotion();
             ShowLyricsStatus("Загружаю текст…", spinner: true);
 
             (bool Synced, string Text)? found;
@@ -101,6 +102,7 @@ namespace Undertone
 
             _lyrics = lyrics.Synced ? LyricsParser.ParseLrc(lyrics.Text) : LyricsParser.ParsePlain(lyrics.Text);
             if (_lyrics.Count == 0) _lyrics = LyricsParser.ParsePlain(lyrics.Text);
+            ResetLyricMotion();
             LyricsList.ItemsSource = new ObservableCollection<LyricLine>(_lyrics);
             TranslateBtn.Visibility = Visibility.Visible;
             UpdateTranslateButton();
@@ -192,7 +194,11 @@ namespace Undertone
                 _lyrics[i].IsPast = i < index;
             }
             _lyricsActive = index;
-            if (index >= 0) CenterLyric(_lyrics[index]);
+            if (index >= 0)
+            {
+                CenterLyric(_lyrics[index]);
+                AnimateLyric(_lyrics[index]);
+            }
         }
 
         /// <summary>Прокручивает так, чтобы текущая строка была примерно посередине (а не у края, как ScrollIntoView).</summary>
@@ -208,7 +214,7 @@ namespace Undertone
             {
                 var top = container.TransformToAncestor(viewer).Transform(new Point(0, 0)).Y;
                 var target = viewer.VerticalOffset + top - (viewer.ViewportHeight - container.ActualHeight) * 0.4;
-                viewer.ScrollToVerticalOffset(Math.Max(0, target));
+                Motion.ScrollTo(viewer, Math.Min(Math.Max(0, target), viewer.ScrollableHeight));
             }
             catch (InvalidOperationException)
             {

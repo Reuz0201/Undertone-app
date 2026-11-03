@@ -25,6 +25,8 @@ namespace Undertone.Core
         public bool LiveBackground { get; set; } = true;
         /// <summary>Анимации интерфейса (переходы страниц, появление списков, смена трека).</summary>
         public bool Animations { get; set; } = true;
+        /// <summary>Визуализация на фоне «Сейчас играет»: 0 — нет, 1 — звёздная пыль, 2 — волны, 3 — пульс.</summary>
+        public int AmbientMode { get; set; } = 1;
         /// <summary>Показывать перевод текста песен на русский.</summary>
         public bool TranslateLyrics { get; set; }
 

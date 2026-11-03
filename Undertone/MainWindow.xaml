@@ -359,7 +359,14 @@
                         </Button.Template>
                     </Button>
 
-                    <StackPanel DockPanel.Dock="Top">
+                    <Grid x:Name="NavHost" DockPanel.Dock="Top">
+                    <!-- подсветка выбранного пункта: одна на всё меню, переезжает между пунктами -->
+                    <Border x:Name="NavPill" VerticalAlignment="Top" Background="{StaticResource CardBrush}" CornerRadius="10"
+                            Opacity="0" IsHitTestVisible="False">
+                        <Border Width="3" Height="18" CornerRadius="2" HorizontalAlignment="Left"
+                                Background="{DynamicResource LiveAccent}"/>
+                    </Border>
+                    <StackPanel x:Name="NavStack">
                         <RadioButton x:Name="NavNow" Style="{StaticResource NavButton}" Tag="&#xE8D6;" Content="Сейчас играет"
                                      IsChecked="True" Checked="Nav_Checked"/>
                         <RadioButton x:Name="NavLiked" Style="{StaticResource NavButton}" Tag="&#xEB51;" Content="Мне нравится"
@@ -402,6 +409,7 @@
                             </Button.Template>
                         </Button>
                     </StackPanel>
+                    </Grid>
 
                     <!-- заголовок «Плейлисты» -->
                     <Grid DockPanel.Dock="Top" Margin="12,18,0,6">
@@ -561,6 +569,8 @@
                                 </LinearGradientBrush>
                             </Rectangle.Fill>
                         </Rectangle>
+                        <!-- визуализация на фоне: частицы, волны или пульс под музыку (Настройки → Приложение) -->
+                        <ui:AmbientViz x:Name="Ambient"/>
                     </Grid>
 
                     <!-- пустое состояние: большая кнопка «Моя волна» -->
@@ -920,9 +930,9 @@
                         <ListBox x:Name="LikedList" Style="{StaticResource TrackList}"
                                  ItemContainerStyle="{StaticResource TrackRow}" ItemTemplate="{StaticResource TrackRowTemplate}"
                                  KeyDown="List_KeyDown"/>
-                        <StackPanel x:Name="LikedLoading" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Collapsed">
-                            <Control Style="{StaticResource Spinner}" HorizontalAlignment="Center"/>
-                            <TextBlock Text="Загружаю любимые треки…" Foreground="{StaticResource TextDimBrush}" Margin="0,12,0,0"/>
+                        <!-- пока грузится: заглушки строк с бликом -->
+                        <StackPanel x:Name="LikedLoading" VerticalAlignment="Top" Visibility="Collapsed">
+                            <ui:Skeleton Rows="9"/>
                         </StackPanel>
                         <TextBlock x:Name="LikedEmpty" Visibility="Collapsed" HorizontalAlignment="Center" VerticalAlignment="Center"
                                    Foreground="{StaticResource TextDimBrush}" TextAlignment="Center" TextWrapping="Wrap" MaxWidth="420"/>
@@ -1025,8 +1035,8 @@
                             </ItemsControl>
                         </ScrollViewer>
 
-                        <StackPanel x:Name="SearchLoading" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Collapsed">
-                            <Control Style="{StaticResource Spinner}" HorizontalAlignment="Center"/>
+                        <StackPanel x:Name="SearchLoading" VerticalAlignment="Top" Visibility="Collapsed" Margin="0,8,0,0">
+                            <ui:Skeleton Rows="8"/>
                         </StackPanel>
                         <StackPanel x:Name="SearchEmpty" HorizontalAlignment="Center" VerticalAlignment="Center">
                             <TextBlock Text="&#xE721;" FontFamily="{StaticResource IconFont}" FontSize="48"
@@ -1135,8 +1145,8 @@
                         <ListBox x:Name="CollList" Style="{StaticResource TrackList}"
                                  ItemContainerStyle="{StaticResource TrackRow}" ItemTemplate="{StaticResource TrackRowTemplate}"
                                  KeyDown="List_KeyDown"/>
-                        <StackPanel x:Name="CollLoading" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Collapsed">
-                            <Control Style="{StaticResource Spinner}" HorizontalAlignment="Center"/>
+                        <StackPanel x:Name="CollLoading" VerticalAlignment="Top" Visibility="Collapsed">
+                            <ui:Skeleton Rows="8"/>
                         </StackPanel>
                         <TextBlock x:Name="CollEmpty" Visibility="Collapsed" HorizontalAlignment="Center" VerticalAlignment="Center"
                                    Foreground="{StaticResource TextDimBrush}" TextAlignment="Center" TextWrapping="Wrap" MaxWidth="420"/>
@@ -1715,12 +1725,22 @@
                                     </StackPanel>
                                 </CheckBox>
                                 <Rectangle Height="1" Fill="{StaticResource DividerBrush}" Margin="0,16"/>
+                                <TextBlock Text="Визуализация на фоне"/>
+                                <TextBlock Style="{StaticResource SettingsHint}"
+                                           Text="За экраном «Сейчас играет» — в цветах обложки и в такт музыке: светлячки на ударах вспыхивают, волны поднимаются с басами, от обложки расходятся кольца. Spotify не отдаёт звук сторонним программам — с ним фон двигается сам, без такта."/>
+                                <WrapPanel x:Name="AmbientPanel" Margin="0,10,0,0">
+                                    <RadioButton Style="{StaticResource ChoicePill}" GroupName="Ambient" Content="Нет" Tag="0" Checked="Ambient_Checked"/>
+                                    <RadioButton Style="{StaticResource ChoicePill}" GroupName="Ambient" Content="Звёздная пыль" Tag="1" Checked="Ambient_Checked"/>
+                                    <RadioButton Style="{StaticResource ChoicePill}" GroupName="Ambient" Content="Волны" Tag="2" Checked="Ambient_Checked"/>
+                                    <RadioButton Style="{StaticResource ChoicePill}" GroupName="Ambient" Content="Пульс" Tag="3" Checked="Ambient_Checked"/>
+                                </WrapPanel>
+                                <Rectangle Height="1" Fill="{StaticResource DividerBrush}" Margin="0,16"/>
                                 <CheckBox x:Name="AnimationsToggle" Style="{StaticResource ToggleSwitch}"
                                           Checked="Animations_Changed" Unchecked="Animations_Changed">
                                     <StackPanel>
                                         <TextBlock Text="Анимации"/>
                                         <TextBlock Style="{StaticResource SettingsHint}"
-                                                   Text="Страницы выплывают, списки появляются по очереди, обложка нового трека мягко встаёт на место, лайк подпрыгивает. Если в Windows выключены эффекты анимации — их не будет и здесь."/>
+                                                   Text="Страницы выплывают, подсветка меню переезжает, обложка нового трека въезжает с той стороны, куда листаешь, лайк вспыхивает, текст песни прокручивается плавно. Если в Windows выключены эффекты анимации — их не будет и здесь."/>
                                     </StackPanel>
                                 </CheckBox>
                                 <Rectangle Height="1" Fill="{StaticResource DividerBrush}" Margin="0,16"/>
@@ -2062,6 +2082,9 @@
                 </StackPanel>
             </Grid>
         </Border>
+
+        <!-- слой для коротких эффектов поверх окна (вспышка лайка) — мыши не мешает -->
+        <Canvas x:Name="FxLayer" Grid.RowSpan="2" IsHitTestVisible="False" Panel.ZIndex="30"/>
 
         <!-- ═══════════ Тост ═══════════ -->
         <Border x:Name="Toast" Grid.Row="0" VerticalAlignment="Bottom" HorizontalAlignment="Center" Margin="256,0,0,22"
