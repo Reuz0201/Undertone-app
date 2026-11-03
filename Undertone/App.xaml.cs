@@ -19,6 +19,9 @@ namespace Undertone
         /// <summary>PID старой версии, если нас запустил обновлятор (аргумент --updated &lt;pid&gt;).</summary>
         public static int? UpdatedFrom { get; private set; }
 
+        /// <summary>Нас вернули откатом: эта версия не запустилась (аргумент --rolled-back &lt;версия&gt;).</summary>
+        public static Version? RolledBackFrom { get; private set; }
+
         /// <summary>Запуск из автозагрузки (--tray): окно не показываем, сразу в трей.</summary>
         public static bool StartInTray { get; private set; }
 
@@ -35,7 +38,11 @@ namespace Undertone
                 args.SetObserved();
             };
             AppDomain.CurrentDomain.UnhandledException += (_, args) =>
+            {
                 Log.Error("Фатальная ошибка", args.ExceptionObject as Exception);
+                // новая версия падает насмерть, ещё не пройдя проверку, — возвращаем прошлую
+                if (UpdateGuard.Verifying) UpdateGuard.RollBack(Updater.AppVersion, AppContext.BaseDirectory);
+            };
 
             for (int i = 0; i < e.Args.Length; i++)
             {
@@ -45,6 +52,8 @@ namespace Undertone
                     StartInTray = true;
                 if (e.Args[i] == ResumePlayArg)
                     ResumePlay = true;
+                if (e.Args[i] == UpdateGuard.RolledBackArg && i + 1 < e.Args.Length && Updater.TryParseVersion(e.Args[i + 1], out var rb))
+                    RolledBackFrom = rb;
             }
 
             if (UpdatedFrom is { } oldPid)
@@ -69,8 +78,11 @@ namespace Undertone
                 return;
             }
 
-            if (!EnvFile.IsRunningFromSource)
-                Updater.CleanupOld(AppContext.BaseDirectory);
+            if (!EnvFile.IsRunningFromSource && UpdateGuard.OnStartup(Updater.AppVersion, AppContext.BaseDirectory))
+            {
+                // эта версия уже падала при запуске — сразу назад
+                if (UpdateGuard.RollBack(Updater.AppVersion, AppContext.BaseDirectory)) { Shutdown(); return; }
+            }
 
             base.OnStartup(e);
 
@@ -78,6 +90,14 @@ namespace Undertone
             MainWindow = window;
             if (StartInTray) window.StartHidden();
             else window.Show();
+            _started = true;
+
+            if (UpdateGuard.Verifying)
+            {
+                var healthy = new DispatcherTimer { Interval = UpdateGuard.HealthyAfter };
+                healthy.Tick += (_, _) => { healthy.Stop(); UpdateGuard.MarkHealthy(AppContext.BaseDirectory); };
+                healthy.Start();
+            }
 
             _showEvent = new EventWaitHandle(false, EventResetMode.AutoReset, ShowEventName);
             var listener = new Thread(() =>
@@ -89,8 +109,13 @@ namespace Undertone
             listener.Start();
         }
 
+        /// <summary>Окно создано — дальше ошибки интерфейса не повод откатывать версию.</summary>
+        private static bool _started;
+
         protected override void OnExit(ExitEventArgs e)
         {
+            // закрыли сами, а окно успело открыться — версия рабочая
+            if (_started) UpdateGuard.MarkHealthy(AppContext.BaseDirectory);
             try { _instanceMutex?.ReleaseMutex(); } catch (ApplicationException) { }
             _instanceMutex?.Dispose();
             base.OnExit(e);
@@ -99,9 +124,19 @@ namespace Undertone
         private static void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
         {
             Log.Error("Необработанная ошибка в интерфейсе", e.Exception);
-            MessageBox.Show(e.Exception.Message + "\n\nПодробности — в журнале: Настройки → Открыть папку логов.",
-                "Undertone — ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
+            // окно новой версии даже не создалось — откатываемся, а не оставляем пользователя без плеера
+            if (!_started && UpdateGuard.Verifying &&
+                UpdateGuard.RollBack(Updater.AppVersion, AppContext.BaseDirectory))
+            {
+                e.Handled = true;
+                Current.Shutdown();
+                return;
+            }
             e.Handled = true;
+            var answer = MessageBox.Show(e.Exception.Message + "\n\nСообщить об ошибке? Соберу журналы и открою страницу на GitHub.",
+                "Undertone — ошибка", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No);
+            if (answer == MessageBoxResult.Yes)
+                BugReport.Send(Updater.EmbeddedRepo, error: e.Exception.GetType().Name + ": " + e.Exception.Message);
         }
     }
 }

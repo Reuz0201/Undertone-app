@@ -172,4 +172,44 @@ public class UpdaterTests
               "assets": [ { "name": "Undertone-win-x64.zip", "browser_download_url": "https://b" } ] }
             """));
     }
+
+    [Fact]
+    public void Choose_SkipsRolledBackVersions()
+    {
+        var list = new[] { Rel("4.4.0"), Rel("4.3.1") };
+        var skip = new System.Collections.Generic.HashSet<Version> { new(4, 4, 0, 0) };
+        Assert.Equal(new Version(4, 3, 1, 0), Updater.Choose(list, new Version(4, 3, 0, 0), false, skip)!.Version);
+    }
+
+    [Fact]
+    public void RestoreOld_PutsPreviousFilesBack()
+    {
+        var dir = Directory.CreateTempSubdirectory("ut-rollback").FullName;
+        try
+        {
+            File.WriteAllText(Path.Combine(dir, "Undertone.exe"), "new");
+            File.WriteAllText(Path.Combine(dir, "Undertone.exe.old"), "old");
+            File.WriteAllText(Path.Combine(dir, "added.dll"), "new only");
+            Assert.True(UpdateGuard.RestoreOld(dir));
+            Assert.Equal("old", File.ReadAllText(Path.Combine(dir, "Undertone.exe")));
+            Assert.Equal("new", File.ReadAllText(Path.Combine(dir, "Undertone.exe.bad")));
+            Assert.False(File.Exists(Path.Combine(dir, "Undertone.exe.old")));
+            Assert.True(Updater.IsProtected("Undertone.exe.bad"));
+            Assert.False(UpdateGuard.RestoreOld(dir)); // больше нечего возвращать
+        }
+        finally
+        {
+            Directory.Delete(dir, true);
+        }
+    }
+
+    [Fact]
+    public void BugReport_IssueUrl()
+    {
+        var url = BugReport.IssueUrl("owner/repo", "Spotify", "NullReferenceException: boom");
+        Assert.StartsWith("https://github.com/owner/repo/issues/new?title=", url);
+        Assert.Contains(Uri.EscapeDataString("Сервис: Spotify"), url);
+        Assert.StartsWith("https://github.com/Reuz0201/Undertone-app/", BugReport.IssueUrl(null));
+        Assert.Equal("ab…", BugReport.Shorten("ab\ncd", 3));
+    }
 }

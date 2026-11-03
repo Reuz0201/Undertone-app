@@ -44,7 +44,9 @@ namespace Undertone
             var version = Updater.AppVersion;
             UpdateVersionText();
 
-            if (App.UpdatedFrom != null)
+            if (App.RolledBackFrom is { } bad)
+                ShowToast($"Версия {Updater.Display(bad)} не запустилась — вернул {Updater.Display(version)}. Её больше не предложу.", 8);
+            else if (App.UpdatedFrom != null)
                 ShowToast($"Установлена версия {Updater.Display(version)}", 4);
 
             // из исходников (start.bat) не обновляемся — следующая сборка всё равно перезапишет exe
@@ -107,6 +109,8 @@ namespace Undertone
 
                 SetUpdateProgress(1, "Устанавливаю…");
                 await Task.Run(() => _updater.Apply(staging));
+                // новая версия будет «на проверке»: упадёт при запуске — вернётся эта
+                UpdateGuard.MarkInstalled(Updater.AppVersion, update.Version);
 
                 _restartPending = true;
                 _restartPendingSince = DateTime.UtcNow;

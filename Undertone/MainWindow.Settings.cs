@@ -638,6 +638,15 @@ namespace Undertone
 
         // ────────── диагностика ──────────
 
+        private void BugReport_Click(object sender, RoutedEventArgs e)
+        {
+            Log.Info("Пользователь отправляет отчёт об ошибке");
+            var archive = BugReport.Send(_env.Get("update_repo") ?? Updater.EmbeddedRepo, _api != null ? _service.Title() : null);
+            ShowToast(archive != null
+                ? "Архив с журналами — на рабочем столе. Перетащите его на открывшуюся страницу GitHub."
+                : "Открыл страницу GitHub — архив собрать не вышло, приложите файлы из папки логов.", 6);
+        }
+
         private void LogsOpen_Click(object sender, RoutedEventArgs e)
         {
             Directory.CreateDirectory(Log.Directory);

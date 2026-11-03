@@ -15,7 +15,16 @@ namespace Undertone.Core
 
     public static class MusicServices
     {
-        public static readonly MusicServiceKind[] All = { MusicServiceKind.Yandex, MusicServiceKind.SoundCloud, MusicServiceKind.Spotify };
+        /// <summary>
+        /// SoundCloud выключен, пока нет ключей приложения (их выдают только с платным Artist Pro).
+        /// Код на месте: поставь true — вернутся карточка входа, пункт в меню аккаунтов и переключение.
+        /// </summary>
+        public const bool SoundCloudEnabled = false;
+
+        /// <summary>Сервисы, которые видит пользователь (вход, меню аккаунтов, автоподключение при старте).</summary>
+        public static readonly MusicServiceKind[] All = SoundCloudEnabled
+            ? new[] { MusicServiceKind.Yandex, MusicServiceKind.SoundCloud, MusicServiceKind.Spotify }
+            : new[] { MusicServiceKind.Yandex, MusicServiceKind.Spotify };
 
         /// <summary>Ключ для settings.json.</summary>
         public static string Id(this MusicServiceKind kind) => kind switch
@@ -27,7 +36,7 @@ namespace Undertone.Core
 
         public static MusicServiceKind Parse(string? id) => id?.ToLowerInvariant() switch
         {
-            "soundcloud" => MusicServiceKind.SoundCloud,
+            "soundcloud" when SoundCloudEnabled => MusicServiceKind.SoundCloud,
             "spotify" => MusicServiceKind.Spotify,
             _ => MusicServiceKind.Yandex,
         };

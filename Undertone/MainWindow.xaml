@@ -308,7 +308,7 @@
                                RenderOptions.BitmapScalingMode="HighQuality" VerticalAlignment="Center"/>
                         <StackPanel Margin="12,0,0,0" VerticalAlignment="Center">
                             <TextBlock Text="Undertone" FontSize="19" FontWeight="Bold"/>
-                            <TextBlock x:Name="AppVersionText" Text="Яндекс Музыка · SoundCloud" FontSize="11.5" Foreground="{StaticResource TextFaintBrush}"/>
+                            <TextBlock x:Name="AppVersionText" Text="Яндекс Музыка · Spotify" FontSize="11.5" Foreground="{StaticResource TextFaintBrush}"/>
                         </StackPanel>
                     </StackPanel>
 
@@ -411,7 +411,7 @@
                                 HorizontalAlignment="Right" ToolTip="Новый плейлист" Click="NewPlaylist_Click"/>
                     </Grid>
 
-                    <!-- аккаунт: клик — меню аккаунтов (переключение Яндекс Музыка / SoundCloud) -->
+                    <!-- аккаунт: клик — меню аккаунтов (переключение Яндекс Музыка / Spotify) -->
                     <Border x:Name="AccountCard" DockPanel.Dock="Bottom" VerticalAlignment="Bottom" Background="{StaticResource CardBrush}"
                             CornerRadius="12" Padding="10" Margin="0,10,0,0" Cursor="Hand"
                             MouseLeftButtonUp="AccountCard_MouseUp" ToolTip="Аккаунты: переключиться, подключить, выйти">
@@ -442,7 +442,7 @@
                                 <Button x:Name="RetryBtn" Style="{StaticResource IconButton}" Content="&#xE72C;" Width="30" Height="30"
                                         FontSize="13" ToolTip="Переподключиться" Click="Retry_Click" Visibility="Collapsed"/>
                                 <Button x:Name="AccountMoreBtn" Style="{StaticResource IconButton}" Content="&#xE712;" Width="30" Height="30"
-                                        FontSize="13" ToolTip="Аккаунты: Яндекс Музыка и SoundCloud" Click="AccountMore_Click"/>
+                                        FontSize="13" ToolTip="Аккаунты: Яндекс Музыка и Spotify" Click="AccountMore_Click"/>
                                 <Button x:Name="LogoutBtn" Style="{StaticResource IconButton}" Content="&#xE7E8;" Width="30" Height="30"
                                         FontSize="13" ToolTip="Выйти из аккаунта" Click="Logout_Click"/>
                             </StackPanel>
@@ -1838,6 +1838,20 @@
                                         <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
                                     <StackPanel>
+                                        <TextBlock Text="Сообщить об ошибке"/>
+                                        <TextBlock Style="{StaticResource SettingsHint}"
+                                                   Text="Соберу архив с журналами на рабочий стол и открою страницу на GitHub с версией и системой — опишите, что случилось, и перетащите туда архив."/>
+                                    </StackPanel>
+                                    <Button Grid.Column="1" Style="{StaticResource PillButton}" Content="Сообщить"
+                                            Padding="16,8" FontSize="13" VerticalAlignment="Center" Margin="16,0,0,0" Click="BugReport_Click"/>
+                                </Grid>
+                                <Rectangle Height="1" Fill="{StaticResource DividerBrush}" Margin="0,16"/>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel>
                                         <TextBlock Text="Журнал ошибок"/>
                                         <TextBlock Style="{StaticResource SettingsHint}"
                                                    Text="Если что-то сломалось, приложите файл за нужный день, когда пишете о проблеме. Токенов в журнале нет."/>
@@ -2460,7 +2474,8 @@
                                 </Grid>
                             </Button>
 
-                            <Button Style="{StaticResource ServiceCard}" Click="AuthChooseSc_Click">
+                            <!-- SoundCloud выключен (MusicServices.SoundCloudEnabled), пока нет ключей приложения -->
+                            <Button x:Name="ScServiceCard" Style="{StaticResource ServiceCard}" Click="AuthChooseSc_Click" Visibility="Collapsed">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto"/>

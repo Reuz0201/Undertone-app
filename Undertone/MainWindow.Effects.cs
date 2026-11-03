@@ -125,7 +125,7 @@ namespace Undertone
                 FxSpinToggle.IsChecked = Fx.Spin;
 
                 FxHint.Text = _player.IsExternal
-                    ? "Spotify играет своим плеером — эффекты на него не действуют. Работают на Яндексе, SoundCloud и своих файлах."
+                    ? "Spotify играет своим плеером — эффекты на него не действуют. Работают на Яндексе и своих файлах."
                     : Fx.LockSpeed
                     ? "Ты в комнате с друзьями — скорость 1×, чтобы музыка шла у всех одинаково. Эхо и 8D работают."
                     : preset != null ? preset.Hint : "Свои настройки";

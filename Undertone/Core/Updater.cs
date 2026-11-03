@@ -119,7 +119,7 @@ namespace Undertone.Core
             if (json == null) return null;
 
             var releases = beta ? ParseReleases(json) : ParseRelease(json) is { } one ? new[] { one } : Array.Empty<UpdateInfo>();
-            return Choose(releases, CurrentVersion, beta);
+            return Choose(releases, CurrentVersion, beta, UpdateGuard.BadVersions());
         }
 
         private async Task<string?> GetJsonAsync(string url, CancellationToken ct)
@@ -152,10 +152,12 @@ namespace Undertone.Core
         /// Что ставить: самую новую версию, если она новее текущей. Исключение — сейчас стоит бета,
         /// а бета выключена: тогда последний релиз, даже если по номеру он «старше» (возврат на стабильную).
         /// </summary>
-        internal static UpdateInfo? Choose(IEnumerable<UpdateInfo> releases, Version current, bool includeBeta)
+        internal static UpdateInfo? Choose(IEnumerable<UpdateInfo> releases, Version current, bool includeBeta,
+            IReadOnlySet<Version>? skip = null)
         {
             var best = releases
                 .Where(r => includeBeta || !r.IsBeta)
+                .Where(r => skip == null || !skip.Contains(r.Version)) // уже падала у этого пользователя — откатились
                 .OrderByDescending(r => r.Version)
                 .FirstOrDefault();
             if (best == null) return null;
@@ -396,15 +398,17 @@ namespace Undertone.Core
         {
             var name = Path.GetFileName(relativePath);
             return name.Equals(EnvFile.FileName, StringComparison.OrdinalIgnoreCase)
-                || name.EndsWith(OldSuffix, StringComparison.OrdinalIgnoreCase);
+                || name.EndsWith(OldSuffix, StringComparison.OrdinalIgnoreCase)
+                || name.EndsWith(UpdateGuard.BadSuffix, StringComparison.OrdinalIgnoreCase);
         }
 
-        /// <summary>Удаляет *.old после успешного обновления (вызывать, когда старый процесс уже вышел).</summary>
+        /// <summary>Удаляет *.old (и *.bad после отката) после успешного обновления (вызывать, когда старый процесс уже вышел).</summary>
         public static void CleanupOld(string appDirectory)
         {
             try
             {
-                foreach (var f in Directory.GetFiles(appDirectory, "*" + OldSuffix, SearchOption.AllDirectories))
+                foreach (var f in Directory.GetFiles(appDirectory, "*" + OldSuffix, SearchOption.AllDirectories)
+                             .Concat(Directory.GetFiles(appDirectory, "*" + UpdateGuard.BadSuffix, SearchOption.AllDirectories)))
                 {
                     try { File.Delete(f); } catch (IOException) { } catch (UnauthorizedAccessException) { }
                 }

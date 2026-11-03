@@ -124,12 +124,15 @@ public class SpotifyParsingTests
     }
 
     [Fact]
-    public void Services_ThreeWay()
+    public void Services_List()
     {
-        Assert.Equal(3, MusicServices.All.Length);
+        Assert.Equal(MusicServices.SoundCloudEnabled ? 3 : 2, MusicServices.All.Length);
         foreach (var k in MusicServices.All) Assert.Equal(k, MusicServices.Parse(k.Id()));
         Assert.Equal(MusicServiceKind.Yandex, MusicServices.Parse(null));
-        Assert.Equal(new[] { MusicServiceKind.Yandex, MusicServiceKind.SoundCloud }, MusicServiceKind.Spotify.Others().ToArray());
+        Assert.Equal(MusicServices.All.Where(k => k != MusicServiceKind.Spotify), MusicServiceKind.Spotify.Others());
+        // выключенный SoundCloud не всплывает из старых настроек
+        if (!MusicServices.SoundCloudEnabled)
+            Assert.Equal(MusicServiceKind.Yandex, MusicServices.Parse("soundcloud"));
         Assert.Equal("Spotify", MusicServiceKind.Spotify.Title());
     }
 
