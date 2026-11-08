@@ -366,7 +366,7 @@ public class DjDspTests
         while ((read = v.Read(buf, total, 512)) > 0) total += read;
         Assert.InRange(total, 7990, 8010);
         // интерполяция линейного сигнала — точная
-        for (int i = 10; i < total - 10; i++) Assert.Equal(i * 1.25f / 1000f, buf[i], 3);
+        for (int i = 10; i < total - 10; i++) Assert.True(Math.Abs(i * 1.25 / 1000 - buf[i]) < 1e-3, $"{i}: {buf[i]}");
     }
 
     [Fact]
