@@ -2042,6 +2042,84 @@
                             </Border>
                         </Popup>
                     </Grid>
+                    <!-- DJ-режим: сведение по тактам, подгон темпа, умный порядок -->
+                    <Grid Margin="0,0,4,0">
+                        <Button x:Name="DjBtn" Style="{StaticResource IconButton}" Content="&#xE7F6;" FontSize="14" Click="Dj_Click"
+                                ToolTip="DJ-режим (J)"/>
+                        <Border x:Name="DjDot" Width="6" Height="6" CornerRadius="3" Background="{DynamicResource LiveAccent}"
+                                HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,4,4,0" IsHitTestVisible="False"
+                                Visibility="Collapsed"/>
+                        <Popup x:Name="DjPopup" PlacementTarget="{Binding ElementName=DjBtn}" Placement="Top" StaysOpen="False"
+                               AllowsTransparency="True" PopupAnimation="Fade" HorizontalOffset="-150" VerticalOffset="-8"
+                               Opened="DjPopup_Opened" Closed="DjPopup_Closed">
+                            <Border Width="340" Background="#17181D" CornerRadius="16" Padding="18,16" BorderBrush="#26282E"
+                                    BorderThickness="1" Margin="12">
+                                <Border.Effect>
+                                    <DropShadowEffect BlurRadius="30" ShadowDepth="0" Opacity="0.55" Color="Black"/>
+                                </Border.Effect>
+                                <StackPanel>
+                                    <CheckBox x:Name="DjToggle" Style="{StaticResource ToggleSwitch}"
+                                              Checked="DjToggle_Changed" Unchecked="DjToggle_Changed">
+                                        <StackPanel>
+                                            <TextBlock Text="DJ-режим" FontSize="16" FontWeight="Bold"/>
+                                            <TextBlock Style="{StaticResource SettingsHint}"
+                                                       Text="Треки сводятся сами, как у диджея: в такт, с подгоном темпа и сменой баса."/>
+                                        </StackPanel>
+                                    </CheckBox>
+
+                                    <!-- что играет и что будет дальше -->
+                                    <Border Background="#0DFFFFFF" CornerRadius="10" Padding="12,10" Margin="0,14,0,0">
+                                        <StackPanel>
+                                            <Grid>
+                                                <TextBlock Text="Сейчас" FontSize="11.5" Foreground="{StaticResource TextFaintBrush}"/>
+                                                <TextBlock x:Name="DjNowInfo" FontSize="12.5" HorizontalAlignment="Right"
+                                                           Foreground="{DynamicResource LiveAccent}"/>
+                                            </Grid>
+                                            <Grid Margin="0,6,0,0">
+                                                <TextBlock Text="Дальше" FontSize="11.5" Foreground="{StaticResource TextFaintBrush}"/>
+                                                <TextBlock x:Name="DjNextInfo" FontSize="12.5" HorizontalAlignment="Right"
+                                                           Foreground="{StaticResource TextDimBrush}"/>
+                                            </Grid>
+                                            <TextBlock x:Name="DjStatus" FontSize="12" Foreground="{StaticResource TextDimBrush}"
+                                                       TextWrapping="Wrap" Margin="0,8,0,0"/>
+                                            <Grid Margin="0,8,0,0" Height="3">
+                                                <Border CornerRadius="1.5" Background="#1AFFFFFF"/>
+                                                <Border x:Name="DjMixBar" CornerRadius="1.5" Background="{DynamicResource LiveAccent}"
+                                                        HorizontalAlignment="Left" Width="0"/>
+                                            </Grid>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <TextBlock Text="Длина перехода" FontSize="13" Margin="0,14,0,0"/>
+                                    <WrapPanel x:Name="DjBlendPanel" Margin="0,8,0,0">
+                                        <RadioButton Style="{StaticResource ChoicePill}" GroupName="DjBlend" Content="4 такта" Tag="4"
+                                                     Checked="DjBlend_Checked" ToolTip="Быстрая смена — для попсы и коротких треков"/>
+                                        <RadioButton Style="{StaticResource ChoicePill}" GroupName="DjBlend" Content="8 тактов" Tag="8"
+                                                     Checked="DjBlend_Checked" ToolTip="Золотая середина"/>
+                                        <RadioButton Style="{StaticResource ChoicePill}" GroupName="DjBlend" Content="16 тактов" Tag="16"
+                                                     Checked="DjBlend_Checked" ToolTip="Долгое сведение, как в клубе — для электроники"/>
+                                    </WrapPanel>
+
+                                    <CheckBox x:Name="DjTempoToggle" Style="{StaticResource ToggleSwitch}" Margin="0,12,0,0"
+                                              Checked="DjOption_Changed" Unchecked="DjOption_Changed">
+                                        <StackPanel>
+                                            <TextBlock Text="Подгонять темп" FontSize="13"/>
+                                            <TextBlock Style="{StaticResource SettingsHint}"
+                                                       Text="Следующий трек чуть ускоряется или замедляется, чтобы биты совпали, потом плавно возвращается."/>
+                                        </StackPanel>
+                                    </CheckBox>
+                                    <CheckBox x:Name="DjOrderToggle" Style="{StaticResource ToggleSwitch}" Margin="0,12,0,0"
+                                              Checked="DjOption_Changed" Unchecked="DjOption_Changed">
+                                        <StackPanel>
+                                            <TextBlock Text="Умный порядок" FontSize="13"/>
+                                            <TextBlock Style="{StaticResource SettingsHint}"
+                                                       Text="Из ближайших треков очереди следующим ставится тот, что лучше сводится по темпу и тональности."/>
+                                        </StackPanel>
+                                    </CheckBox>
+                                </StackPanel>
+                            </Border>
+                        </Popup>
+                    </Grid>
                     <Button Style="{StaticResource IconButton}" Content="&#xE740;" FontSize="14" Click="Party_Click"
                             ToolTip="Режим вечеринки — на весь экран (F11)" Margin="0,0,4,0"/>
                     <Button x:Name="SleepBtn" Style="{StaticResource IconButton}" Content="&#xE708;" FontSize="14" Click="Sleep_Click"

@@ -948,6 +948,7 @@ namespace Undertone
                 case Key.R: CycleRepeat(); break;
                 case Key.M: ToggleMute(); break;
                 case Key.E: ToggleFxPopup(); break;
+                case Key.J: ToggleDj(); break;
                 case Key.Y: OpenRecap(); break;
                 case Key.L: if (_queue.Current is { } c) await ToggleLikeAsync(c); break;
                 case Key.D: await DislikeCurrentAsync(); break;

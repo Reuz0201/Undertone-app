@@ -46,6 +46,14 @@ namespace Undertone.Core
         public AudioQuality Quality { get; set; } = AudioQuality.High;
         /// <summary>Переход между треками: -1 — обычный (с паузой), 0 — без паузы, N — кроссфейд N секунд.</summary>
         public int CrossfadeSeconds { get; set; } = -1;
+        /// <summary>DJ-режим: треки сводятся по тактам с подгоном темпа, как у диджея (вместо обычного перехода).</summary>
+        public bool DjMode { get; set; }
+        /// <summary>Длина DJ-перехода в тактах: 4, 8 или 16.</summary>
+        public int DjBars { get; set; } = 8;
+        /// <summary>Подгонять темп следующего трека под текущий.</summary>
+        public bool DjMatchTempo { get; set; } = true;
+        /// <summary>DJ сам переставляет ближайшие треки очереди, чтобы они лучше сводились (темп, тональность).</summary>
+        public bool DjSmartOrder { get; set; } = true;
         /// <summary>Выравнивать громкость треков (если Яндекс сообщает громкость трека).</summary>
         public bool Normalize { get; set; } = true;
 

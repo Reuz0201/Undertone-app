@@ -64,6 +64,7 @@ namespace Undertone
             _player.Equalizer.SetGains(_settings.EqGains);
             _player.Equalizer.Enabled = _settings.EqEnabled;
             InitEffects();
+            UpdateDjUi();
             _player.OutputRecovered += (_, name) =>
             {
                 ShowToast($"Звук переключён: {name}");
@@ -308,6 +309,11 @@ namespace Undertone
         /// <summary>У конца трека готовит следующий в движке, если он уже скачан.</summary>
         private void MaybePrepareNext()
         {
+            if (_settings.DjMode && !_inRoom && !_restartPending)
+            {
+                DjMaybePrepare();
+                return;
+            }
             // ждём перезапуска после обновления — пусть трек доиграет до конца, переход сделает уже новая версия
             if (_settings.CrossfadeSeconds < 0 || !_hasMedia || !_isPlaying || _inRoom || _restartPending) return;
             if (_player.HasPreparedNext) return;
@@ -443,6 +449,8 @@ namespace Undertone
         {
             var api = _api;
             var count = Math.Clamp(_settings.PrefetchCount, 0, 3);
+            // DJ-режиму нужны скачанные следующие треки: анализ и сведение идут по готовым файлам
+            if (_settings.DjMode && !_inRoom) count = Math.Max(count, DjLookahead);
             if (api == null || count == 0 || !api.SupportsDownload) return;
             var gen = ++_prefetchGen;
             foreach (var next in _queue.PeekAhead(count))

@@ -144,7 +144,7 @@ namespace Undertone.Audio
                 var reader = _reader;
                 if (reader == null) return TimeSpan.Zero;
                 TimeSpan pos;
-                lock (_sync) pos = reader.CurrentTime;
+                lock (_sync) pos = _mixer != null ? TimeSpan.FromSeconds(_mixer.CurrentTime) : reader.CurrentTime;
                 if (IsPlaying && !IsBuffering) pos -= TimeSpan.FromMilliseconds(LatencyMs * Effects.EffectiveSpeed); // буфер вывода звучит с учётом скорости
                 return pos < TimeSpan.Zero ? TimeSpan.Zero : pos;
             }
@@ -165,6 +165,7 @@ namespace Undertone.Audio
                     // перемотали — подготовленный переход больше не к месту, UI подготовит его заново у конца
                     _mixer?.CancelNext();
                     reader.CurrentTime = value;
+                    _mixer?.OnSeek();
                 }
                 _effects?.Flush();
             }
@@ -201,7 +202,8 @@ namespace Undertone.Audio
                 ApplyVolume();
             }
         }
-        private float _trackGain = 1f;
+        /// <summary>Читается потоком звука в микшере; при переходе микшер сам ставит громкость нового трека.</summary>
+        private volatile float _trackGain = 1f;
 
         /// <summary>Задержка между анализом и звуком, в сэмплах — визуализатор компенсирует её.</summary>
         public int AnalyzerDelaySamples => Analyzer.SampleRate * LatencyMs / 1000;
@@ -209,7 +211,8 @@ namespace Undertone.Audio
         private void ApplyVolume()
         {
             // кубическая кривая — слайдер ощущается линейно на слух
-            if (_volume != null) _volume.Volume = _muted ? 0f : _level * _level * _level * _trackGain;
+            // громкость трека (нормализация) применяет микшер — у каждого трека во время перехода своя
+            if (_volume != null) _volume.Volume = _muted ? 0f : _level * _level * _level;
             _external?.SetVolume(_muted ? 0 : _level * _level * _level);
         }
 
@@ -480,6 +483,26 @@ namespace Undertone.Audio
         /// </summary>
         public bool PrepareNext(string path, double fadeSeconds, float gain = 1f)
         {
+            var reader = _reader;
+            if (reader == null) return false;
+            var fade = Math.Max(0, fadeSeconds);
+            var plan = new TransitionPlan(reader.TotalTime.TotalSeconds - fade, fade, 0, 1, BassSwap: false, BeatMatched: false);
+            return PrepareCore(path, plan, cut: false, gain);
+        }
+
+        /// <summary>
+        /// DJ-переход по плану: следующий трек вступает в plan.MixOutAt текущего, к концу перехода текущий
+        /// обрывается (дальше — только новый). Поздно (текущий уже дальше точки входа) — false.
+        /// </summary>
+        public bool PrepareTransition(string path, TransitionPlan plan, float gain = 1f)
+        {
+            if (_reader == null || plan.Length <= 0) return false;
+            if (Position.TotalSeconds > plan.MixOutAt - 0.2) return false;
+            return PrepareCore(path, plan, cut: true, gain);
+        }
+
+        private bool PrepareCore(string path, TransitionPlan plan, bool cut, float gain)
+        {
             var mixer = _mixer;
             if (mixer == null) return false;
             MediaFoundationReader next;
@@ -494,7 +517,7 @@ namespace Undertone.Audio
             }
             try
             {
-                lock (_sync) mixer.SetNext(next, path, Math.Max(0, fadeSeconds), gain);
+                lock (_sync) mixer.SetNext(next, path, plan, cut, Math.Clamp(gain, 0.1f, 4f));
                 return true;
             }
             catch (Exception ex)
@@ -504,6 +527,12 @@ namespace Undertone.Audio
                 return false;
             }
         }
+
+        /// <summary>Идёт переход к следующему треку: 0..1; иначе -1.</summary>
+        public double MixProgress => _mixer?.Progress ?? -1;
+
+        /// <summary>Скорость текущего трека в микшере (после DJ-перехода — пока плавно возвращается к 1).</summary>
+        public double DeckRate => _mixer?.CurrentRate ?? 1;
 
         public void CancelNext()
         {
@@ -603,50 +632,80 @@ namespace Undertone.Audio
         }
 
         /// <summary>
-        /// Источник цепочки: текущий трек и (если подготовлен) следующий. Под конец текущего подмешивает
-        /// следующий с равномощным кроссфейдом, а когда текущий кончится — переключается на следующий в том же Read.
+        /// Источник цепочки: «деки» — текущий трек и (если подготовлен) следующий. С точки перехода
+        /// подмешивает следующий: обычный кроссфейд (равномощный) или DJ-сведение — следующий заходит в такт,
+        /// разогнанный под темп текущего, а посередине бас уходящего трека меняется на бас нового.
+        /// Когда переход кончился (или текущий трек), следующий становится текущим в том же Read.
         /// Формат цепочки фиксируется по первому треку; следующий при необходимости приводится к нему.
         /// </summary>
         private sealed class Mixer : ISampleProvider
         {
+            /// <summary>За сколько секунд после DJ-перехода скорость нового трека возвращается к записанной.</summary>
+            private const double GlideSeconds = 8;
+
             private readonly AudioEngine _engine;
-            private WaveStream _reader;
-            private ISampleProvider _current;
-            private WaveStream? _nextReader;
-            private ISampleProvider? _next;
-            private string? _nextPath;
-            private float _nextGain = 1f;
-            private double _fadeSeconds;
+            private Deck _cur;
+            private Deck? _next;
+            private TransitionPlan? _plan;
+            /// <summary>true — DJ-переход: уходящий трек обрывается в конце перехода, не доигрывая хвост.</summary>
+            private bool _cut;
             private float[] _temp = Array.Empty<float>();
 
             public Mixer(AudioEngine engine, WaveStream reader)
             {
                 _engine = engine;
-                _reader = reader;
-                _current = reader.ToSampleProvider();
-                WaveFormat = _current.WaveFormat;
+                var source = reader.ToSampleProvider();
+                WaveFormat = source.WaveFormat;
+                _cur = new Deck(reader, source, null, 1f);
             }
 
             public WaveFormat WaveFormat { get; }
             public bool HasNext => _next != null;
 
-            public void SetNext(WaveStream reader, string path, double fadeSeconds, float gain)
+            /// <summary>Идёт переход: 0..1, иначе -1.</summary>
+            public double Progress { get; private set; } = -1;
+
+            public double CurrentRate => _cur.Speed?.Rate ?? 1;
+
+            /// <summary>Сколько текущего трека прозвучало, секунд (без буфера подгона темпа).</summary>
+            public double CurrentTime => Math.Max(0, _cur.Time);
+
+            public void SetNext(WaveStream reader, string path, TransitionPlan plan, bool cut, float gain)
             {
                 CancelNext();
-                _next = Conform(reader.ToSampleProvider());
-                _nextReader = reader;
-                _nextPath = path;
-                _fadeSeconds = fadeSeconds;
-                _nextGain = gain;
+                if (plan.NextStartAt > 0.01 && plan.NextStartAt < reader.TotalTime.TotalSeconds - 1)
+                    reader.CurrentTime = TimeSpan.FromSeconds(plan.NextStartAt);
+                var source = Conform(reader.ToSampleProvider());
+                Varispeed? speed = null;
+                if (Math.Abs(plan.Rate - 1) > 0.0005)
+                {
+                    speed = new Varispeed(source, plan.Rate);
+                    source = speed;
+                }
+                var next = new Deck(reader, source, path, gain) { Speed = speed };
+                if (plan.BassSwap)
+                {
+                    // новый трек — с фильтров с первого сэмпла (он входит из тишины, щелчка нет);
+                    // уходящему — плавно, чтобы смена фазы баса не щёлкнула
+                    next.Split = new Crossover(WaveFormat.SampleRate, WaveFormat.Channels, warm: false);
+                    _cur.Split ??= new Crossover(WaveFormat.SampleRate, WaveFormat.Channels, warm: true);
+                }
+                _next = next;
+                _plan = plan;
+                _cut = cut;
             }
 
             public void CancelNext()
             {
-                _nextReader?.Dispose();
-                _nextReader = null;
+                _next?.Reader.Dispose();
                 _next = null;
-                _nextPath = null;
+                _plan = null;
+                _cut = false;
+                Progress = -1;
             }
+
+            /// <summary>Перемотка: накопленное в деке до перемотки больше не нужно.</summary>
+            public void OnSeek() => _cur.Speed?.Reset();
 
             /// <summary>Приводит частоту и число каналов следующего трека к формату цепочки.</summary>
             private ISampleProvider Conform(ISampleProvider source)
@@ -663,49 +722,127 @@ namespace Undertone.Audio
 
             public int Read(float[] buffer, int offset, int count)
             {
-                int read = _current.Read(buffer, offset, count);
+                var channels = WaveFormat.Channels;
+                var t0 = _cur.Time;
+                int read = _cur.Source.Read(buffer, offset, count);
+                var t1 = _cur.Time;
+                var frames = read / channels;
+                var curGain = _engine._trackGain;
+                var plan = _plan;
 
-                // кроссфейд: последние секунды текущего смешиваем с началом следующего
-                if (_next != null && _fadeSeconds > 0 && read > 0)
+                bool mixing = _next != null && plan != null && plan.Length > 0 && frames > 0 && t1 >= plan.MixOutAt;
+                if (!mixing)
                 {
-                    var channels = WaveFormat.Channels;
-                    var rate = (double)WaveFormat.SampleRate;
-                    var remaining = (_reader.Length - _reader.Position) / (double)_reader.WaveFormat.AverageBytesPerSecond;
-                    // remaining — после этого чтения; начало буфера было на read/channels/rate раньше
-                    var bufferSeconds = read / channels / rate;
-                    if (remaining <= _fadeSeconds + bufferSeconds)
+                    // вне перехода — только громкость трека и (если остались после перехода) фильтры баса
+                    _cur.Process(buffer, offset, frames, channels, curGain, 1f, 1f);
+                }
+                else
+                {
+                    // с какого кадра буфера начинается переход (время внутри буфера — линейно между t0 и t1)
+                    var dt = frames > 0 ? (t1 - t0) / frames : 0;
+                    int f0 = 0;
+                    if (t0 < plan!.MixOutAt && dt > 0) f0 = Math.Clamp((int)Math.Ceiling((plan.MixOutAt - t0) / dt), 0, frames);
+                    // до перехода — как обычно
+                    if (f0 > 0) _cur.Process(buffer, offset, f0, channels, curGain, 1f, 1f);
+
+                    var mixFrames = frames - f0;
+                    var need = mixFrames * channels;
+                    if (_temp.Length < need) _temp = new float[need];
+                    int got = _next!.Source.Read(_temp, 0, need) / channels;
+                    if (got < mixFrames) Array.Clear(_temp, got * channels, (mixFrames - got) * channels);
+
+                    for (int f = 0; f < mixFrames; f++)
                     {
-                        if (_temp.Length < read) _temp = new float[read];
-                        int got = _next.Read(_temp, 0, read);
-                        for (int i = 0; i < read; i++)
-                        {
-                            var frameTime = remaining + bufferSeconds - (i / channels) / rate; // сколько осталось до конца текущего
-                            var x = Math.Clamp(frameTime / _fadeSeconds, 0, 1);              // 1 — начало перехода, 0 — конец
-                            // равномощный переход: сумма квадратов коэффициентов = 1, громкость не проваливается
-                            var outGain = (float)Math.Sin(x * Math.PI / 2);
-                            var inGain = (float)Math.Cos(x * Math.PI / 2);
-                            var n = i < got ? _temp[i] : 0f;
-                            buffer[offset + i] = buffer[offset + i] * outGain + n * inGain;
-                        }
+                        var t = t0 + (f0 + f) * dt;
+                        var p = Math.Clamp((t - plan.MixOutAt) / plan.Length, 0, 1);
+                        DjFades.Gains(p, plan.BassSwap, out var outLo, out var outHi, out var inLo, out var inHi);
+                        var b = offset + (f0 + f) * channels;
+                        var n = f * channels;
+                        _cur.ProcessFrame(buffer, b, channels, curGain, outLo, outHi);
+                        _next.ProcessFrame(_temp, n, channels, _next.Gain, inLo, inHi);
+                        for (int c = 0; c < channels; c++) buffer[b + c] += _temp[n + c];
+                    }
+                    Progress = Math.Clamp((t1 - plan.MixOutAt) / plan.Length, 0, 1);
+
+                    // DJ-переход кончился — уходящий трек больше не играет, следующий становится текущим
+                    if (_cut && t1 >= plan.MixOutEnd)
+                    {
+                        Advance();
+                        return read;
                     }
                 }
 
                 if (read >= count || _next == null) return read;
 
                 // текущий кончился — следующий становится текущим, остаток буфера дочитываем из него
-                var oldReader = _reader;
-                _reader = _nextReader!;
-                _current = _next;
-                var path = _nextPath!;
-                var gain = _nextGain;
-                _next = null;
-                _nextReader = null;
-                _nextPath = null;
-                _engine.OnMixerAdvanced(_reader, path, oldReader, gain);
-
-                // выравнивание громкости нового трека применит UI через TrackGain (события постятся в UI-поток)
-                int more = _current.Read(buffer, offset + read, count - read);
+                Advance();
+                int more = _cur.Source.Read(buffer, offset + read, count - read);
+                _cur.Process(buffer, offset + read, more / channels, channels, _engine._trackGain, 1f, 1f);
                 return read + more;
+            }
+
+            private void Advance()
+            {
+                var old = _cur;
+                var next = _next!;
+                _cur = next;
+                _next = null;
+                _plan = null;
+                _cut = false;
+                Progress = -1;
+                // громкость нового трека — сразу здесь, в потоке звука; UI потом выставит то же значение
+                _engine._trackGain = next.Gain;
+                next.Gain = 1f;
+                // разогнанный под прошлый трек — плавно возвращаем к записанной скорости
+                next.Speed?.GlideTo(1, (int)(GlideSeconds * WaveFormat.SampleRate));
+                _engine.OnMixerAdvanced(_cur.Reader, next.Path!, old.Reader, _engine._trackGain);
+            }
+
+        }
+
+        /// <summary>Дека микшера: трек, его цепочка до микшера и фильтры баса для DJ-перехода.</summary>
+        private sealed class Deck
+        {
+            public Deck(WaveStream reader, ISampleProvider source, string? path, float gain)
+            {
+                Reader = reader;
+                Source = source;
+                Path = path;
+                Gain = gain;
+            }
+
+            public WaveStream Reader { get; }
+            public ISampleProvider Source { get; }
+            public string? Path { get; }
+            /// <summary>Громкость трека, пока он «следующий» (у текущего — общий TrackGain).</summary>
+            public float Gain { get; set; }
+            public Varispeed? Speed { get; init; }
+
+            /// <summary>Сколько трека уже прозвучало (секунд от начала файла) — без того, что сидит в буфере скорости.</summary>
+            public double Time => Reader.CurrentTime.TotalSeconds - (Speed?.BufferedSeconds ?? 0);
+            public Crossover? Split { get; set; }
+
+            public void Process(float[] buffer, int offset, int frames, int channels, float gain, float lo, float hi)
+            {
+                if (Split == null)
+                {
+                    if (Math.Abs(gain - 1f) < 1e-6f) return;
+                    for (int i = 0, n = frames * channels; i < n; i++) buffer[offset + i] *= gain;
+                    return;
+                }
+                for (int f = 0; f < frames; f++) ProcessFrame(buffer, offset + f * channels, channels, gain, lo, hi);
+            }
+
+            public void ProcessFrame(float[] buffer, int offset, int channels, float gain, float lo, float hi)
+            {
+                if (Split == null)
+                {
+                    // без фильтров низ и верх неразделимы — берём среднее (так и задуман обычный кроссфейд: lo == hi)
+                    var g = gain * (lo + hi) * 0.5f;
+                    for (int c = 0; c < channels; c++) buffer[offset + c] *= g;
+                    return;
+                }
+                Split.Process(buffer, offset, channels, gain * lo, gain * hi);
             }
         }
 
