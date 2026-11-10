@@ -16,7 +16,7 @@ namespace Undertone.Core
 {
     /// <summary>
     /// Spotify Soloist — официальный консольный плеер Spotify без интерфейса (developer.spotify.com/documentation/soloist).
-    /// Undertone запускает его скрытым процессом: в Spotify он виден как устройство «Undertone», звук идёт через WASAPI
+    /// Undertone запускает его скрытым процессом: в Spotify он виден как устройство «Undertone Soloist», звук идёт через WASAPI
     /// в устройство Windows по умолчанию. Управление — по локальному WebSocket (--ws 127.0.0.1:0, порт — из data\ws.port).
     /// Встроенного браузера (WebView2) не нужно — это в разы легче для слабых ПК.
     ///
@@ -30,7 +30,7 @@ namespace Undertone.Core
         public const string DownloadUrl = "https://soloist-builds.spotifycdn.com/soloist_release_windows_x86_64.zip";
         public const string KeyPageUrl = "https://developer.spotify.com/dashboard/soloist";
         public const string DocsUrl = "https://developer.spotify.com/documentation/soloist";
-        public const string DeviceName = "Undertone";
+        public const string DeviceName = "Undertone Soloist";
         public const string KeyEnvName = "spotify_soloist_key";
         public const int ExpiredExitCode = 10;
 
@@ -481,11 +481,11 @@ namespace Undertone.Core
         public SoloistExpiredException() : base("сборка Spotify Soloist устарела — нужна новая") { }
     }
 
-    /// <summary>Soloist запущен, но в Spotify ещё не вошёл: устройство «Undertone» надо один раз выбрать в приложении Spotify.</summary>
+    /// <summary>Soloist запущен, но в Spotify ещё не вошёл: устройство «Undertone Soloist» надо один раз выбрать в приложении Spotify.</summary>
     public sealed class SoloistNotPairedException : SoloistException
     {
         public SoloistNotPairedException()
             : base("Spotify Soloist ждёт подключения: открой Spotify на телефоне или ПК в той же сети, нажми значок устройств " +
-                   "и выбери «Undertone». Это нужно один раз.") { }
+                   "и выбери «Undertone Soloist». Это нужно один раз.") { }
     }
 }

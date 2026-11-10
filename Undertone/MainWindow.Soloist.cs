@@ -44,7 +44,7 @@ namespace Undertone
             _soloistWasLoggedIn = false;
         }
 
-        /// <summary>Запуск заранее — чтобы устройство «Undertone» сразу появилось в Spotify и его можно было выбрать.</summary>
+        /// <summary>Запуск заранее — чтобы устройство «Undertone Soloist» сразу появилось в Spotify и его можно было выбрать.</summary>
         private async Task StartSoloistAsync()
         {
             var d = GetSoloist();
@@ -134,7 +134,7 @@ namespace Undertone
                 : SoloistKey() == null ? "Нет API-ключа — нажми «Получить ключ»" + version
                 : !_settings.SoloistEnabled ? "Скачан, выключен" + version
                 : _soloist is { IsRunning: true, State.LoggedIn: true } ? "Работает · подключён к Spotify" + version
-                : _soloist is { IsRunning: true } ? "Работает · ждёт: выбери «Undertone» в устройствах Spotify" + version
+                : _soloist is { IsRunning: true } ? "Работает · ждёт: выбери «Undertone Soloist» в устройствах Spotify" + version
                 : "Включён · запустится вместе с треком Spotify" + version;
         }
 
