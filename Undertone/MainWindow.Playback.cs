@@ -259,7 +259,7 @@ namespace Undertone
 
         private async Task PlaySpotifyAsync(SpotifyApi api, YaTrack track, int gen, CancellationToken ct)
         {
-            var player = _spotifyPlayer ??= new SpotifyPlayer(api, Dispatcher, text => ShowToast(text, 4));
+            var player = _spotifyPlayer ??= new SpotifyPlayer(api, Dispatcher, text => ShowToast(text, 4), GetSoloist);
             var start = _resumeAt is { } resume && resume.TrackId == track.Id ? resume.Position : TimeSpan.Zero;
             _resumeAt = null;
             await player.LoadAsync(track, start, ct);

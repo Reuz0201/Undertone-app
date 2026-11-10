@@ -15,6 +15,14 @@ namespace Undertone
         /// <summary>Подпись на кнопке: имя устройства, значок — наушники или колонка.</summary>
         private void UpdateDeviceButton()
         {
+            // Spotify через Soloist: звук идёт в устройство Windows по умолчанию, мимо нашего выбора
+            if (_player.IsExternal && _spotifyPlayer is { UsesSoloist: true })
+            {
+                DeviceBtn.Tag = "Soloist";
+                DeviceBtn.Content = "speakers";
+                DeviceBtn.ToolTip = "Spotify играет через Soloist — в устройство Windows по умолчанию";
+                return;
+            }
             // Spotify через приложение (Connect): звук не у нас — показываем, где он
             if (_player.IsExternal && _spotifyPlayer is { UsesConnect: true, OutputName: { } spotifyDevice })
             {

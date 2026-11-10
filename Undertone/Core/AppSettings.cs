@@ -90,6 +90,10 @@ namespace Undertone.Core
         /// <summary>Application ID из Discord Developer Portal.</summary>
         public string DiscordAppId { get; set; } = "";
 
+        // ── Spotify Soloist ──
+        /// <summary>Играть Spotify через Soloist (официальный консольный плеер) вместо встроенного браузерного плеера.</summary>
+        public bool SoloistEnabled { get; set; }
+
         // ── лента друзей ──
         public bool FriendsEnabled { get; set; }
         /// <summary>Код компании: у кого он одинаковый, те видят друг друга.</summary>

@@ -1033,6 +1033,7 @@ namespace Undertone
             LeaveTogether(announce: false);
             _friendsFeed?.Dispose();
             DisposeSpotifyPlayer();
+            DisposeSoloist();
             _player.Dispose();
             _api?.Dispose();
             _tray?.Dispose();
