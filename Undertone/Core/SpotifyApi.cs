@@ -539,6 +539,14 @@ namespace Undertone.Core
                 ["position_ms"] = Math.Max(0, positionMs),
             }, ct);
 
+        /// <summary>Несколько треков подряд одним списком: устройство само переходит между ними, без пауз (так играет Soloist).</summary>
+        public Task PlayUrisAsync(string deviceId, IEnumerable<string> trackIds, long positionMs, CancellationToken ct = default) =>
+            RequestAsync(HttpMethod.Put, $"/me/player/play?device_id={Uri.EscapeDataString(deviceId)}", new Dictionary<string, object>
+            {
+                ["uris"] = trackIds.Select(id => ToUri(id)).ToArray(),
+                ["position_ms"] = Math.Max(0, positionMs),
+            }, ct);
+
         public Task ResumeAsync(string deviceId, CancellationToken ct = default) =>
             RequestAsync(HttpMethod.Put, $"/me/player/play?device_id={Uri.EscapeDataString(deviceId)}", null, ct);
 

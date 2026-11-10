@@ -152,6 +152,10 @@ namespace Undertone.Core
             proc.BeginErrorReadLine();
             _proc = proc;
             Log.Info($"Soloist: запущен (pid {proc.Id})");
+            // звук у Soloist идёт обычными потоками: на загруженном слабом ПК поток просыпается поздно — и музыка
+            // подлагивает. Чуть выше обычного приоритета хватает, а системе не мешает (не «реального времени»).
+            try { proc.PriorityClass = ProcessPriorityClass.AboveNormal; }
+            catch (Exception ex) { Log.Warn("Soloist: не удалось поднять приоритет", ex); }
 
             var port = await WaitForPortAsync(proc, ct);
             await ConnectAsync(port, ct);
@@ -323,6 +327,14 @@ namespace Undertone.Core
         public Task ResumeAsync() => Command("play");
         public Task PauseAsync() => Command("pause");
         public Task ActivateAsync() => Command("activate");
+
+        /// <summary>Порядок задаёт очередь Undertone: перемешивание и повтор у самого Soloist выключаем.</summary>
+        public async Task ResetOptionsAsync()
+        {
+            await SendAsync(new Dictionary<string, object> { ["type"] = "command", ["command"] = "set_shuffle", ["enabled"] = false });
+            await SendAsync(new Dictionary<string, object> { ["type"] = "command", ["command"] = "set_repeat_track", ["enabled"] = false });
+            await SendAsync(new Dictionary<string, object> { ["type"] = "command", ["command"] = "set_repeat_context", ["enabled"] = false });
+        }
 
         public Task SeekAsync(long positionMs) =>
             SendAsync(new Dictionary<string, object> { ["type"] = "command", ["command"] = "seek", ["position_ms"] = Math.Max(0, positionMs) });
