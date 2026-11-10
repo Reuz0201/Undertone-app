@@ -400,6 +400,8 @@ namespace Undertone.UI
                 return;
             }
             if (!_soloistMode || _trackId == null) return;
+            // Undertone на секунду открыл в Soloist чужой плейлист, чтобы прочитать треки — это не наши события
+            if (d.Peeking) return;
 
             var expected = SpotifyApi.ToUri(_trackId);
             // свой трек узнаём по URI; другой URI той же длины — перелинковка (Spotify подменил на версию для региона)

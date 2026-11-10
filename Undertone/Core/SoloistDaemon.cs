@@ -58,6 +58,11 @@ namespace Undertone.Core
 
         public SoloistState State { get; } = new();
 
+        /// <summary>Идёт подглядывание в чужой плейлист (см. ReadContextTracksAsync) — события трека в это время не наши.</summary>
+        public bool Peeking { get; private set; }
+
+        private TaskCompletionSource<JsonElement>? _queueWaiter;
+
         public bool IsRunning => !_disposed && _proc is { HasExited: false } && _ws?.State == WebSocketState.Open;
 
         /// <summary>Что-то поменялось (вход, трек, статус, позиция, громкость).</summary>
@@ -231,7 +236,11 @@ namespace Undertone.Core
             try
             {
                 using var doc = JsonDocument.Parse(text);
-                change = State.Apply(doc.RootElement);
+                var root = doc.RootElement;
+                if (root.ValueKind == JsonValueKind.Object && root.TryGetProperty("type", out var t) &&
+                    t.ValueKind == JsonValueKind.String && t.GetString() == "queue_changed")
+                    _queueWaiter?.TrySetResult(root.Clone());
+                change = State.Apply(root);
             }
             catch (JsonException)
             {
@@ -338,6 +347,79 @@ namespace Undertone.Core
             {
                 _sendLock.Release();
             }
+        }
+
+        // ────────── чужие плейлисты ──────────
+
+        /// <summary>
+        /// Треки плейлиста или альбома, которые Web API не отдаёт (чужие плейлисты): Soloist на секунду включает его
+        /// без звука, Undertone читает очередь (get_queue) и возвращает всё как было — тот же трек, место, громкость.
+        /// </summary>
+        public async Task<List<YaTrack>> ReadContextTracksAsync(string contextUri, CancellationToken ct)
+        {
+            await StartAsync(ct);
+            if (!State.LoggedIn) throw new SoloistNotPairedException();
+
+            var prevUri = State.ItemUri;
+            var prevPos = State.PositionMs;
+            var prevPlaying = State.IsPlaying || State.Status == "buffering";
+            var prevVolume = State.Volume;
+            Peeking = true;
+            try
+            {
+                if (prevVolume > 0) await SetVolumeAsync(0);
+                await SendAsync(new Dictionary<string, object> { ["type"] = "command", ["command"] = "set_shuffle", ["enabled"] = false }, ct);
+                await PlayUriAsync(contextUri, ct);
+                await WaitUntilAsync(() => State.ContextUri == contextUri && State.ItemUri.Length > 0, TimeSpan.FromSeconds(8), ct);
+                await Task.Delay(400, ct); // Soloist дочитывает контекст
+                await PauseAsync();
+
+                _queueWaiter = new TaskCompletionSource<JsonElement>(TaskCreationOptions.RunContinuationsAsynchronously);
+                await SendAsync(new Dictionary<string, object> { ["type"] = "command", ["command"] = "get_queue", ["limit"] = 0 }, ct);
+                var done = await Task.WhenAny(_queueWaiter.Task, Task.Delay(TimeSpan.FromSeconds(5), ct));
+                ct.ThrowIfCancellationRequested();
+                if (done != _queueWaiter.Task) throw new SoloistException("Soloist не отдал список треков");
+                var tracks = SoloistState.ContextTracks(State.CurrentItem, await _queueWaiter.Task);
+                Log.Info($"Soloist: из {contextUri} прочитано треков: {tracks.Count}");
+                return tracks;
+            }
+            finally
+            {
+                _queueWaiter = null;
+                await RestoreAfterPeekAsync(prevUri, prevPos, prevPlaying, prevVolume);
+                Peeking = false;
+                Changed?.Invoke(SoloistChange.Track | SoloistChange.Playback | SoloistChange.Position);
+            }
+        }
+
+        private async Task RestoreAfterPeekAsync(string uri, long positionMs, bool playing, int volume)
+        {
+            try
+            {
+                if (uri.Length > 0)
+                {
+                    await PlayUriAsync(uri);
+                    await WaitUntilAsync(() => State.ItemUri == uri, TimeSpan.FromSeconds(5), CancellationToken.None);
+                    if (positionMs > 1000) await SeekAsync(positionMs);
+                    if (!playing) await PauseAsync();
+                }
+                else
+                {
+                    await PauseAsync();
+                }
+                if (volume > 0) await SetVolumeAsync(volume);
+            }
+            catch (Exception ex)
+            {
+                Log.Warn("Soloist: не удалось вернуть воспроизведение после чтения плейлиста", ex);
+            }
+        }
+
+        private static async Task WaitUntilAsync(Func<bool> condition, TimeSpan timeout, CancellationToken ct)
+        {
+            var until = DateTime.UtcNow + timeout;
+            while (!condition() && DateTime.UtcNow < until)
+                await Task.Delay(100, ct);
         }
 
         // ────────── установка ──────────

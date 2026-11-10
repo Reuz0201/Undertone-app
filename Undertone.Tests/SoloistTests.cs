@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Text.Json;
 using Undertone.Core;
 using Xunit;
@@ -85,5 +86,51 @@ public class SoloistStateTests
         Assert.Equal("not logged in", s.LastError);
         Assert.Equal(SoloistChange.None, Apply(s, """{"type":"command_result","command":"play"}"""));
         Assert.Equal(SoloistChange.None, Apply(s, """[1,2]"""));
+    }
+
+    [Fact]
+    public void ContextChanged_SetsContextUri()
+    {
+        var s = new SoloistState();
+        var c = Apply(s, """{"type":"context_changed","context":{"uri":"spotify:playlist:pl1","entity_type":"playlist"}}""");
+        Assert.Equal(SoloistChange.Context, c);
+        Assert.Equal("spotify:playlist:pl1", s.ContextUri);
+    }
+
+    [Fact]
+    public void ContextTracks_CurrentPlusUpcomingFromContextOnly()
+    {
+        var s = new SoloistState();
+        Apply(s, """
+            {"type":"track_changed","item":{"uri":"spotify:track:t1","entity_type":"track",
+              "decorations":{"identity":{"name":"First"},
+                "creators":[{"uri":"spotify:artist:a1","decorations":{"identity":{"name":"Artist One"}}}],
+                "parent":{"entity":{"uri":"spotify:album:al1","decorations":{"identity":{"name":"Album"}}}},
+                "visual_identity":{"cover":[{"url":"https://i.scdn.co/image/small","size":"small"},
+                                            {"url":"spotify:image:big","size":"large"}]},
+                "playback":{"duration_ms":180000}}}}
+            """);
+        using var queue = JsonDocument.Parse("""
+            {"type":"queue_changed","previous":[],"upcoming":[
+              {"uid":"u2","source":"context","item":{"uri":"spotify:track:t2","entity_type":"track","decorations":{"identity":{"name":"Second"}}}},
+              {"uid":"u3","source":"queue","item":{"uri":"spotify:track:q1","entity_type":"track"}},
+              {"uid":"u4","source":"context","item":{"uri":"spotify:episode:e1","entity_type":"episode"}},
+              {"uid":"u5","source":"autoplay","item":{"uri":"spotify:track:auto","entity_type":"track"}},
+              {"uid":"u6","source":"context","item":{"uri":"spotify:track:t1","entity_type":"track"}}
+            ]}
+            """);
+
+        var tracks = SoloistState.ContextTracks(s.CurrentItem, queue.RootElement);
+
+        Assert.Equal(new[] { "sp-t1", "sp-t2" }, tracks.Select(t => t.Id));
+        var first = tracks[0];
+        Assert.Equal("First", first.Title);
+        Assert.Equal(new[] { "Artist One" }, first.Artists);
+        Assert.Equal("sp-a1", first.ArtistRefs.Single().Id);
+        Assert.Equal("sp-al1", first.AlbumId);
+        Assert.Equal("Album", first.Album);
+        Assert.Equal(180000, first.DurationMs);
+        Assert.Equal("https://i.scdn.co/image/big", first.CoverUri);
+        Assert.Equal("Second", tracks[1].Title);
     }
 }
