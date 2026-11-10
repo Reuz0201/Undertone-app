@@ -259,10 +259,11 @@ namespace Undertone
 
         private async Task PlaySpotifyAsync(SpotifyApi api, YaTrack track, int gen, CancellationToken ct)
         {
-            var player = _spotifyPlayer ??= new SpotifyPlayer(api, Dispatcher, text => ShowToast(text, 4));
+            var player = _spotifyPlayer ??= new SpotifyPlayer(api, Dispatcher, text => ShowToast(text, 4), GetSoloist);
             var start = _resumeAt is { } resume && resume.TrackId == track.Id ? resume.Position : TimeSpan.Zero;
             _resumeAt = null;
-            await player.LoadAsync(track, start, ct);
+            // следующие треки очереди — Soloist сведёт их сам, без пауз между треками
+            await player.LoadAsync(track, start, ct, _queue.PeekAhead(SpotifyPlayer.SoloistLookahead));
             if (gen != _playGen)
             {
                 player.Pause();

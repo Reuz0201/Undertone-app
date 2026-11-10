@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
@@ -17,6 +18,7 @@ namespace Undertone.UI
 {
     /// <summary>
     /// Звук Spotify. Spotify не отдаёт файлы, поэтому играет его собственный плеер:
+    /// 0) Spotify Soloist (если включён в Настройках) — официальный консольный плеер, без браузера, самый лёгкий;
     /// 1) встроенный — Web Playback SDK в невидимом WebView2 (устройство «Undertone» в Spotify Connect, нужен Premium);
     /// 2) запасной — приложение Spotify на этом ПК или телефоне: Undertone управляет им через Spotify Connect.
     /// Встроенный не завёлся (нет Widevine в WebView2, нет Premium) — переходим на запасной и говорим об этом.
@@ -57,19 +59,39 @@ namespace Undertone.UI
         private DispatcherTimer? _volumeDebounce;
         private bool _disposed;
 
-        public SpotifyPlayer(SpotifyApi api, Dispatcher ui, Action<string> notify)
+        // ── Spotify Soloist ──
+        private readonly Func<SoloistDaemon?>? _soloistSource;
+        private SoloistDaemon? _soloist;
+        private bool _soloistMode;
+        private string? _soloistUri;   // URI трека в Soloist (может отличаться от нашего из-за перелинковки)
+        private bool _awaitingLoad;
+        private string? _soloistError;
+        private bool _pairHintShown;
+        private bool _wasLoggedIn;
+        private string? _soloistDeviceId; // id Soloist в Spotify Connect — для запуска списком через Web API
+        private string? _nextUri;          // какой трек Undertone ждёт следующим
+        private string? _handoffUri;       // Soloist сам перешёл на него — следующий LoadAsync просто подхватывает
+
+        /// <summary>Сколько следующих треков очереди отдавать Soloist вместе с текущим.</summary>
+        public const int SoloistLookahead = 30;
+
+        public SpotifyPlayer(SpotifyApi api, Dispatcher ui, Action<string> notify, Func<SoloistDaemon?>? soloist = null)
         {
             _api = api;
             _ui = ui;
             _notify = notify;
+            _soloistSource = soloist;
             _poll = new DispatcherTimer(DispatcherPriority.Background, ui) { Interval = TimeSpan.FromSeconds(1) };
             _poll.Tick += async (_, _) => await PollConnectAsync();
         }
 
-        /// <summary>Где сейчас звук: «Undertone» (встроенный) или имя устройства Spotify Connect.</summary>
-        public string? OutputName => _sdkDeviceId != null ? "Undertone" : _connectDeviceName;
+        /// <summary>Где сейчас звук: «Undertone» (встроенный или Soloist) или имя устройства Spotify Connect.</summary>
+        public string? OutputName => _soloistMode ? "Undertone (Soloist)" : _sdkDeviceId != null ? "Undertone" : _connectDeviceName;
 
-        public bool UsesConnect => _sdkDeviceId == null && _connectDeviceId != null;
+        public bool UsesConnect => !_soloistMode && _sdkDeviceId == null && _connectDeviceId != null;
+
+        /// <summary>Играет Spotify Soloist (звук — в устройство Windows по умолчанию).</summary>
+        public bool UsesSoloist => _soloistMode;
 
         private string? DeviceId => _sdkDeviceId ?? _connectDeviceId;
 
@@ -84,6 +106,17 @@ namespace Undertone.UI
         {
             get
             {
+                if (_soloistMode && _soloist is { } s && _soloistUri != null && s.State.ItemUri == _soloistUri)
+                    return TimeSpan.FromMilliseconds(s.State.PositionMs);
+                return LocalPosition;
+            }
+        }
+
+        /// <summary>Позиция по последнему известному состоянию, с досчётом времени, пока играет.</summary>
+        private TimeSpan LocalPosition
+        {
+            get
+            {
                 var ms = _posMs + (_playing ? (long)(DateTime.UtcNow - _posAt).TotalMilliseconds : 0);
                 if (_durationMs > 0) ms = Math.Min(ms, _durationMs);
                 return TimeSpan.FromMilliseconds(Math.Max(0, ms));
@@ -94,6 +127,13 @@ namespace Undertone.UI
 
         public void Play()
         {
+            if (_soloistMode)
+            {
+                if (_soloist is not { } solo || _trackId == null) return;
+                SetLocal(true, Position);
+                _ = Safe(() => solo.ResumeAsync());
+                return;
+            }
             if (DeviceId is not { } device || _trackId == null) return;
             SetLocal(true, Position);
             if (_sdkDeviceId != null) Run("window.undertone.resume()");
@@ -102,6 +142,13 @@ namespace Undertone.UI
 
         public void Pause()
         {
+            if (_soloistMode)
+            {
+                if (_soloist is not { } solo || !_playing) return;
+                SetLocal(false, Position);
+                _ = Safe(() => solo.PauseAsync());
+                return;
+            }
             if (DeviceId is not { } device || !_playing) return;
             SetLocal(false, Position);
             if (_sdkDeviceId != null) Run("window.undertone.pause()");
@@ -112,6 +159,13 @@ namespace Undertone.UI
 
         public void Seek(TimeSpan position)
         {
+            if (_soloistMode)
+            {
+                if (_soloist is not { } solo) return;
+                SetLocal(_playing, position);
+                _ = Safe(() => solo.SeekAsync((long)position.TotalMilliseconds));
+                return;
+            }
             if (DeviceId is not { } device) return;
             var ms = (long)position.TotalMilliseconds;
             SetLocal(_playing, position);
@@ -128,7 +182,7 @@ namespace Undertone.UI
                 Run($"window.undertone.volume({_volume.ToString(System.Globalization.CultureInfo.InvariantCulture)})");
                 return;
             }
-            if (_connectDeviceId == null) return;
+            if (_connectDeviceId == null && !_soloistMode) return;
             _volumeDebounce ??= CreateVolumeDebounce();
             _volumeDebounce.Stop();
             _volumeDebounce.Start();
@@ -140,7 +194,10 @@ namespace Undertone.UI
             t.Tick += (_, _) =>
             {
                 t.Stop();
-                if (_connectDeviceId is { } d)
+                var level = (int)Math.Round(Math.Cbrt(_volume) * 100);
+                if (_soloistMode && _soloist is { } solo)
+                    _ = Safe(() => solo.SetVolumeAsync(level), quiet: true);
+                else if (_connectDeviceId is { } d)
                     _ = Safe(() => _api.SetVolumeAsync(d, (int)Math.Round(Math.Cbrt(_volume) * 100)), quiet: true);
             };
             return t;
@@ -149,8 +206,13 @@ namespace Undertone.UI
         // ────────── запуск трека ──────────
 
         /// <summary>Включает трек с позиции и ждёт, пока он реально заиграет.</summary>
-        public async Task LoadAsync(YaTrack track, TimeSpan start, CancellationToken ct)
+        public async Task LoadAsync(YaTrack track, TimeSpan start, CancellationToken ct, IReadOnlyList<YaTrack>? upcoming = null)
         {
+            if (await TryUseSoloistAsync(ct) is { } solo)
+            {
+                await LoadSoloistAsync(solo, track, start, upcoming, ct);
+                return;
+            }
             var device = await EnsureDeviceAsync(ct);
             _trackId = track.Id;
             _durationMs = track.DurationMs;
@@ -228,6 +290,273 @@ namespace Undertone.UI
             _connectDeviceName = pick.Name;
             _notify($"Spotify играет через «{pick.Name}» (Spotify Connect)");
             return pick.Id;
+        }
+
+        // ────────── Spotify Soloist ──────────
+
+        /// <summary>Soloist включён, запущен и вошёл в Spotify — играем через него; иначе null (берём старые пути).</summary>
+        private async Task<SoloistDaemon?> TryUseSoloistAsync(CancellationToken ct)
+        {
+            var d = _soloistSource?.Invoke();
+            if (d == null || _soloistError != null)
+            {
+                if (d == null) Detach();
+                _soloistMode = false;
+                return null;
+            }
+            Attach(d);
+            try
+            {
+                await d.StartAsync(ct);
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _soloistError = ex.Message;
+                _soloistMode = false;
+                Log.Warn("Spotify: Soloist не запустился, играю как раньше", ex);
+                _notify("Soloist: " + ex.Message + ". Пока играю без него");
+                return null;
+            }
+            _wasLoggedIn = d.State.LoggedIn;
+            if (!d.State.LoggedIn)
+            {
+                // Soloist работает и ждёт, когда его выберут в приложении Spotify; а пока — как раньше
+                if (!_pairHintShown)
+                {
+                    _pairHintShown = true;
+                    _notify(new SoloistNotPairedException().Message);
+                }
+                _soloistMode = false;
+                return null;
+            }
+            if (!_soloistMode)
+            {
+                _soloistMode = true;
+                LeaveOtherOutputs();
+                Log.Info("Spotify: играю через Soloist");
+                try { await d.ResetOptionsAsync(); }
+                catch (Exception ex) { Log.Warn("Soloist: не удалось сбросить перемешивание и повтор", ex); }
+            }
+            return d;
+        }
+
+        private async Task LoadSoloistAsync(SoloistDaemon d, YaTrack track, TimeSpan start,
+            IReadOnlyList<YaTrack>? upcoming, CancellationToken ct)
+        {
+            var expected = SpotifyApi.ToUri(track.Id);
+            var next = (upcoming ?? Array.Empty<YaTrack>())
+                .Where(t => t.Available && SpotifyApi.IsSpId(t.Id) && t.Id != track.Id)
+                .Take(SoloistLookahead)
+                .ToList();
+            var handoff = _handoffUri;
+            _handoffUri = null;
+
+            // Soloist уже сам перешёл на этот трек (он шёл следующим в списке) — подхватываем без единой паузы
+            if (handoff == expected && d.State.ItemUri == expected && !d.Peeking)
+            {
+                _trackId = track.Id;
+                _durationMs = d.State.DurationMs > 0 ? d.State.DurationMs : track.DurationMs;
+                _endedFired = false;
+                _sawOurTrack = true;
+                _soloistUri = expected;
+                _awaitingLoad = false;
+                _nextUri = next.Count > 0 ? SpotifyApi.ToUri(next[0].Id) : null;
+                _started = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+                _started.TrySetResult(true);
+                SetLocal(true, TimeSpan.FromMilliseconds(d.State.PositionMs));
+                if (d.State.Status == "paused") await d.ResumeAsync();
+                if (start > TimeSpan.FromSeconds(1)) await d.SeekAsync((long)start.TotalMilliseconds);
+                return;
+            }
+
+            _trackId = track.Id;
+            _durationMs = track.DurationMs;
+            _endedFired = false;
+            _sawOurTrack = false;
+            _soloistUri = null;
+            _awaitingLoad = true;
+            SetLocal(false, start);
+            _nextUri = next.Count > 0 ? SpotifyApi.ToUri(next[0].Id) : null;
+            _started = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+            // списком через Web API: Soloist заранее подгружает следующий трек и сводит их сам, как Spotify.
+            // Не вышло (нет id устройства, сеть) — включаем один трек по локальному сокету.
+            var asList = false;
+            if (await SoloistDeviceIdAsync(ct) is { } device)
+            {
+                try
+                {
+                    await _api.PlayUrisAsync(device, new[] { track.Id }.Concat(next.Select(t => t.Id)), (long)start.TotalMilliseconds, ct);
+                    asList = true;
+                }
+                catch (OperationCanceledException) when (ct.IsCancellationRequested)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    Log.Warn("Spotify: список треков в Soloist не ушёл, включаю по одному", ex);
+                    _soloistDeviceId = null;
+                }
+            }
+            if (!asList)
+            {
+                _nextUri = null;
+                await d.PlayUriAsync(expected, ct);
+            }
+            var done = await Task.WhenAny(_started.Task, Task.Delay(LoadTimeout, ct));
+            ct.ThrowIfCancellationRequested();
+            if (done != _started.Task)
+            {
+                _awaitingLoad = false;
+                Log.Warn("Spotify: Soloist не заиграл трек за 10 с");
+                throw new YaApiException("Spotify Soloist не начал играть трек — попробуй ещё раз");
+            }
+            if (!asList && start > TimeSpan.FromSeconds(1)) await d.SeekAsync((long)start.TotalMilliseconds);
+            SetVolume(_volume);
+        }
+
+        /// <summary>Soloist в списке устройств Spotify Connect (по имени).</summary>
+        private async Task<string?> SoloistDeviceIdAsync(CancellationToken ct)
+        {
+            if (_soloistDeviceId != null) return _soloistDeviceId;
+            try
+            {
+                var devices = await _api.GetDevicesAsync(ct);
+                _soloistDeviceId = devices
+                    .Where(x => !x.IsRestricted && x.Name == SoloistDaemon.DeviceName)
+                    .OrderByDescending(x => x.IsActive)
+                    .Select(x => x.Id)
+                    .FirstOrDefault();
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                Log.Warn("Spotify: список устройств не получен", ex);
+            }
+            return _soloistDeviceId;
+        }
+
+        private void Attach(SoloistDaemon d)
+        {
+            if (ReferenceEquals(_soloist, d)) return;
+            Detach();
+            _soloist = d;
+            d.Changed += OnSoloistChanged;
+            d.Exited += OnSoloistExited;
+        }
+
+        private void Detach()
+        {
+            if (_soloist == null) return;
+            _soloist.Changed -= OnSoloistChanged;
+            _soloist.Exited -= OnSoloistExited;
+            _soloist = null;
+            _soloistMode = false;
+        }
+
+        /// <summary>Звук теперь у Soloist: встроенный плеер и Connect больше не нужны.</summary>
+        private void LeaveOtherOutputs()
+        {
+            _poll.Stop();
+            _connectDeviceId = null;
+            _connectDeviceName = null;
+            CloseSdk();
+        }
+
+        private void OnSoloistChanged(SoloistChange change)
+        {
+            if (_soloist is not { } d) return;
+            var s = d.State;
+
+            // Soloist только что выбрали в приложении Spotify: следующий трек пойдёт через него
+            // (текущий окно перезапускает само — см. MainWindow.Soloist)
+            if (change.HasFlag(SoloistChange.Auth) && s.LoggedIn && !_wasLoggedIn)
+            {
+                _wasLoggedIn = true;
+                _soloistError = null;
+                return;
+            }
+            if (!_soloistMode || _trackId == null) return;
+            // Undertone на секунду открыл в Soloist чужой плейлист, чтобы прочитать треки — это не наши события
+            if (d.Peeking) return;
+
+            var expected = SpotifyApi.ToUri(_trackId);
+            // свой трек узнаём по URI; другой URI той же длины — перелинковка (Spotify подменил на версию для региона)
+            var relinked = change.HasFlag(SoloistChange.Track) && s.DurationMs > 0 && _durationMs > 0 &&
+                           Math.Abs(s.DurationMs - _durationMs) <= 2000;
+            if (_awaitingLoad && s.ItemUri.Length > 0 && (s.ItemUri == expected || relinked))
+            {
+                _soloistUri = s.ItemUri;
+                _awaitingLoad = false;
+            }
+            else if (change.HasFlag(SoloistChange.Track) && _sawOurTrack && !_endedFired && s.ItemUri != _soloistUri)
+            {
+                // Soloist перешёл на трек, который Undertone и ждал следующим (доиграл или «дальше» с телефона) —
+                // это конец трека без паузы: следующий LoadAsync его просто подхватит
+                if (_nextUri != null && s.ItemUri == _nextUri)
+                {
+                    _handoffUri = s.ItemUri;
+                    FireEnded(pauseSoloist: false);
+                }
+                // доиграл, и Spotify включил что-то своё — дальше наша очередь; иначе включили другое в Spotify
+                else if (NearEnd(LocalPosition)) FireEnded();
+                else if (_playing) SetLocal(false, LocalPosition);
+                return;
+            }
+            if (_soloistUri == null || s.ItemUri != _soloistUri) return;
+
+            var localNearEnd = NearEnd(LocalPosition);
+            _sawOurTrack = true;
+            if (s.DurationMs > 0) _durationMs = s.DurationMs;
+            var pos = s.PositionMs;
+            SetLocal(s.IsPlaying || s.Status == "buffering", TimeSpan.FromMilliseconds(pos));
+            if (s.IsPlaying) _started?.TrySetResult(true);
+
+            var started = _started?.Task.IsCompleted == true;
+            if (!started || _endedFired) return;
+            var finished = s.Status == "idle" ||
+                           (s.Status == "paused" && _durationMs > 0 && pos >= _durationMs - 1500) ||
+                           (s.Status == "paused" && pos == 0 && localNearEnd);
+            if (finished) FireEnded();
+        }
+
+        private bool NearEnd(TimeSpan position) =>
+            _durationMs > 0 && position.TotalMilliseconds >= _durationMs - 3000;
+
+        private void OnSoloistExited(int code)
+        {
+            var wasActive = _soloistMode;
+            _soloistMode = false;
+            _wasLoggedIn = false;
+            // устаревшую сборку StartAsync обновит сам — ошибку не запоминаем, пусть попробует снова
+            if (code != SoloistDaemon.ExpiredExitCode) _soloistError = $"Soloist завершился (код {code})";
+            if (wasActive && _trackId != null && !_endedFired)
+                Failed?.Invoke(this, new YaApiException(code == SoloistDaemon.ExpiredExitCode
+                    ? "сборка Spotify Soloist устарела — включи трек ещё раз, Undertone скачает новую"
+                    : $"Spotify Soloist остановился (код {code}) — следующий трек пойдёт без него"));
+        }
+
+        /// <summary>
+        /// Поменяли настройки Soloist: забыть прошлые ошибки и подсказки.
+        /// true — звук шёл через Soloist: текущий трек надо перезапустить (с того же места) уже по-новому.
+        /// </summary>
+        public bool ResetSoloist()
+        {
+            var wasActive = _soloistMode && _trackId != null && !_endedFired;
+            if (_soloistMode) SetLocal(false, LocalPosition);
+            Detach();
+            _soloistError = null;
+            _pairHintShown = false;
+            _wasLoggedIn = false;
+            return wasActive;
         }
 
         // ────────── встроенный плеер: Web Playback SDK в WebView2 ──────────
@@ -401,11 +730,13 @@ namespace Undertone.UI
             if (finished) FireEnded();
         }
 
-        private void FireEnded()
+        private void FireEnded(bool pauseSoloist = true)
         {
             if (_endedFired) return;
             _endedFired = true;
             SetLocal(false, Duration ?? TimeSpan.Zero);
+            // Soloist после трека сам включает «похожее» — глушим: дальше играет наша очередь (или тишина, если она кончилась)
+            if (pauseSoloist && _soloistMode && _soloist is { } solo) _ = Safe(() => solo.PauseAsync(), quiet: true);
             Ended?.Invoke(this, EventArgs.Empty);
         }
 
@@ -500,6 +831,7 @@ namespace Undertone.UI
             _volumeDebounce?.Stop();
             if (_playing) Pause();
             _trackId = null;
+            Detach();
             CloseSdk();
         }
 

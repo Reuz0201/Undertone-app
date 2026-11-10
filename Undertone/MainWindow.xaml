@@ -1617,6 +1617,41 @@
                             </StackPanel>
                         </Border>
 
+                        <!-- Spotify Soloist -->
+                        <TextBlock Text="SPOTIFY" Style="{StaticResource SettingsHeader}"/>
+                        <Border Style="{StaticResource SettingsCard}">
+                            <StackPanel>
+                                <CheckBox x:Name="SoloistToggle" Style="{StaticResource ToggleSwitch}"
+                                          Checked="Soloist_Changed" Unchecked="Soloist_Changed">
+                                    <StackPanel>
+                                        <TextBlock Text="Играть через Spotify Soloist"/>
+                                        <TextBlock Style="{StaticResource SettingsHint}"
+                                                   Text="Официальный консольный плеер Spotify: звук без встроенного браузера — заметно легче для слабых ПК. Нужен Premium и свой API-ключ. Звук идёт в устройство Windows по умолчанию."/>
+                                    </StackPanel>
+                                </CheckBox>
+
+                                <TextBlock x:Name="SoloistStatusText" FontSize="13" FontWeight="SemiBold" Margin="0,14,0,0" TextWrapping="Wrap"/>
+
+                                <TextBlock Text="API-ключ Soloist" FontSize="13" Foreground="{StaticResource TextDimBrush}" Margin="0,14,0,6"/>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBox x:Name="SoloistKeyBox" Style="{StaticResource PlainBox}" Tag="Вставьте ключ со страницы Spotify for Developers"
+                                             Width="360" LostFocus="SoloistKey_LostFocus" KeyDown="SoloistKey_KeyDown"/>
+                                    <Button Style="{StaticResource PillSecondary}" Content="Получить ключ" Padding="14,8" FontSize="13"
+                                            Margin="8,0,0,0" Click="SoloistGetKey_Click"/>
+                                </StackPanel>
+
+                                <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                                    <Button x:Name="SoloistInstallBtn" Style="{StaticResource PillButton}" Content="Скачать Soloist"
+                                            Padding="16,8" FontSize="13" Click="SoloistInstall_Click"/>
+                                    <Button Style="{StaticResource PillSecondary}" Content="Что это?" Padding="14,8" FontSize="13"
+                                            Margin="8,0,0,0" Click="SoloistDocs_Click"/>
+                                </StackPanel>
+
+                                <TextBlock Style="{StaticResource SettingsHint}" Margin="0,10,0,0"
+                                           Text="Один раз: открой Spotify на телефоне или ПК в той же сети, нажми значок устройств и выбери «Undertone Soloist» — так Soloist войдёт в аккаунт. Скачивается с сайта Spotify; сборки живут 90 дней, устаревшую Undertone обновит сам. Плейлисты, лайки и поиск работают как раньше."/>
+                            </StackPanel>
+                        </Border>
+
                         <!-- эквалайзер -->
                         <TextBlock Text="ЭКВАЛАЙЗЕР" Style="{StaticResource SettingsHeader}"/>
                         <Border Style="{StaticResource SettingsCard}">

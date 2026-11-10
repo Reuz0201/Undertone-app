@@ -54,6 +54,7 @@ namespace Undertone
                 DiscordToggle.IsChecked = _settings.DiscordEnabled;
                 FillFriendsSettings();
                 DiscordAppIdBox.Text = _settings.DiscordAppId;
+                FillSoloistSettings();
                 AutostartToggle.IsChecked = Autostart.IsEnabled;
                 AutostartHint.Text = EnvFile.IsRunningFromSource
                     ? "Сейчас запущена сборка из исходников: в автозапуск попадёт именно она."

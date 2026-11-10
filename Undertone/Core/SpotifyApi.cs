@@ -39,6 +39,9 @@ namespace Undertone.Core
         private readonly ConcurrentDictionary<string, YaTrack> _known = new();
         private string? _avatar;
 
+        /// <summary>Spotify Soloist, если он включён (окно подставляет его): через него читаются чужие плейлисты.</summary>
+        public Func<SoloistDaemon?>? Soloist { get; set; }
+
         public SpotifyApi(string token, Func<string, CancellationToken, Task<string?>>? refresh = null)
             : this(new YaHttpHandler(token, refresh, new SocketsHttpHandler
             {
@@ -435,7 +438,27 @@ namespace Undertone.Core
             }
             catch (YaApiException ex) when (ex.Status is HttpStatusCode.Forbidden or HttpStatusCode.NotFound)
             {
-                throw new YaApiException("Spotify показывает треки только своих и совместных плейлистов. Этот можно открыть в приложении Spotify.", ex.Status);
+                // чужой плейлист: Web API треки не отдаёт, но Soloist может включить его и показать очередь
+                if (Soloist?.Invoke() is { } solo)
+                {
+                    try
+                    {
+                        var viaSoloist = await solo.ReadContextTracksAsync(ToUri(raw, "playlist"), ct);
+                        if (viaSoloist.Count > 0)
+                            return (meta.Kind.Length > 0 ? meta : Copy(meta, kind: ToId(raw)), viaSoloist);
+                    }
+                    catch (OperationCanceledException) when (ct.IsCancellationRequested)
+                    {
+                        throw;
+                    }
+                    catch (Exception sx)
+                    {
+                        Log.Warn("Spotify: чужой плейлист через Soloist не прочитан", sx);
+                        throw new YaApiException("Не получилось прочитать плейлист через Spotify Soloist: " + sx.Message, ex.Status);
+                    }
+                }
+                throw new YaApiException("Spotify показывает треки только своих и совместных плейлистов. " +
+                                         "Включи Spotify Soloist в Настройках — через него Undertone откроет и чужие.", ex.Status);
             }
             var tracks = Remember(items.Select(UnwrapItem).Where(t => t.ValueKind == JsonValueKind.Object));
             return (meta.Kind.Length > 0 ? meta : Copy(meta, kind: ToId(raw)), tracks);
@@ -513,6 +536,14 @@ namespace Undertone.Core
             RequestAsync(HttpMethod.Put, $"/me/player/play?device_id={Uri.EscapeDataString(deviceId)}", new Dictionary<string, object>
             {
                 ["uris"] = new[] { ToUri(trackId) },
+                ["position_ms"] = Math.Max(0, positionMs),
+            }, ct);
+
+        /// <summary>Несколько треков подряд одним списком: устройство само переходит между ними, без пауз (так играет Soloist).</summary>
+        public Task PlayUrisAsync(string deviceId, IEnumerable<string> trackIds, long positionMs, CancellationToken ct = default) =>
+            RequestAsync(HttpMethod.Put, $"/me/player/play?device_id={Uri.EscapeDataString(deviceId)}", new Dictionary<string, object>
+            {
+                ["uris"] = trackIds.Select(id => ToUri(id)).ToArray(),
                 ["position_ms"] = Math.Max(0, positionMs),
             }, ct);
 

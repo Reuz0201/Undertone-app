@@ -166,7 +166,7 @@ namespace Undertone
             IMusicService api = service switch
             {
                 MusicServiceKind.SoundCloud => new ScApi(token, (old, ct) => store.TryRefreshAsync(old, ct)),
-                MusicServiceKind.Spotify => new SpotifyApi(token, (old, ct) => store.TryRefreshAsync(old, ct)),
+                MusicServiceKind.Spotify => new SpotifyApi(token, (old, ct) => store.TryRefreshAsync(old, ct)) { Soloist = GetSoloist },
                 _ => new YaApi(token, (old, ct) => store.TryRefreshAsync(old, ct)),
             };
             _api = api;
@@ -1033,6 +1033,7 @@ namespace Undertone
             LeaveTogether(announce: false);
             _friendsFeed?.Dispose();
             DisposeSpotifyPlayer();
+            DisposeSoloist();
             _player.Dispose();
             _api?.Dispose();
             _tray?.Dispose();
