@@ -24,7 +24,7 @@
     <PackageReference Include="NAudio.WinMM" Version="2.2.1" />
     <PackageReference Include="QRCoder" Version="1.6.0" />
     <!-- встроенный плеер Spotify (Web Playback SDK) — в невидимом WebView2 -->
-    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.2903.40" />
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4314.35" />
   </ItemGroup>
 
   <ItemGroup>
